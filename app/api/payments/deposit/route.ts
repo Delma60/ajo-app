@@ -1,16 +1,8 @@
 import { NextRequest } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { adminAuth } from "@/lib/firebase/admin";
 import { PaymentService } from "@/lib/services/payment-service";
-import { z } from "zod";
 
 const SESSION_COOKIE = "__session";
-
-const depositSchema = z.object({
-  amount: z.coerce
-    .number()
-    .int("Amount must be a whole number in kobo")
-    .min(50000, "Minimum deposit is ₦500"),
-});
 
 async function getSessionUser(request: NextRequest) {
   const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
@@ -23,7 +15,6 @@ async function getSessionUser(request: NextRequest) {
 }
 
 // POST /api/payments/deposit
-// Body: { amount: number } — amount in kobo
 export async function POST(request: NextRequest) {
   try {
     const sessionUser = await getSessionUser(request);
@@ -35,45 +26,26 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const parsed = depositSchema.safeParse(body);
+    const { amount, email, name } = body;
 
-    if (!parsed.success) {
+    if (!amount || typeof amount !== "number" || amount <= 0) {
       return Response.json(
-        {
-          success: false,
-          data: null,
-          error: parsed.error.errors[0]?.message ?? "Invalid input",
-        },
+        { success: false, data: null, error: "Invalid amount" },
         { status: 400 }
       );
     }
 
-    // Fetch user profile for Flutterwave customer object
-    const userDoc = await adminDb
-      .collection("users")
-      .doc(sessionUser.uid)
-      .get();
-
-    if (!userDoc.exists) {
-      return Response.json(
-        { success: false, data: null, error: "User profile not found" },
-        { status: 404 }
-      );
-    }
-
-    const userData = userDoc.data()!;
-
     const service = new PaymentService();
-    const { link, reference } = await service.initializeDeposit(
+    const { paymentLink, reference } = await service.initializeDeposit(
       sessionUser.uid,
-      parsed.data.amount,
-      userData.email,
-      userData.name
+      amount, // kobo
+      email ?? sessionUser.email ?? "",
+      name ?? sessionUser.name ?? "AjoSave User"
     );
 
     return Response.json({
       success: true,
-      data: { paymentLink: link, reference },
+      data: { paymentLink, reference },
       error: null,
     });
   } catch (err: any) {
@@ -84,7 +56,7 @@ export async function POST(request: NextRequest) {
         data: null,
         error: err?.message ?? "Failed to initialize deposit",
       },
-      { status: 500 }
+      { status: err?.code ? 400 : 500 }
     );
   }
 }

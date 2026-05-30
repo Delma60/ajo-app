@@ -62,7 +62,12 @@ export class PaymentService {
       .createHmac("sha256", secret)
       .update(rawBody)
       .digest("hex");
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+    const expectedBuf = Buffer.from(expected);
+    const signatureBuf = Buffer.from(signature);
+    if (expectedBuf.length !== signatureBuf.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(expectedBuf, signatureBuf);
   }
 
   // ─── Deposit ───────────────────────────────────────────────────────────────
