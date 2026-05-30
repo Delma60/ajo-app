@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+
 
 export interface Contribution {
   id: string;
@@ -8,11 +8,11 @@ export interface Contribution {
   amount: number; // kobo
   // Status state machine: pending → paid | late; late → paid | missed
   status: "pending" | "paid" | "late" | "missed";
-  dueDate: Timestamp;
-  paidAt?: Timestamp;
+  dueDate: any;
+  paidAt?: any;
   transactionId?: string;
   penaltyAmount?: number; // kobo
   penaltyPaid?: boolean;
-  createdAt: Timestamp;
-  updatedAt?: Timestamp;
+  createdAt: any;
+  updatedAt?: any;
 }

@@ -1,4 +1,72 @@
-// Withdraw API route placeholder
-export async function POST(request: Request) {
-  return new Response(JSON.stringify({ success: true, data: null, error: null }), { status: 200 });
+import { NextRequest } from "next/server";
+import { adminAuth } from "@/lib/firebase/admin";
+import { PaymentService, PaymentError } from "@/lib/services/payment-service";
+
+const SESSION_COOKIE = "__session";
+
+async function getSessionUser(request: NextRequest) {
+  const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!sessionCookie) return null;
+  try {
+    return await adminAuth.verifySessionCookie(sessionCookie, true);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * POST /api/payments/withdraw
+ * Body: { amount: number (kobo), bankAccountId: string }
+ *
+ * Validates session and input, debits the wallet inside a transaction,
+ * then dispatches a Flutterwave Transfer. Final status is handled by webhook.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const sessionUser = await getSessionUser(request);
+    if (!sessionUser) {
+      return Response.json(
+        { success: false, data: null, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { amount, bankAccountId } = body;
+
+    if (!amount || typeof amount !== "number" || amount <= 0) {
+      return Response.json(
+        { success: false, data: null, error: "amount must be a positive number (kobo)" },
+        { status: 400 }
+      );
+    }
+
+    if (!bankAccountId || typeof bankAccountId !== "string") {
+      return Response.json(
+        { success: false, data: null, error: "bankAccountId is required" },
+        { status: 400 }
+      );
+    }
+
+    const service = new PaymentService();
+    const result = await service.initiateWithdrawal(
+      sessionUser.uid,
+      amount,
+      bankAccountId
+    );
+
+    return Response.json({ success: true, data: result, error: null });
+  } catch (err) {
+    if (err instanceof PaymentError) {
+      return Response.json(
+        { success: false, data: null, error: err.message },
+        { status: 400 }
+      );
+    }
+    console.error("[POST /api/payments/withdraw]", err);
+    return Response.json(
+      { success: false, data: null, error: "Withdrawal failed" },
+      { status: 500 }
+    );
+  }
 }

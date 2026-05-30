@@ -19,7 +19,7 @@ export const createCircleSchema = z.object({
   contribution: z
     .coerce.number()
     .positive("Contribution must be a positive amount")
-    .min(50000, "Minimum contribution is ₦500 (50,000 kobo)"),
+    .min(1000, "Minimum contribution is ₦1000"),
   frequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"], {
     message: "Please select a valid frequency",
   }),

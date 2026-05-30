@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+
 
 export interface Bid {
   id: string;
@@ -7,6 +7,6 @@ export interface Bid {
   userId: string;
   amount: number; // bid premium in kobo
   status: "active" | "won" | "lost" | "cancelled";
-  deadline: Timestamp;
-  createdAt: Timestamp;
+  deadline: any;
+  createdAt: any;
 }

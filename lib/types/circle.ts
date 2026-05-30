@@ -1,4 +1,4 @@
-import type { Timestamp } from "firebase/firestore";
+
 
 export interface Circle {
   id: string;
@@ -14,15 +14,15 @@ export interface Circle {
   isPrivate: boolean;
   currentCycle: number;
   totalCycles: number;
-  nextDueDate: Timestamp;
-  nextPayoutDate: Timestamp;
+  nextDueDate: any;
+  nextPayoutDate: any;
   currentRecipientId: string;
   trustScore: number;
   trustScoreBreakdown: {
     onTimePayments: number;
     latePayments: number;
     missedPayments: number;
-    lastUpdated: Timestamp;
+    lastUpdated: any;
   };
   saved: number; // kobo — total saved so far
   creationFee: number; // kobo
@@ -30,8 +30,8 @@ export interface Circle {
   pendingRequestIds: string[];
   inviteCode: string;
   activeBidId?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: any;
+  updatedAt: any;
 }
 
 // Derived field — always compute at read time, never store
