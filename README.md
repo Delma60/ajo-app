@@ -160,8 +160,7 @@ service cloud.firestore {
 ## Folder Structure
 
 ```
-src/
-├── app/
+app/
 │   ├── (auth)/
 │   │   ├── login/page.tsx
 │   │   └── register/page.tsx
@@ -551,7 +550,7 @@ Add `vercel.json` at the project root:
 Every cron route must check the secret header:
 
 ```typescript
-// src/app/api/cron/process-payouts/route.ts
+// app/api/cron/process-payouts/route.ts
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -692,7 +691,7 @@ Email open rates in Nigeria are low. Use Termii as the primary channel for time-
 | Late payment warning | SMS |
 
 ```typescript
-// src/lib/services/sms-service.ts
+// lib/services/sms-service.ts
 export async function sendSms(phone: string, message: string) {
   await fetch('https://api.ng.termii.com/api/sms/send', {
     method: 'POST',
