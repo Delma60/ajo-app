@@ -1,6 +1,6 @@
 import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { Circle, Contribution, User, Wallet, Bid, Transaction } from "@/lib/types";
+// import { Circle, Contribution, User, Wallet, Bid, Transaction } from "@/lib/types";
 import {
   MAX_ACTIVE_CIRCLES,
   // MIN_DEPOSIT_KOBO, // Not directly used here
@@ -12,7 +12,13 @@ import {
 // Placeholder for other services (assuming they exist and have these methods)
 import * as paymentService from "@/lib/services/payment-service"; // Not directly used in this service, but good to acknowledge
 import * as notificationService from "@/lib/services/notification-service";
-import * as smsService from "@/lib/services/sms-service";
+import { Circle } from "../types/circle";
+import { Wallet } from "../types/wallet";
+import { Transaction } from "../types/transaction";
+import { User } from "../types/user";
+import { Contribution } from "../types/contribution";
+import { Bid } from "../types/bid";
+// import * as smsService from "@/lib/services/sms-service";
 
 // CustomError utility (can be moved to a separate file like lib/utils/errors.ts)
 class CustomError extends Error {

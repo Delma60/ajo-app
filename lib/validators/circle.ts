@@ -21,10 +21,10 @@ export const createCircleSchema = z.object({
     .positive("Contribution must be a positive amount")
     .min(50000, "Minimum contribution is ₦500 (50,000 kobo)"),
   frequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"], {
-    errorMap: () => ({ message: "Please select a valid frequency" }),
+    message: "Please select a valid frequency",
   }),
   payoutOrder: z.enum(["rotational", "random", "bidding"], {
-    errorMap: () => ({ message: "Please select a valid payout order" }),
+    message: "Please select a valid payout order",
   }),
   isPrivate: z.boolean().default(false),
   tags: z.array(z.string()).max(5, "Max 5 tags allowed").optional().default([]),

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePublicCircles, useJoinCircle } from "@/lib/hooks/use-circle";
-import { CircleCardSkeleton } from "@/components/circles/circle-card";
+import { CircleCardSkeleton } from "@/components/circles/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,7 @@ function DiscoverCard({
   alreadyMember,
 }: DiscoverCardProps) {
   const fillPct = Math.round(
-    (circle.memberIds.length / circle.maxMembers) * 100
+    (circle.memberIds.length / circle.maxMembers) * 100,
   );
   const spotsLeft = circle.maxMembers - circle.memberIds.length;
 
@@ -49,8 +49,8 @@ function DiscoverCard({
     fillPct >= 80
       ? "[&>[data-slot=progress-indicator]]:bg-emerald-500"
       : fillPct >= 50
-      ? "[&>[data-slot=progress-indicator]]:bg-amber-400"
-      : "[&>[data-slot=progress-indicator]]:bg-blue-500";
+        ? "[&>[data-slot=progress-indicator]]:bg-amber-400"
+        : "[&>[data-slot=progress-indicator]]:bg-blue-500";
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3 hover:border-primary/40 transition-colors group">
@@ -86,7 +86,11 @@ function DiscoverCard({
       {circle.tags?.length > 0 && (
         <div className="flex gap-1.5 flex-wrap">
           {circle.tags.map((tag) => (
-            <Badge key={tag} variant="outline" className="text-[10px] h-4 px-1.5">
+            <Badge
+              key={tag}
+              variant="outline"
+              className="text-[10px] h-4 px-1.5"
+            >
               {tag}
             </Badge>
           ))}
@@ -95,10 +99,7 @@ function DiscoverCard({
 
       {/* Progress */}
       <div className="space-y-1">
-        <Progress
-          value={fillPct}
-          className={cn("h-1", progressColorCls)}
-        />
+        <Progress value={fillPct} className={cn("h-1", progressColorCls)} />
         <p className="text-xs text-muted-foreground">
           {spotsLeft === 0
             ? "Circle is full"
@@ -115,8 +116,8 @@ function DiscoverCard({
               circle.trustScore >= 80
                 ? "bg-emerald-500"
                 : circle.trustScore >= 50
-                ? "bg-amber-400"
-                : "bg-red-500"
+                  ? "bg-amber-400"
+                  : "bg-red-500",
             )}
           />
           Trust score: {circle.trustScore}/100
@@ -170,7 +171,7 @@ export function DiscoverCirclesContent({
       toast.success("Join request sent! The admin will review your request.");
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Could not send join request."
+        err instanceof Error ? err.message : "Could not send join request.",
       );
     } finally {
       setJoiningId(null);
@@ -179,7 +180,7 @@ export function DiscoverCirclesContent({
 
   const filtered = (circles ?? [])
     .filter((c) =>
-      frequencyFilter === "all" ? true : c.frequency === frequencyFilter
+      frequencyFilter === "all" ? true : c.frequency === frequencyFilter,
     )
     .sort((a, b) => {
       if (sortBy === "members") return b.memberIds.length - a.memberIds.length;
@@ -230,7 +231,9 @@ export function DiscoverCirclesContent({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="members">Most members</SelectItem>
-                <SelectItem value="contribution">Highest contribution</SelectItem>
+                <SelectItem value="contribution">
+                  Highest contribution
+                </SelectItem>
                 <SelectItem value="trust">Trust score</SelectItem>
               </SelectContent>
             </Select>

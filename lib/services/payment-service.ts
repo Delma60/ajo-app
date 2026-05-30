@@ -1,7 +1,7 @@
 import crypto from "crypto";
-import { adminDb } from "@/lib/firebase/admin";
+import { admin, adminDb } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { Transaction, Wallet, User } from "@/lib/types";
+// import { Transaction, Wallet, User } from "@/lib/types";
 import {
   MIN_DEPOSIT_KOBO,
   MIN_WITHDRAW_KOBO,
@@ -9,6 +9,9 @@ import {
   WITHDRAW_FEE_PERCENT,
 } from "@/lib/constants";
 import * as notificationService from "@/lib/services/notification-service";
+import { Transaction } from "../types/transaction";
+import { User } from "../types/user";
+import { Wallet } from "../types/wallet";
 
 class CustomError extends Error {
   constructor(public code: string, message: string) {
