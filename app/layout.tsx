@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/providers/auth";
+import { QueryProvider } from "@/lib/providers/tanstack-query";
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
@@ -46,9 +47,12 @@ export default function RootLayout({
       className={`${dmSans.variable} ${playfairDisplay.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <AuthProvider>
-          <TooltipProvider>{children}</TooltipProvider>
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <TooltipProvider>{children}</TooltipProvider>
+          </AuthProvider>
+        </QueryProvider>
+
         <Toaster
           position="top-right"
           richColors
