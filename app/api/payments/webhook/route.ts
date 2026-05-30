@@ -1,3 +1,8 @@
+// Force Node.js runtime so `node:crypto` / `crypto` is available.
+// Without this, Next.js may attempt to bundle the route for the Edge runtime
+// which does not support the Node crypto module.
+export const runtime = "nodejs";
+
 import { NextRequest } from "next/server";
 import { PaymentService } from "@/lib/services/payment-service";
 

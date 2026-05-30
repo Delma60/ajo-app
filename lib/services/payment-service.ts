@@ -15,7 +15,7 @@
  * All amounts are in kobo (1 NGN = 100 kobo).
  */
 
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import {
@@ -54,21 +54,21 @@ export class PaymentService {
   private readonly usersCol = adminDb.collection("users");
 
   // ─── Webhook signature ─────────────────────────────────────────────────────
-
   verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
-    if (!signature) return false;
-    const secret = process.env.FLUTTERWAVE_SECRET_KEY!;
-    const expected = crypto
-      .createHmac("sha256", secret)
-      .update(rawBody)
-      .digest("hex");
-    const expectedBuf = Buffer.from(expected);
-    const signatureBuf = Buffer.from(signature);
-    if (expectedBuf.length !== signatureBuf.length) {
-      return false;
-    }
-    return crypto.timingSafeEqual(expectedBuf, signatureBuf);
+  if (!signature) return false;
+
+  const secretHash = process.env.FLUTTERWAVE_SECRET_HASH;
+  if (!secretHash) {
+    console.error("[payment-service] FLUTTERWAVE_SECRET_HASH env var is not set.");
+    return false;
   }
+
+  // Flutterwave sends the secret hash directly — plain comparison, no HMAC
+  return crypto.timingSafeEqual(
+    Buffer.from(secretHash),
+    Buffer.from(signature)
+  );
+}
 
   // ─── Deposit ───────────────────────────────────────────────────────────────
 
@@ -307,17 +307,18 @@ export class PaymentService {
 
       const userId = pendingData.userId;
 
-      // Mark transaction as success
+
+      // Credit wallet (all reads must happen before writes)
+      await creditWallet(tx, userId, amountKobo, "deposit", "Wallet funding confirmed", {
+        reference: txRef,
+        providerReference,
+      });
+
+      // Mark transaction as success (write after all reads)
       tx.update(pendingDoc.ref, {
         status: "success",
         providerReference,
         updatedAt: FieldValue.serverTimestamp(),
-      });
-
-      // Credit wallet
-      await creditWallet(tx, userId, amountKobo, "deposit", "Wallet funding confirmed", {
-        reference: txRef,
-        providerReference,
       });
 
       // Attempt referral bonus (best-effort — failure must not block the deposit)

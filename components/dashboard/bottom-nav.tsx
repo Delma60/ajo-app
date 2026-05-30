@@ -2,65 +2,61 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Users, Wallet, Bell, User } from "lucide-react";
+import {
+  LayoutDashboardIcon,
+  Users2Icon,
+  WalletIcon,
+  BellIcon,
+  UserIcon,
+} from "lucide-react";
+import { useUnreadNotificationCount } from "@/lib/hooks/use-notifications";
 import { cn } from "@/lib/utils";
 
-const BOTTOM_NAV_ITEMS = [
-  { icon: Home, label: "Home", href: "/dashboard" },
-  { icon: Users, label: "Circles", href: "/circles" },
-  { icon: Wallet, label: "Wallet", href: "/wallet" },
-  { icon: Bell, label: "Notifications", href: "/notifications" },
-  { icon: User, label: "Profile", href: "/settings" },
+const NAV_ITEMS = [
+  { href: "/dashboard", label: "Home", icon: LayoutDashboardIcon },
+  { href: "/circles", label: "Circles", icon: Users2Icon },
+  { href: "/wallet", label: "Wallet", icon: WalletIcon },
+  { href: "/notifications", label: "Alerts", icon: BellIcon, isNotifications: true },
+  { href: "/settings", label: "Profile", icon: UserIcon },
 ];
 
-interface BottomNavProps {
-  unreadCount?: number;
-}
-
-export function BottomNav({ unreadCount = 0 }: BottomNavProps) {
+export function BottomNav() {
   const pathname = usePathname();
+  const unreadCount = useUnreadNotificationCount();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background border-t border-border">
-      <div className="flex items-center justify-around h-16 px-2 safe-area-inset-bottom">
-        {BOTTOM_NAV_ITEMS.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
-          const isNotifications = item.href === "/notifications";
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border safe-area-pb">
+      <div className="flex items-center justify-around h-16 px-2">
+        {NAV_ITEMS.map(({ href, label, icon: Icon, isNotifications }) => {
+          const active =
+            href === "/dashboard"
+              ? pathname === "/dashboard"
+              : pathname.startsWith(href);
 
           return (
             <Link
-              key={item.href}
-              href={item.href}
+              key={href}
+              href={href}
               className={cn(
-                "flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors relative min-w-[3rem]",
-                isActive
+                "relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full py-2",
+                "text-[10px] font-medium transition-colors",
+                active
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
+              aria-label={label}
             >
               <div className="relative">
-                <item.icon
-                  className={cn("size-5", isActive && "stroke-[2.5px]")}
-                />
+                <Icon className="size-5 shrink-0" />
+
+                {/* Live badge */}
                 {isNotifications && unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-                    {unreadCount > 9 ? "9+" : unreadCount}
+                  <span className="absolute -top-1 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-bold text-primary-foreground leading-none">
+                    {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
               </div>
-              <span
-                className={cn(
-                  "text-[10px] font-medium leading-none",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                {item.label}
-              </span>
-              {isActive && (
-                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-4 h-0.5 rounded-full bg-primary" />
-              )}
+              <span>{label}</span>
             </Link>
           );
         })}

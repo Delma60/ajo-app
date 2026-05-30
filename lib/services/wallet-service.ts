@@ -107,7 +107,9 @@ export async function creditWallet(
 
   // Create transaction record
   const txRef = adminDb.collection("transactions").doc();
-  const txDoc: Omit<AppTransaction, "id"> = {
+
+  // Build txDoc and remove undefined values
+  const txDocRaw: Omit<AppTransaction, "id"> = {
     userId,
     circleId: meta?.circleId,
     type,
@@ -122,6 +124,8 @@ export async function creditWallet(
     createdAt: FieldValue.serverTimestamp() as any,
     updatedAt: FieldValue.serverTimestamp() as any,
   };
+  // Remove undefined values
+  const txDoc = Object.fromEntries(Object.entries(txDocRaw).filter(([_, v]) => v !== undefined));
   firestoreTx.set(txRef, txDoc);
 
   return txRef.id;
