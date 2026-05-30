@@ -1,0 +1,1 @@
+// Firebase admin SDK init placeholder
