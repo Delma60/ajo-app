@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 
+export const runtime = "nodejs";
 const SESSION_COOKIE_NAME = "__session";
 
 // Routes that require authentication
