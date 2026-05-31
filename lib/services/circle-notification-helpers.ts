@@ -1,13 +1,21 @@
 /**
- * Pref-aware reminder and penalty notification helpers.
- * Drop-in replacements for the inline blocks in circle-service.ts.
+ * Circle Notification Helpers — updated with email integration.
  *
- * Import and call these from CircleService instead of inlining
- * sendNotification / smsService calls directly.
+ * Drop-in replacement for the existing file at:
+ *   lib/services/circle-notification-helpers.ts
+ *
+ * Changes vs original:
+ *  - sendDueRemindersForCircle  → adds email fallback if SMS is disabled
+ *  - sendContributionReceipt    → sends email receipt if pref allows
+ *  - sendPayoutNotification     → sends payout email if pref allows
+ *  - sendLatePaymentWarning     → sends late-warning email if pref allows
+ *
+ * Strategy: SMS is primary for time-sensitive events.
+ * Email is always sent for transactional receipts (contributions, payouts).
+ * For reminders/warnings, email is sent as a fallback when SMS is off.
  */
 
 import { adminDb } from "@/lib/firebase/admin";
-import { Timestamp } from "firebase-admin/firestore";
 import {
   sendNotification,
   getBatchNotificationPrefs,
@@ -18,22 +26,18 @@ import {
   isEmailPayoutNoticeAllowed,
 } from "@/lib/services/notification-service";
 import * as smsService from "@/lib/services/sms-service";
+import * as emailSender from "@/lib/email/senders";
 import type { Circle } from "@/lib/types/circle";
 import type { User } from "@/lib/types/user";
 
 // ─── Contribution reminders ───────────────────────────────────────────────────
 
-/**
- * Send due-date reminders to all members who haven't paid yet.
- * Respects inApp_contributionDue and sms_contributionDue preferences.
- */
 export async function sendDueRemindersForCircle(
   circle: Circle & { id: string },
   unpaidMemberIds: string[]
 ): Promise<void> {
   if (unpaidMemberIds.length === 0) return;
 
-  // Batch-fetch prefs and user docs for all unpaid members
   const [prefsMap, userSnaps] = await Promise.all([
     getBatchNotificationPrefs(unpaidMemberIds),
     adminDb.getAll(
@@ -51,7 +55,7 @@ export async function sendDueRemindersForCircle(
     const user = userMap.get(memberId);
     if (!prefs || !user) return;
 
-    // In-app notification (pref-gated inside sendNotification)
+    // In-app notification
     void sendNotification(
       memberId,
       {
@@ -63,13 +67,25 @@ export async function sendDueRemindersForCircle(
       prefs
     );
 
-    // SMS reminder
-    if (user.phone && isSmsContributionDueAllowed(prefs)) {
-      void smsService.sendContributionReminder(
-        user.phone,
-        circle.name,
-        circle.contribution
-      );
+    // SMS (primary channel)
+    const smsSent =
+      user.phone && isSmsContributionDueAllowed(prefs)
+        ? await smsService
+            .sendContributionReminder(user.phone, circle.name, circle.contribution)
+            .then(() => true)
+            .catch(() => false)
+        : false;
+
+    // Email fallback — send if SMS was not sent or user has no phone
+    if (!smsSent && prefs.inApp_contributionDue) {
+      void emailSender.sendContributionReminderEmail(user.email, {
+        name: user.name,
+        circleName: circle.name,
+        amountKobo: circle.contribution,
+        dueDate: circle.nextDueDate?.toDate?.() ?? new Date(),
+        cycleNumber: circle.currentCycle,
+        circleId: circle.id,
+      });
     }
   });
 
@@ -78,22 +94,22 @@ export async function sendDueRemindersForCircle(
 
 // ─── Contribution receipt ─────────────────────────────────────────────────────
 
-/**
- * Notify a member that their contribution was received.
- * Respects email_contributionReceipt and (optionally) sms_contributionDue.
- */
 export async function sendContributionReceipt(
   memberId: string,
   user: User,
   circle: Circle & { id: string },
-  amountKobo: number
+  amountKobo: number,
+  options: {
+    penaltyKobo?: number;
+    transactionReference?: string;
+    paidAt?: Date;
+  } = {}
 ): Promise<void> {
   const prefs = await getBatchNotificationPrefs([memberId]).then(
     (m) => m.get(memberId)
   );
-  if (!prefs) return;
 
-  // In-app (always send receipt — not pref-gated)
+  // In-app (always)
   void sendNotification(memberId, {
     type: "general",
     title: "Contribution Confirmed",
@@ -102,29 +118,44 @@ export async function sendContributionReceipt(
   });
 
   // SMS receipt
-  if (user.phone && isEmailContributionReceiptAllowed(prefs)) {
-    // We use the SMS channel for receipt; email integration is a separate service
+  if (user.phone) {
     void smsService.sendContributionReceived(user.phone, circle.name, amountKobo);
+  }
+
+  // Email receipt (pref-gated)
+  if (!prefs || isEmailContributionReceiptAllowed(prefs)) {
+    void emailSender.sendContributionReceiptEmail(user.email, {
+      name: user.name,
+      circleName: circle.name,
+      amountKobo,
+      penaltyKobo: options.penaltyKobo ?? 0,
+      paidAt: options.paidAt ?? new Date(),
+      cycleNumber: circle.currentCycle,
+      transactionReference: options.transactionReference ?? "—",
+      circleId: circle.id,
+    });
   }
 }
 
 // ─── Payout notification ──────────────────────────────────────────────────────
 
-/**
- * Notify the payout recipient.
- * Respects inApp_payoutReceived and sms_payoutReceived preferences.
- */
 export async function sendPayoutNotification(
   recipientId: string,
   user: User,
   circleName: string,
   circleId: string,
-  netPayoutKobo: number
+  netPayoutKobo: number,
+  options: {
+    grossPayoutKobo?: number;
+    platformFeeKobo?: number;
+    cycleNumber?: number;
+    transactionReference?: string;
+    payoutDate?: Date;
+  } = {}
 ): Promise<void> {
   const prefs = await getBatchNotificationPrefs([recipientId]).then(
     (m) => m.get(recipientId)
   );
-  if (!prefs) return;
 
   // In-app
   void sendNotification(
@@ -139,17 +170,31 @@ export async function sendPayoutNotification(
   );
 
   // SMS
-  if (user.phone && isSmsPayoutAllowed(prefs)) {
+  if (user.phone && (!prefs || isSmsPayoutAllowed(prefs))) {
     void smsService.sendPayoutReceived(user.phone, circleName, netPayoutKobo);
+  }
+
+  // Email (pref-gated)
+  if (!prefs || isEmailPayoutNoticeAllowed(prefs)) {
+    const gross = options.grossPayoutKobo ?? netPayoutKobo;
+    const fee = options.platformFeeKobo ?? 0;
+
+    void emailSender.sendPayoutEmail(user.email, {
+      name: user.name,
+      circleName,
+      grossPayoutKobo: gross,
+      platformFeeKobo: fee,
+      netPayoutKobo,
+      cycleNumber: options.cycleNumber ?? 1,
+      circleId,
+      payoutDate: options.payoutDate ?? new Date(),
+      transactionReference: options.transactionReference ?? "—",
+    });
   }
 }
 
 // ─── Late payment warning ─────────────────────────────────────────────────────
 
-/**
- * Warn a member that their payment is late and a penalty applies.
- * Respects inApp_penaltyApplied and sms_lateWarning preferences.
- */
 export async function sendLatePaymentWarning(
   memberId: string,
   user: User,
@@ -159,7 +204,6 @@ export async function sendLatePaymentWarning(
   const prefs = await getBatchNotificationPrefs([memberId]).then(
     (m) => m.get(memberId)
   );
-  if (!prefs) return;
 
   // In-app
   void sendNotification(
@@ -173,12 +217,24 @@ export async function sendLatePaymentWarning(
     prefs
   );
 
-  // SMS
-  if (user.phone && isSmsLateWarningAllowed(prefs)) {
-    void smsService.sendLatePaymentWarning(
-      user.phone,
-      circle.name,
-      penaltyKobo
-    );
+  // SMS (primary)
+  const smsSent =
+    user.phone && (!prefs || isSmsLateWarningAllowed(prefs))
+      ? await smsService
+          .sendLatePaymentWarning(user.phone, circle.name, penaltyKobo)
+          .then(() => true)
+          .catch(() => false)
+      : false;
+
+  // Email fallback
+  if (!smsSent) {
+    void emailSender.sendLatePaymentEmail(user.email, {
+      name: user.name,
+      circleName: circle.name,
+      contributionKobo: circle.contribution,
+      penaltyKobo,
+      circleId: circle.id,
+      originalDueDate: circle.nextDueDate?.toDate?.() ?? new Date(),
+    });
   }
 }

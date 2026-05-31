@@ -13,6 +13,8 @@ import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 import type { User as AppUser } from "@/lib/types/user";
 
+import { sendWelcomeEmail } from "@/lib/email/senders";
+
 function generateReferralCode(uid: string): string {
   return uid.slice(0, 8).toUpperCase();
 }
@@ -78,6 +80,9 @@ export async function signUpWithEmail(
     updatedAt: serverTimestamp(),
   });
 
+  // Send welcome email (fire-and-forget, never throws)
+  void sendWelcomeEmail({ name, email });
+
   const idToken = await user.getIdToken();
   await createSession(idToken);
 
@@ -103,6 +108,7 @@ export async function signInWithGoogle(): Promise<User> {
 
   const credential = await signInWithPopup(auth, provider);
   const { user } = credential;
+
 
   // Upsert user doc (may be first Google sign-in)
   const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -135,6 +141,9 @@ export async function signInWithGoogle(): Promise<User> {
       currency: "NGN",
       updatedAt: serverTimestamp(),
     });
+
+    // Send welcome email (fire-and-forget, never throws)
+    void sendWelcomeEmail({ name: user.displayName ?? "", email: user.email ?? "" });
   }
 
   const idToken = await user.getIdToken();

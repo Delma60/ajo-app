@@ -8,6 +8,7 @@
 import { adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { sendNotification } from "@/lib/services/notification-service";
+import * as emailSender from "@/lib/email/senders";
 import type { Dispute } from "@/lib/types/dispute";
 import type { User } from "@/lib/types/user";
 
@@ -106,6 +107,28 @@ export class DisputeService {
       body: `${reporter.name} raised a "${input.type}" dispute for circle "${circle.name}".`,
       link: `/admin/disputes`,
     });
+
+    // Fetch admin emails for the email notification
+    const adminSnap = await this.usersCol.where("role", "==", "admin").get();
+    if (!adminSnap.empty) {
+      const admins = adminSnap.docs.map((d) => d.data() as User);
+      for (const admin of admins) {
+        void emailSender.sendDisputeRaisedEmails({
+          adminEmail: admin.email,
+          adminName: admin.name,
+          reporterEmail: reporter.email,
+          reporterName: reporter.name,
+          circleName: circle.name,
+          circleId: input.circleId,
+          disputeType: input.type,
+          description: input.description,
+          disputeId: disputeRef.id,
+          againstUserName: input.againstUserId
+            ? (await this.usersCol.doc(input.againstUserId).get()).data()?.name
+            : undefined,
+        });
+      }
+    }
 
     // Confirm receipt to the reporter
     await sendNotification(input.raisedBy, {
@@ -264,6 +287,23 @@ export class DisputeService {
           : `Your dispute has been ${outcomeLabel} by the platform team.`,
         link: `/circles/${dispute.circleId}`,
       });
+
+      // Fetch the reporter's email and send resolution email
+      const reporterSnap = await this.usersCol.doc(dispute.raisedBy).get();
+      if (reporterSnap.exists) {
+        const reporter = reporterSnap.data() as User;
+        const circleSnap = await this.circlesCol.doc(dispute.circleId).get();
+        const circleName = circleSnap.data()?.name ?? "your circle";
+
+        void emailSender.sendDisputeResolvedEmail(reporter.email, {
+          name: reporter.name,
+          circleName,
+          outcome: newStatus as "resolved" | "dismissed",
+          resolution,
+          disputeId: disputeId,
+          circleId: dispute.circleId,
+        });
+      }
     }
 
     return { ...dispute, ...update } as Dispute;
