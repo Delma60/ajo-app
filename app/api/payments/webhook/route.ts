@@ -1,6 +1,3 @@
-// Force Node.js runtime so `node:crypto` / `crypto` is available.
-// Without this, Next.js may attempt to bundle the route for the Edge runtime
-// which does not support the Node crypto module.
 export const runtime = "nodejs";
 
 import { NextRequest } from "next/server";
@@ -10,46 +7,61 @@ import { PaymentService } from "@/lib/services/payment-service";
  * POST /api/payments/webhook
  * Handles Flutterwave webhook events.
  *
- * Security: Every request is verified against the HMAC-SHA256 signature
- * in the `verif-hash` header. Requests with an invalid or missing signature
- * are rejected with 401.
+ * Security: Flutterwave sends your "Secret Hash" (set in the dashboard under
+ * Webhooks → Secret Hash) in the `verif-hash` header on every request.
+ * We compare it directly against FLUTTERWAVE_SECRET_HASH env var.
  *
- * Idempotency: The PaymentService checks whether a providerReference has
- * already been processed before crediting any wallet, preventing double-credits
- * on duplicate webhook retries (which are common with Flutterwave).
+ * This is NOT an HMAC comparison — it is a plain string comparison.
+ * See: https://developer.flutterwave.com/docs/integration-guides/webhooks/
+ *
+ * Idempotency: PaymentService checks providerReference uniqueness before
+ * crediting any wallet, preventing double-credits on retries.
  */
 export async function POST(request: NextRequest) {
-  // Read raw body for signature verification — must happen before .json()
-  let rawBody = await request.text();
-  // Remove BOM if present
+  let rawBody: string;
+
+  try {
+    rawBody = await request.text();
+  } catch {
+    console.error("[webhook] Failed to read request body");
+    return Response.json({ success: true, data: null, error: "Unreadable body" });
+  }
+
+  // Strip BOM if present
   if (rawBody.charCodeAt(0) === 0xfeff) {
     rawBody = rawBody.slice(1);
   }
+
   if (!rawBody.trim()) {
-    // Empty body, return 200 so Flutterwave doesn't retry
     return Response.json({ success: true, data: null, error: "Empty body" });
   }
+
   const signature = request.headers.get("verif-hash");
   const service = new PaymentService();
+
   if (!service.verifyWebhookSignature(rawBody, signature)) {
-    console.warn("[webhook] Invalid or missing Flutterwave signature");
+    // Log enough context to diagnose without leaking the secret
+    console.warn(
+      "[webhook] Signature mismatch.",
+      `header=${signature ? `"${signature.slice(0, 6)}…"` : "null"}`,
+      `FLUTTERWAVE_SECRET_HASH set=${!!process.env.FLUTTERWAVE_SECRET_HASH}`
+    );
     return new Response("Unauthorized", { status: 401 });
   }
+
   let payload: Record<string, unknown>;
   try {
     payload = JSON.parse(rawBody);
   } catch (err) {
-    // Always return 200 so Flutterwave doesn't retry, but log the error
     console.error("[webhook] Invalid JSON payload:", err, rawBody?.slice(0, 200));
     return Response.json({ success: true, data: null, error: "Invalid JSON" });
   }
+
   try {
     await service.handleWebhook(payload);
     return Response.json({ success: true, data: null, error: null });
   } catch (err) {
-    // Always return 200 to Flutterwave so they don't keep retrying.
-    // Log the error for investigation — the idempotency check prevents damage
-    // if the same event is delivered again after a retry.
+    // Always 200 to Flutterwave — idempotency guards prevent double-processing.
     console.error("[webhook] handleWebhook error:", err);
     return Response.json({ success: true, data: null, error: null });
   }

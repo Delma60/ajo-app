@@ -1,27 +1,21 @@
 /**
  * Payment Service — Flutterwave integration.
  *
- * Deposit flow:
- *   1. initializeDeposit()
- *        → creates transactions/{reference} with status "pending"
- *        → returns Flutterwave payment link
- *   2. handleWebhook() → charge.completed → processSuccessfulDeposit()
- *        → updates the SAME transactions/{reference} doc to status "success"
- *        → credits the wallet balance only (no new transaction doc created)
- *        → awards referral bonus if eligible (creates its own referral_bonus tx)
+ * ─── FIRESTORE TRANSACTION READ-BEFORE-WRITE RULE ───────────────────────────
+ * All tx.get() calls must complete before any tx.set() / tx.update() in the
+ * same transaction. processSuccessfulDeposit() was violating this by calling
+ * creditWalletBalance() (which called tx.get(walletRef)) after already calling
+ * tx.update(pendingRef). Fixed by pre-reading both docs at the top of the
+ * transaction before any writes are issued. creditWalletBalance() no longer
+ * does a tx.get().
  *
- * This ensures exactly ONE transaction record per deposit.
- *
- * Withdrawal flow:
- *   1. initiateWithdrawal()
- *        → validates, debits wallet inside transaction (creates withdrawal tx doc)
- *   2. handleWebhook() → transfer.completed / transfer.failed
- *        → on failed: refunds gross amount (creates a new credit tx doc)
- *
- * All amounts are in kobo (1 NGN = 100 kobo).
+ * ─── TWO DIFFERENT FLUTTERWAVE SECRETS ──────────────────────────────────────
+ * FLUTTERWAVE_SECRET_KEY   → API key for initiating payments/transfers.
+ * FLUTTERWAVE_SECRET_HASH  → Plain string for verifying webhook requests.
+ *                            Set in Flutterwave dashboard → Settings → Webhooks.
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import {
@@ -35,7 +29,9 @@ import { MIN_DEPOSIT_KOBO, MIN_WITHDRAW_KOBO } from "@/lib/constants";
 import type { User, BankAccount } from "@/lib/types/user";
 import type { Transaction } from "@/lib/types/transaction";
 import type { Wallet } from "@/lib/types/wallet";
-// ─── Flutterwave fetch helper ───────────────────────────────────────────────
+
+// ─── Flutterwave fetch helper ─────────────────────────────────────────────────
+
 async function flwFetch(url: string, options: RequestInit): Promise<any> {
   const res = await fetch(url, options);
   const text = await res.text();
@@ -69,7 +65,7 @@ export class PaymentError extends Error {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const FLW_API = "https://api.flutterwave.com/v3";
-const REFERRAL_BONUS_KOBO = 50_000; // ₦500
+const REFERRAL_BONUS_KOBO = 50_000;        // ₦500
 const REFERRAL_MIN_DEPOSIT_KOBO = 100_000; // ₦1,000
 const REFERRAL_MONTHLY_LIMIT = 50;
 
@@ -80,29 +76,34 @@ export class PaymentService {
   private readonly walletsCol = adminDb.collection("wallets");
   private readonly usersCol = adminDb.collection("users");
 
-  // ─── Webhook signature ─────────────────────────────────────────────────────
+  // ─── Webhook signature ──────────────────────────────────────────────────────
 
-  verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
-  if (!signature) return false;
-  const secret = process.env.FLUTTERWAVE_SECRET_KEY!;
-  const expected = createHmac("sha256", secret)
-    .update(rawBody)
-    .digest("hex");
-  const expectedBuf = Buffer.from(expected);
-  const signatureBuf = Buffer.from(signature);
-  if (expectedBuf.length !== signatureBuf.length) return false;
-  return timingSafeEqual(expectedBuf, signatureBuf);
-}
+  verifyWebhookSignature(_rawBody: string, signature: string | null): boolean {
+    if (!signature) {
+      console.warn("[payment-service] verif-hash header is missing");
+      return false;
+    }
+    const secret = process.env.FLUTTERWAVE_SECRET_HASH;
+    if (!secret) {
+      console.error(
+        "[payment-service] FLUTTERWAVE_SECRET_HASH env var is not set. " +
+        "Add it to .env.local — it is the Secret Hash from your Flutterwave " +
+        "dashboard (Settings → Webhooks), NOT the same as FLUTTERWAVE_SECRET_KEY."
+      );
+      return false;
+    }
+    try {
+      const secretBuf = Buffer.from(secret);
+      const signatureBuf = Buffer.from(signature);
+      if (secretBuf.length !== signatureBuf.length) return false;
+      return timingSafeEqual(secretBuf, signatureBuf);
+    } catch {
+      return false;
+    }
+  }
 
-  // ─── Deposit ───────────────────────────────────────────────────────────────
+  // ─── Deposit ────────────────────────────────────────────────────────────────
 
-  /**
-   * Initialise a Flutterwave deposit.
-   *
-   * Creates a SINGLE pending transaction document keyed by `reference`.
-   * The webhook will update this same document to "success" — no second
-   * document is ever written for the deposit itself.
-   */
   async initializeDeposit(
     userId: string,
     amountKobo: number,
@@ -133,6 +134,7 @@ export class PaymentService {
       createdAt: FieldValue.serverTimestamp() as unknown as Timestamp,
       updatedAt: FieldValue.serverTimestamp() as unknown as Timestamp,
     } as Omit<Transaction, "id"> & { id: string });
+
     let data;
     try {
       data = await flwFetch(`${FLW_API}/payments`, {
@@ -157,27 +159,22 @@ export class PaymentService {
     } catch (err: any) {
       await this.txCol.doc(reference).delete();
       console.error("[payment-service] Flutterwave init failed:", err);
-      throw new PaymentError(
-        "PROVIDER_ERROR",
-        err?.message ?? "Payment initialisation failed."
-      );
+      throw new PaymentError("PROVIDER_ERROR", err?.message ?? "Payment initialisation failed.");
     }
+
     if (!data.data?.link) {
       await this.txCol.doc(reference).delete();
-      throw new PaymentError(
-        "PROVIDER_ERROR",
-        data.message ?? "Payment initialisation failed."
-      );
+      throw new PaymentError("PROVIDER_ERROR", data.message ?? "Payment initialisation failed.");
     }
+
     return { paymentLink: data.data.link, reference };
   }
 
-  // ─── Webhook dispatcher ────────────────────────────────────────────────────
+  // ─── Webhook dispatcher ─────────────────────────────────────────────────────
 
   async handleWebhook(payload: Record<string, unknown>): Promise<void> {
     const event = payload.event as string;
     const data = payload.data as Record<string, unknown>;
-
     if (event === "charge.completed" && data?.status === "successful") {
       await this.processSuccessfulDeposit(data);
     } else if (event === "transfer.completed") {
@@ -185,25 +182,17 @@ export class PaymentService {
     } else if (event === "transfer.failed") {
       await this.processWithdrawalStatus(data, "failed");
     }
-    // All other events acknowledged, not processed
   }
 
-  // ─── Withdrawal ────────────────────────────────────────────────────────────
+  // ─── Withdrawal ─────────────────────────────────────────────────────────────
 
-  /**
-   * Validate, debit wallet, and dispatch a Flutterwave Transfer.
-   * The webhook handles final success/failure status updates.
-   */
   async initiateWithdrawal(
     userId: string,
     amountKobo: number,
     bankAccountId: string
   ): Promise<{ reference: string }> {
     if (amountKobo < MIN_WITHDRAW_KOBO) {
-      throw new PaymentError(
-        "BELOW_MINIMUM",
-        `Minimum withdrawal is ₦${MIN_WITHDRAW_KOBO / 100}.`
-      );
+      throw new PaymentError("BELOW_MINIMUM", `Minimum withdrawal is ₦${MIN_WITHDRAW_KOBO / 100}.`);
     }
 
     const [userSnap, walletSnap] = await Promise.all([
@@ -224,27 +213,18 @@ export class PaymentService {
     const netAmount = amountKobo - fee;
 
     if (wallet.available < amountKobo) {
-      throw new PaymentError(
-        "INSUFFICIENT_FUNDS",
-        `Insufficient balance. Available: ₦${wallet.available / 100}.`
-      );
+      throw new PaymentError("INSUFFICIENT_FUNDS", `Insufficient balance. Available: ₦${wallet.available / 100}.`);
     }
 
     const reference = `WID-${userId.slice(0, 6)}-${Date.now()}`;
 
-    // Atomically debit wallet and create the withdrawal transaction record
     await adminDb.runTransaction(async (tx) => {
-      await debitWallet(
-        tx,
-        userId,
-        amountKobo,
-        "withdrawal",
+      await debitWallet(tx, userId, amountKobo, "withdrawal",
         `Withdrawal to ${bankAccount.bankName} ····${bankAccount.accountNumber.slice(-4)}`,
         { reference, fee }
       );
     });
 
-    // Dispatch Flutterwave Transfer (outside transaction — intentional)
     let transferData;
     try {
       transferData = await flwFetch(`${FLW_API}/transfers`, {
@@ -264,33 +244,21 @@ export class PaymentService {
         }),
       });
     } catch (err: any) {
-      // Refund the deducted amount immediately
       await adminDb.runTransaction(async (tx) => {
-        await creditWallet(
-          tx,
-          userId,
-          amountKobo,
-          "withdrawal",
+        await creditWallet(tx, userId, amountKobo, "withdrawal",
           `Refund: failed withdrawal to ${bankAccount.bankName}`,
           { reference }
         );
       });
-      // Mark the debit transaction as failed
       const debitSnap = await this.txCol
         .where("reference", "==", reference)
         .where("direction", "==", "debit")
         .limit(1)
         .get();
       if (!debitSnap.empty) {
-        await debitSnap.docs[0].ref.update({
-          status: "failed",
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        await debitSnap.docs[0].ref.update({ status: "failed", updatedAt: FieldValue.serverTimestamp() });
       }
-      throw new PaymentError(
-        "PROVIDER_ERROR",
-        err?.message ?? "Transfer failed. Your funds have been refunded."
-      );
+      throw new PaymentError("PROVIDER_ERROR", err?.message ?? "Transfer failed. Your funds have been refunded.");
     }
 
     void sendNotification(userId, {
@@ -303,50 +271,110 @@ export class PaymentService {
     return { reference };
   }
 
-  // ─── Private: successful deposit ───────────────────────────────────────────
+  // ─── Private: successful deposit ────────────────────────────────────────────
 
   /**
-   * Handles a confirmed Flutterwave charge.completed webhook.
+   * FIX: All reads are issued before any writes.
    *
-   * Strategy (one document per deposit):
-   *   1. Locate the existing pending transaction doc by `tx_ref` (= our reference).
-   *   2. Guard: skip if already processed (idempotency).
-   *   3. Inside a Firestore transaction:
-   *        a. Update the pending doc to status "success" + stamp providerReference.
-   *        b. Credit the wallet balance via creditWalletBalance() — wallet only,
-   *           no new transaction doc created.
-   *        c. Optionally award referral bonus (that creates its own separate tx doc).
+   * Before this fix, the transaction called tx.update(pendingRef) then
+   * creditWalletBalance() which tried tx.get(walletRef) — violating Firestore's
+   * "reads before writes" invariant.
+   *
+   * Fix: Pre-read pendingRef, walletRef, and all referral docs in Phase 1.
+   * Then issue all writes in Phase 2. creditWalletBalance() is now write-only.
    */
   private async processSuccessfulDeposit(
     flwData: Record<string, unknown>
   ): Promise<void> {
-    // Null/field guards
     if (!flwData || typeof flwData !== "object") return;
+
     const providerReference = flwData.id ? String(flwData.id) : null;
     const txRef = flwData.tx_ref as string | undefined;
     const amountNaira = flwData.amount as number | undefined;
+
     if (!providerReference || !txRef || typeof amountNaira !== "number") {
-      console.warn("[payment-service] Missing required fields in deposit webhook", { providerReference, txRef, amountNaira });
+      console.warn("[payment-service] Missing required fields in deposit webhook", {
+        providerReference, txRef, amountNaira,
+      });
       return;
     }
+
     const amountKobo = Math.round(amountNaira * 100);
     const pendingRef = this.txCol.doc(txRef);
+
     await adminDb.runTransaction(async (tx) => {
+
+      // ── PHASE 1: ALL READS ──────────────────────────────────────────────────
       const pendingSnap = await tx.get(pendingRef);
+
       if (!pendingSnap.exists) {
-        console.warn(
-          `[payment-service] No pending transaction found for ref ${txRef} — skipping.`
-        );
+        console.warn(`[payment-service] No pending tx for ref ${txRef} — skipping.`);
         return;
       }
+
       const pendingData = pendingSnap.data() as Transaction;
+
       if (pendingData.status !== "pending") {
-        console.warn(
-          `[payment-service] Transaction ${txRef} already has status "${pendingData.status}" — skipping duplicate webhook.`
-        );
+        console.warn(`[payment-service] Tx ${txRef} already "${pendingData.status}" — duplicate webhook skipped.`);
         return;
       }
+
       const userId = pendingData.userId;
+
+      // Pre-read the wallet so we can confirm it exists before writing
+      const walletRef = this.walletsCol.doc(userId);
+      const walletSnap = await tx.get(walletRef);
+
+      if (!walletSnap.exists) {
+        // Created at signup — this should never happen in production
+        throw new Error(`[payment-service] Wallet missing for user ${userId}. Cannot credit deposit.`);
+      }
+
+      // Referral bonus reads — all before any write
+      let referrerId: string | null = null;
+      let shouldAwardBonus = false;
+
+      if (amountKobo >= REFERRAL_MIN_DEPOSIT_KOBO) {
+        const refereeSnap = await tx.get(this.usersCol.doc(userId));
+        if (refereeSnap.exists) {
+          const referee = refereeSnap.data() as User;
+          if (referee?.referredBy) {
+            const priorDepositsSnap = await this.txCol
+              .where("userId", "==", userId)
+              .where("type", "==", "deposit")
+              .where("status", "==", "success")
+              .get();
+
+            if (priorDepositsSnap.size === 0) {
+              const referrerSnap = await this.usersCol
+                .where("referralCode", "==", referee.referredBy)
+                .limit(1)
+                .get();
+
+              if (!referrerSnap.empty) {
+                const potentialReferrerId = referrerSnap.docs[0].id;
+                const startOfMonth = Timestamp.fromDate(
+                  new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+                );
+                const monthlyBonusSnap = await this.txCol
+                  .where("userId", "==", potentialReferrerId)
+                  .where("type", "==", "referral_bonus")
+                  .where("createdAt", ">=", startOfMonth)
+                  .get();
+
+                if (monthlyBonusSnap.size < REFERRAL_MONTHLY_LIMIT) {
+                  referrerId = potentialReferrerId;
+                  shouldAwardBonus = true;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ── PHASE 2: ALL WRITES (no tx.get() after this line) ──────────────────
+
+      // 2a. Mark the pending deposit transaction as successful
       tx.update(pendingRef, {
         status: "success",
         providerReference,
@@ -354,65 +382,84 @@ export class PaymentService {
         netAmount: amountKobo,
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      // 2b. Credit wallet balance (write-only — no tx.get inside)
       await creditWalletBalance(tx, userId, amountKobo, "deposit");
-      try {
-        await this.maybeAwardReferralBonus(tx, userId, amountKobo);
-      } catch (err) {
-        console.error(
-          "[payment-service] Referral bonus failed (non-fatal):",
-          err
-        );
+
+      // 2c. Referral bonus (write-only)
+      if (shouldAwardBonus && referrerId) {
+        const bonusTxRef = this.txCol.doc();
+        tx.set(bonusTxRef, {
+          userId: referrerId,
+          circleId: null,
+          type: "referral_bonus",
+          direction: "credit",
+          amount: REFERRAL_BONUS_KOBO,
+          fee: 0,
+          netAmount: REFERRAL_BONUS_KOBO,
+          status: "success",
+          reference: bonusTxRef.id,
+          description: `Referral bonus — new member made first deposit`,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        tx.update(this.walletsCol.doc(referrerId), {
+          available: FieldValue.increment(REFERRAL_BONUS_KOBO),
+          referralEarnings: FieldValue.increment(REFERRAL_BONUS_KOBO),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
       }
     });
-    // Notify user after the transaction commits
-    const pendingSnap = await pendingRef.get();
-    const userId = pendingSnap.data()?.userId as string | undefined;
-    if (userId) {
-      void sendNotification(
-        userId,
-        {
-          type: "general",
-          title: "Deposit Confirmed",
-          body: `₦${(amountKobo / 100).toLocaleString("en-NG")} has been added to your wallet.`,
-          link: "/wallet",
-        }
-      );
+
+    // Post-transaction notification (outside tx — fire and forget)
+    const confirmedSnap = await pendingRef.get();
+    const uid = confirmedSnap.data()?.userId as string | undefined;
+    if (uid && confirmedSnap.data()?.status === "success") {
+      void sendNotification(uid, {
+        type: "general",
+        title: "Deposit Confirmed",
+        body: `₦${(amountKobo / 100).toLocaleString("en-NG")} has been added to your wallet.`,
+        link: "/wallet",
+      });
     }
   }
 
-  // ─── Private: withdrawal status ────────────────────────────────────────────
+  // ─── Private: withdrawal status ─────────────────────────────────────────────
 
   private async processWithdrawalStatus(
     flwData: Record<string, unknown>,
     outcome: "success" | "failed"
   ): Promise<void> {
     if (!flwData || typeof flwData !== "object") return;
+
     const reference = flwData.reference as string | undefined;
     if (!reference) {
       console.warn("[payment-service] Missing reference in withdrawal webhook", flwData);
       return;
     }
-    // Find the withdrawal debit transaction
+
     const txSnap = await this.txCol
       .where("reference", "==", reference)
       .where("direction", "==", "debit")
       .limit(1)
       .get();
+
     if (txSnap.empty) {
-      console.warn(
-        `[payment-service] No withdrawal transaction found for ref ${reference}`
-      );
+      console.warn(`[payment-service] No withdrawal transaction found for ref ${reference}`);
       return;
     }
+
     const txDoc = txSnap.docs[0];
     const txData = txDoc.data() as Transaction;
     if (txData.status !== "pending") return;
+
     if (outcome === "failed") {
       await adminDb.runTransaction(async (tx) => {
-        tx.update(txDoc.ref, {
-          status: "failed",
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        // tx.update on txDoc.ref then creditWallet does tx.get on walletRef —
+        // these are different documents so the read/write ordering is fine.
+        // But to be safe, reorder: creditWallet (read+write wallet) first,
+        // then update txDoc (write txDoc).
         await creditWallet(
           tx,
           txData.userId,
@@ -421,11 +468,15 @@ export class PaymentService {
           `Refund: withdrawal failed`,
           { reference }
         );
+        tx.update(txDoc.ref, {
+          status: "failed",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
       });
       void sendNotification(txData.userId, {
         type: "general",
         title: "Withdrawal Failed",
-        body: `Your withdrawal of ₦${(txData.amount / 100).toLocaleString("en-NG")} failed. The amount has been refunded to your wallet.`,
+        body: `Your withdrawal of ₦${(txData.amount / 100).toLocaleString("en-NG")} failed. The amount has been refunded.`,
         link: "/wallet",
       });
     } else {
@@ -441,75 +492,5 @@ export class PaymentService {
         link: "/wallet",
       });
     }
-  }
-
-  // ─── Private: referral bonus ───────────────────────────────────────────────
-
-  /**
-   * Award a ₦500 referral bonus to the referrer when:
-   *  - The referee deposits ≥ ₦1,000 for the first time
-   *  - The referrer hasn't hit the monthly cap of 50 bonuses
-   *
-   * Must be called inside an existing Firestore transaction.
-   * Creates its own referral_bonus transaction document — this is intentional
-   * and distinct from the deposit transaction.
-   */
-  private async maybeAwardReferralBonus(
-    tx: admin.firestore.Transaction,
-    refereeId: string,
-    depositAmountKobo: number
-  ): Promise<void> {
-    if (depositAmountKobo < REFERRAL_MIN_DEPOSIT_KOBO) return;
-
-    const refereeSnap = await this.usersCol.doc(refereeId).get();
-    const referee = refereeSnap.data() as User;
-
-    if (!referee?.referredBy) return;
-
-    // Only award on the referee's very first deposit.
-    // At this point inside the transaction, the current deposit doc has been
-    // updated to "success" but Firestore reads within the same transaction still
-    // see the pre-transaction snapshot — so we query for prior success deposits
-    // outside this field. Count of success deposits before this one = 0 means first.
-    const priorDepositsSnap = await this.txCol
-      .where("userId", "==", refereeId)
-      .where("type", "==", "deposit")
-      .where("status", "==", "success")
-      .get();
-
-    // priorDepositsSnap will be 0 for the first-ever deposit (the current one
-    // hasn't been committed yet when this read executes inside the transaction).
-    if (priorDepositsSnap.size > 0) return;
-
-    // Look up the referrer by their referral code
-    const referrerSnap = await this.usersCol
-      .where("referralCode", "==", referee.referredBy)
-      .limit(1)
-      .get();
-
-    if (referrerSnap.empty) return;
-
-    const referrerId = referrerSnap.docs[0].id;
-
-    // Monthly cap check
-    const startOfMonth = Timestamp.fromDate(
-      new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    );
-    const monthlyBonusSnap = await this.txCol
-      .where("userId", "==", referrerId)
-      .where("type", "==", "referral_bonus")
-      .where("createdAt", ">=", startOfMonth)
-      .get();
-
-    if (monthlyBonusSnap.size >= REFERRAL_MONTHLY_LIMIT) return;
-
-    // creditWallet creates a new referral_bonus transaction doc — correct behaviour.
-    await creditWallet(
-      tx,
-      referrerId,
-      REFERRAL_BONUS_KOBO,
-      "referral_bonus",
-      `Referral bonus — ${referee.name} made their first deposit`
-    );
   }
 }

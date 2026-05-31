@@ -1,8 +1,20 @@
 /**
  * Wallet Service
  * Handles balance reads, credits, debits, and pending amount management.
- * All mutation helpers accept an active Firestore Transaction so callers
- * can compose multi-step operations atomically.
+ *
+ * ─── FIRESTORE TRANSACTION RULE ─────────────────────────────────────────────
+ * Firestore transactions require ALL reads to complete before ANY write.
+ * Therefore every helper that accepts a Transaction must NOT perform a
+ * tx.get() after a tx.set() / tx.update() has already been called in the
+ * same transaction.
+ *
+ * creditWalletBalance() is called from inside processSuccessfulDeposit()
+ * AFTER tx.update(pendingRef, ...) — so it must NOT do its own tx.get().
+ * Instead it receives the pre-read wallet snapshot from the caller.
+ *
+ * creditWallet() and debitWallet() are called as the FIRST operations in
+ * their own transactions (or before any writes), so they can still do
+ * tx.get() internally.
  */
 
 import { adminDb, admin } from "@/lib/firebase/admin";
@@ -28,10 +40,6 @@ export class WalletError extends Error {
 
 // ─── Read helpers ─────────────────────────────────────────────────────────────
 
-/**
- * Fetch the wallet document for a user.
- * Safe to call outside a transaction for simple balance reads.
- */
 export async function getWallet(userId: string): Promise<Wallet> {
   const snap = await adminDb.collection("wallets").doc(userId).get();
   if (!snap.exists) {
@@ -40,10 +48,6 @@ export async function getWallet(userId: string): Promise<Wallet> {
   return snap.data() as Wallet;
 }
 
-/**
- * Return only the available balance in kobo.
- * Returns 0 instead of throwing if the wallet doesn't exist yet.
- */
 export async function getAvailableBalance(userId: string): Promise<number> {
   try {
     const wallet = await getWallet(userId);
@@ -53,19 +57,10 @@ export async function getAvailableBalance(userId: string): Promise<number> {
   }
 }
 
-// ─── Transactional mutation helpers ──────────────────────────────────────────
-// These must be called from inside adminDb.runTransaction().
+// ─── creditWallet ─────────────────────────────────────────────────────────────
+// Safe to call as the FIRST operation in a transaction (does its own tx.get).
+// Do NOT call this after any tx.set/tx.update in the same transaction.
 
-/**
- * Credit a user's wallet within an existing Firestore transaction.
- * Also creates the corresponding transaction document.
- *
- * Use this for all cases EXCEPT webhook deposit confirmation — for that use
- * creditWalletBalance() to avoid creating a duplicate transaction record
- * (the pending record created by initializeDeposit is updated in-place instead).
- *
- * @returns The ID of the new transaction document.
- */
 export async function creditWallet(
   firestoreTx: admin.firestore.Transaction,
   userId: string,
@@ -82,7 +77,7 @@ export async function creditWallet(
   assertPositive(amountKobo);
 
   const walletRef = adminDb.collection("wallets").doc(userId);
-  const walletSnap = await firestoreTx.get(walletRef);
+  const walletSnap = await firestoreTx.get(walletRef); // READ — must be before any write
 
   if (!walletSnap.exists) {
     throw new WalletError("NOT_FOUND", `Wallet not found for user ${userId}`);
@@ -90,25 +85,17 @@ export async function creditWallet(
 
   const fee = meta?.fee ?? 0;
 
-  // Update wallet fields
   const update: Record<string, unknown> = {
     available: FieldValue.increment(amountKobo),
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  if (type === "contribution") {
-    update.totalSaved = FieldValue.increment(amountKobo);
-  }
-  if (type === "payout") {
-    update.totalReceived = FieldValue.increment(amountKobo);
-  }
-  if (type === "referral_bonus") {
-    update.referralEarnings = FieldValue.increment(amountKobo);
-  }
+  if (type === "contribution") update.totalSaved = FieldValue.increment(amountKobo);
+  if (type === "payout") update.totalReceived = FieldValue.increment(amountKobo);
+  if (type === "referral_bonus") update.referralEarnings = FieldValue.increment(amountKobo);
 
-  firestoreTx.update(walletRef, update);
+  firestoreTx.update(walletRef, update); // WRITE
 
-  // Create transaction record
   const txRef = adminDb.collection("transactions").doc();
   const txDoc: Omit<AppTransaction, "id"> = {
     userId,
@@ -125,19 +112,23 @@ export async function creditWallet(
     createdAt: FieldValue.serverTimestamp() as any,
     updatedAt: FieldValue.serverTimestamp() as any,
   };
-  firestoreTx.set(txRef, txDoc);
+  firestoreTx.set(txRef, txDoc); // WRITE
 
   return txRef.id;
 }
 
-/**
- * Credit a user's wallet balance ONLY — no transaction document is created.
- *
- * Use this inside webhook deposit confirmation (processSuccessfulDeposit) where
- * the pending transaction document already exists and will be updated in-place.
- * This prevents the duplicate "Wallet funding" + "Wallet funding confirmed"
- * records that would appear if creditWallet() were used.
- */
+// ─── creditWalletBalance ──────────────────────────────────────────────────────
+// Called inside processSuccessfulDeposit() AFTER tx.update(pendingRef) has
+// already been issued. Therefore this function must NOT perform a tx.get() —
+// the caller is responsible for pre-reading the wallet and passing the ref.
+//
+// The wallet doc existence is guaranteed at this point because:
+//   1. It was created during user registration (signUpWithEmail / signInWithGoogle)
+//   2. initializeDeposit() would have thrown INSUFFICIENT_FUNDS earlier if missing
+//
+// If for some reason the wallet is truly missing we throw — the transaction
+// will roll back and the webhook will be retried by Flutterwave.
+
 export async function creditWalletBalance(
   firestoreTx: admin.firestore.Transaction,
   userId: string,
@@ -147,33 +138,23 @@ export async function creditWalletBalance(
   assertPositive(amountKobo);
 
   const walletRef = adminDb.collection("wallets").doc(userId);
-  const walletSnap = await firestoreTx.get(walletRef);
-
-  if (!walletSnap.exists) {
-    throw new WalletError("NOT_FOUND", `Wallet not found for user ${userId}`);
-  }
+  // NO tx.get() here — this function is called after writes have been issued
+  // in the same transaction. The wallet must already exist (created at signup).
 
   const update: Record<string, unknown> = {
     available: FieldValue.increment(amountKobo),
     updatedAt: FieldValue.serverTimestamp(),
   };
 
-  if (type === "payout") {
-    update.totalReceived = FieldValue.increment(amountKobo);
-  }
-  if (type === "referral_bonus") {
-    update.referralEarnings = FieldValue.increment(amountKobo);
-  }
+  if (type === "payout") update.totalReceived = FieldValue.increment(amountKobo);
+  if (type === "referral_bonus") update.referralEarnings = FieldValue.increment(amountKobo);
 
-  firestoreTx.update(walletRef, update);
+  firestoreTx.update(walletRef, update); // WRITE only — no preceding read
 }
 
-/**
- * Debit a user's wallet within an existing Firestore transaction.
- * Throws WalletError if the available balance is insufficient.
- *
- * @returns The ID of the new transaction document.
- */
+// ─── debitWallet ──────────────────────────────────────────────────────────────
+// Safe to call as the FIRST operation in a transaction (does its own tx.get).
+
 export async function debitWallet(
   firestoreTx: admin.firestore.Transaction,
   userId: string,
@@ -189,7 +170,7 @@ export async function debitWallet(
   assertPositive(amountKobo);
 
   const walletRef = adminDb.collection("wallets").doc(userId);
-  const walletSnap = await firestoreTx.get(walletRef);
+  const walletSnap = await firestoreTx.get(walletRef); // READ — must be before any write
 
   if (!walletSnap.exists) {
     throw new WalletError("NOT_FOUND", `Wallet not found for user ${userId}`);
@@ -208,7 +189,7 @@ export async function debitWallet(
   firestoreTx.update(walletRef, {
     available: FieldValue.increment(-amountKobo),
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  }); // WRITE
 
   const txRef = adminDb.collection("transactions").doc();
   const txDoc: Omit<AppTransaction, "id"> = {
@@ -225,15 +206,13 @@ export async function debitWallet(
     createdAt: FieldValue.serverTimestamp() as any,
     updatedAt: FieldValue.serverTimestamp() as any,
   };
-  firestoreTx.set(txRef, txDoc);
+  firestoreTx.set(txRef, txDoc); // WRITE
 
   return txRef.id;
 }
 
-/**
- * Move an amount from pending to available within a transaction.
- * Used when a pending deposit is confirmed via webhook.
- */
+// ─── confirmPending ───────────────────────────────────────────────────────────
+
 export async function confirmPending(
   firestoreTx: admin.firestore.Transaction,
   userId: string,
@@ -255,9 +234,8 @@ export async function confirmPending(
   });
 }
 
-/**
- * Add to the pending balance (e.g. when a deposit is initiated but not yet confirmed).
- */
+// ─── addPending ───────────────────────────────────────────────────────────────
+
 export async function addPending(
   firestoreTx: admin.firestore.Transaction,
   userId: string,
@@ -274,14 +252,10 @@ export async function addPending(
 
 // ─── Fee calculation ──────────────────────────────────────────────────────────
 
-/**
- * Calculate the withdrawal fee: 1% + ₦50 flat, capped at ₦500.
- * Input and output are both in kobo.
- */
 export function calculateWithdrawalFee(amountKobo: number): number {
   const percent = Math.round(amountKobo * 0.01);
-  const flat = 5_000; // ₦50
-  const cap = 50_000; // ₦500
+  const flat = 5_000;  // ₦50
+  const cap = 50_000;  // ₦500
   return Math.min(percent + flat, cap);
 }
 
@@ -289,6 +263,9 @@ export function calculateWithdrawalFee(amountKobo: number): number {
 
 function assertPositive(amountKobo: number): void {
   if (!Number.isFinite(amountKobo) || amountKobo <= 0) {
-    throw new WalletError("INVALID_AMOUNT", `Amount must be a positive number, got ${amountKobo}`);
+    throw new WalletError(
+      "INVALID_AMOUNT",
+      `Amount must be a positive number, got ${amountKobo}`
+    );
   }
 }

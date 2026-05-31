@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 
 if (!admin.apps.length) {
-  admin.initializeApp({
+  const app = admin.initializeApp({
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
@@ -9,11 +9,13 @@ if (!admin.apps.length) {
     }),
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   });
+
+  // settings() must be called immediately after app init, before any Firestore usage
+  admin.firestore(app).settings({ ignoreUndefinedProperties: true });
 }
 
 const adminAuth = admin.auth();
 const adminDb = admin.firestore();
-adminDb.settings({ ignoreUndefinedProperties: true });
 const adminStorage = admin.storage();
 
 export { admin, adminAuth, adminDb, adminStorage };
