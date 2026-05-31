@@ -46,9 +46,11 @@ function CircleSummaryCard({ circle }: { circle: Circle & { goal: number } }) {
   };
 
   return (
+    // TODO:: the circle.id is undefined
     <Link href={`/circles/${circle.id}`} className="block group">
       <Card size="sm" className="hover:ring-primary/30 transition-all hover:ring-2">
         <CardContent>
+          {/* {JSON.stringify(circle)} */}
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
