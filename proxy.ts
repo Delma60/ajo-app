@@ -2,7 +2,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 
-export const runtime = "nodejs";
 
 const SESSION_COOKIE_NAME = "__session";
 
@@ -78,7 +77,7 @@ async function getSessionUser(request: NextRequest): Promise<SessionUser | null>
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip API routes, static files, and Next internals

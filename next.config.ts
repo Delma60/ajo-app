@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
     "firebase-admin",
     "@firebase/app",
     "undici",
-    "node:crypto",
   ],
 };
 

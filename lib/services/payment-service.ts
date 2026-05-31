@@ -15,7 +15,8 @@
  *                            Set in Flutterwave dashboard → Settings → Webhooks.
  */
 
-import { timingSafeEqual } from "node:crypto";
+// import { timingSafeEqual } from "node:crypto";
+import crypto from "crypto";
 import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import {
@@ -79,28 +80,24 @@ export class PaymentService {
   // ─── Webhook signature ──────────────────────────────────────────────────────
 
   verifyWebhookSignature(_rawBody: string, signature: string | null): boolean {
-    if (!signature) {
-      console.warn("[payment-service] verif-hash header is missing");
-      return false;
-    }
-    const secret = process.env.FLUTTERWAVE_SECRET_HASH;
-    if (!secret) {
-      console.error(
-        "[payment-service] FLUTTERWAVE_SECRET_HASH env var is not set. " +
-        "Add it to .env.local — it is the Secret Hash from your Flutterwave " +
-        "dashboard (Settings → Webhooks), NOT the same as FLUTTERWAVE_SECRET_KEY."
-      );
-      return false;
-    }
-    try {
-      const secretBuf = Buffer.from(secret);
-      const signatureBuf = Buffer.from(signature);
-      if (secretBuf.length !== signatureBuf.length) return false;
-      return timingSafeEqual(secretBuf, signatureBuf);
-    } catch {
-      return false;
-    }
+  if (!signature) {
+    console.warn("[payment-service] verif-hash header is missing");
+    return false;
   }
+  const secret = process.env.FLUTTERWAVE_SECRET_HASH;
+  if (!secret) {
+    console.error("[payment-service] FLUTTERWAVE_SECRET_HASH env var is not set.");
+    return false;
+  }
+  try {
+    const secretBuf = Buffer.from(secret);
+    const signatureBuf = Buffer.from(signature);
+    if (secretBuf.length !== signatureBuf.length) return false;
+    return crypto.timingSafeEqual(secretBuf, signatureBuf); // ← was timingSafeEqual(...)
+  } catch {
+    return false;
+  }
+}
 
   // ─── Deposit ────────────────────────────────────────────────────────────────
 

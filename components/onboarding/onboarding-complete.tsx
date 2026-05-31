@@ -53,7 +53,7 @@ export function OnboardingComplete() {
       onboardingComplete: true,
       updatedAt: serverTimestamp(),
     })
-      .then(() => fetch("/api/auth/session/refresh-meta", { method: "POST" }))
+      .then(() => fetch("/api/auth/session/refresh", { method: "POST" }))
       .catch(console.error);
   }, [user]);
 
