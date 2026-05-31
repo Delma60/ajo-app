@@ -302,8 +302,8 @@ interface User {
   referralCode: string          // auto-generated on register
   referredBy?: string           // referral code of referrer
   referralBonusAmount: number   // kobo credited per successful referral (see Referral Rules)
-  isVerified: boolean           // KYC complete
-  kycStatus: 'unverified' | 'pending' | 'verified'
+  // isVerified: boolean           // KYC removed
+  // kycStatus: 'unverified' | 'pending' | 'verified' // KYC removed
   role: 'user' | 'admin'
   status: 'active' | 'suspended' | 'banned'
   circleIds: string[]           // circles this user belongs to
@@ -421,7 +421,7 @@ interface Transaction {
 interface Notification {
   id: string
   userId: string
-  type: 'contribution_due' | 'payout_received' | 'member_joined' | 'circle_invite' | 'penalty_applied' | 'kyc_approved' | 'dispute_raised' | 'general'
+  type: 'contribution_due' | 'payout_received' | 'member_joined' | 'circle_invite' | 'penalty_applied' | 'dispute_raised' | 'general'
   title: string
   body: string
   read: boolean
@@ -583,7 +583,7 @@ These rules must be enforced in the service layer.
 - A circle can only start payouts when all member slots are filled
 - Pausing a circle freezes all due dates and payout dates — only the admin can pause/unpause; this must be enforced in `circle-service.ts`, not as a raw status patch
 - A member can only be in a maximum of 10 active circles
-- **KYC gate:** users with `kycStatus !== 'verified'` cannot create a circle or receive a payout above ₦50,000 (5,000,000 kobo)
+
 - `goal` is always derived as `contribution × maxMembers` — never store it independently; derive it at read time to prevent stale values
 
 ### Contributions
@@ -673,7 +673,7 @@ Send emails for these events:
 | Payout received | Payout notification with amount |
 | Late payment | Warning + penalty amount |
 | Circle invite | Invite link |
-| KYC approved | Account verified confirmation |
+
 | Dispute raised | Confirmation to reporter + notification to admin |
 | Dispute resolved | Resolution notice to reporter |
 
@@ -776,7 +776,7 @@ Dispute types: `missed_payout`, `admin_abuse`, `fraudulent_member`, `other`.
 
 11. **Webhook idempotency** — always check `providerReference` uniqueness before crediting a wallet. Duplicate webhooks from Flutterwave are common.
 
-12. **KYC enforcement** — check `kycStatus === 'verified'` in `circle-service.ts` before allowing circle creation or payouts above ₦50,000.
+
 
 13. **`goal` is derived, never stored** — always compute `contribution × maxMembers` at read time. Storing it risks it going stale if `contribution` or `maxMembers` is ever updated.
 
@@ -953,7 +953,7 @@ Before writing any code, ensure the following are fully specified:
 - [ ] Webhook idempotency logic ✅ (see Implementation Notes)
 - [ ] Referral bonus rules ✅ (see Business Logic Rules)
 - [ ] Onboarding flow ✅ (see Onboarding Flow)
-- [ ] KYC enforcement points ✅ (see Business Logic Rules)
+
 - [ ] Dispute system ✅ (see Dispute System)
 - [ ] SMS provider (Termii) ✅ (see SMS Notifications)
 - [ ] Dark mode tokens ✅ (see Design System)

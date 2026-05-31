@@ -20,7 +20,10 @@ import {
   XIcon,
 } from "lucide-react";
 
-import { createCircleSchema, type CreateCircleFormValues } from "@/lib/validators/circle";
+import {
+  createCircleSchema,
+  type CreateCircleFormValues,
+} from "@/lib/validators/circle";
 import { useCreateCircle } from "@/lib/hooks/use-circle";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { formatNaira } from "@/lib/utils";
@@ -100,18 +103,25 @@ function OptionCard({
         selected
           ? "border-primary bg-primary/5 ring-2 ring-primary/30"
           : "border-border bg-background hover:border-primary/40",
-        className
+        className,
       )}
     >
       <div className="flex items-center gap-2">
-        <span className={cn("size-8 rounded-lg flex items-center justify-center",
-          selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-        )}>
+        <span
+          className={cn(
+            "size-8 rounded-lg flex items-center justify-center",
+            selected
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
           {icon}
         </span>
         <span className="text-sm font-semibold">{label}</span>
       </div>
-      <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        {description}
+      </p>
     </button>
   );
 }
@@ -130,7 +140,9 @@ function SummaryRow({
   return (
     <div className="flex items-center justify-between py-1.5 text-sm border-b border-border last:border-0">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn("font-medium font-mono", highlight && "text-primary")}>
+      <span
+        className={cn("font-medium font-mono", highlight && "text-primary")}
+      >
         {value}
       </span>
     </div>
@@ -179,13 +191,21 @@ export function CreateCircleForm() {
 
   function addTag() {
     const tag = tagInput.trim().toLowerCase();
-    if (!tag || watchedValues.tags.includes(tag) || watchedValues.tags.length >= 5) return;
+    if (
+      !tag ||
+      watchedValues.tags.includes(tag) ||
+      watchedValues.tags.length >= 5
+    )
+      return;
     setValue("tags", [...watchedValues.tags, tag]);
     setTagInput("");
   }
 
   function removeTag(tag: string) {
-    setValue("tags", watchedValues.tags.filter((t) => t !== tag));
+    setValue(
+      "tags",
+      watchedValues.tags.filter((t) => t !== tag),
+    );
   }
 
   async function onSubmit(values: CreateCircleFormValues) {
@@ -193,10 +213,7 @@ export function CreateCircleForm() {
       toast.error("You must be signed in to create a circle.");
       return;
     }
-    if (appUser.kycStatus !== "verified" && contributionNum * 100 > 50_000_00) {
-      toast.error("Complete KYC verification to create circles above ₦50,000.");
-      return;
-    }
+    // KYC check removed
 
     try {
       const result = await createCircle.mutateAsync({
@@ -213,7 +230,9 @@ export function CreateCircleForm() {
       router.push(`/circles/${result.id}`);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to create circle. Please try again."
+        err instanceof Error
+          ? err.message
+          : "Failed to create circle. Please try again.",
       );
     }
   }
@@ -238,7 +257,7 @@ export function CreateCircleForm() {
                 "flex size-7 items-center justify-center rounded-full text-xs font-bold transition-colors",
                 step >= n
                   ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
+                  : "bg-muted text-muted-foreground",
               )}
             >
               {n}
@@ -246,12 +265,14 @@ export function CreateCircleForm() {
             <span
               className={cn(
                 "text-xs font-medium transition-colors hidden sm:block",
-                step === n ? "text-foreground" : "text-muted-foreground"
+                step === n ? "text-foreground" : "text-muted-foreground",
               )}
             >
               {label}
             </span>
-            {n < 3 && <span className="text-muted-foreground/40 text-xs">—</span>}
+            {n < 3 && (
+              <span className="text-muted-foreground/40 text-xs">—</span>
+            )}
           </button>
         ))}
       </div>
@@ -275,7 +296,9 @@ export function CreateCircleForm() {
                   <p className="text-sm font-semibold group-hover:text-primary transition-colors">
                     {tpl.label}
                   </p>
-                  <p className="text-xs text-muted-foreground">{tpl.description}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {tpl.description}
+                  </p>
                 </button>
               ))}
             </div>
@@ -292,7 +315,9 @@ export function CreateCircleForm() {
                 {...register("name")}
               />
               {errors.name && (
-                <p className="text-xs text-destructive">{errors.name.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.name.message}
+                </p>
               )}
             </div>
 
@@ -307,7 +332,9 @@ export function CreateCircleForm() {
                 {...register("description")}
               />
               {errors.description && (
-                <p className="text-xs text-destructive">{errors.description.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.description.message}
+                </p>
               )}
             </div>
 
@@ -315,7 +342,9 @@ export function CreateCircleForm() {
             <div className="space-y-1.5">
               <Label>
                 Tags{" "}
-                <span className="text-muted-foreground font-normal">(optional)</span>
+                <span className="text-muted-foreground font-normal">
+                  (optional)
+                </span>
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -389,7 +418,9 @@ export function CreateCircleForm() {
                 />
               </div>
               {errors.contribution && (
-                <p className="text-xs text-destructive">{errors.contribution.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.contribution.message}
+                </p>
               )}
             </div>
 
@@ -405,7 +436,9 @@ export function CreateCircleForm() {
                 {...register("maxMembers")}
               />
               {errors.maxMembers && (
-                <p className="text-xs text-destructive">{errors.maxMembers.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.maxMembers.message}
+                </p>
               )}
             </div>
           </div>
@@ -414,27 +447,31 @@ export function CreateCircleForm() {
           <div className="space-y-2">
             <Label>Contribution frequency</Label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {(["daily", "weekly", "bi-weekly", "monthly"] as const).map((freq) => (
-                <Controller
-                  key={freq}
-                  name="frequency"
-                  control={control}
-                  render={({ field }) => (
-                    <button
-                      type="button"
-                      onClick={() => field.onChange(freq)}
-                      className={cn(
-                        "h-9 rounded-lg border text-sm font-medium transition-all capitalize",
-                        field.value === freq
-                          ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
-                          : "border-border hover:border-primary/40"
-                      )}
-                    >
-                      {freq === "bi-weekly" ? "Bi-weekly" : freq.charAt(0).toUpperCase() + freq.slice(1)}
-                    </button>
-                  )}
-                />
-              ))}
+              {(["daily", "weekly", "bi-weekly", "monthly"] as const).map(
+                (freq) => (
+                  <Controller
+                    key={freq}
+                    name="frequency"
+                    control={control}
+                    render={({ field }) => (
+                      <button
+                        type="button"
+                        onClick={() => field.onChange(freq)}
+                        className={cn(
+                          "h-9 rounded-lg border text-sm font-medium transition-all capitalize",
+                          field.value === freq
+                            ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
+                            : "border-border hover:border-primary/40",
+                        )}
+                      >
+                        {freq === "bi-weekly"
+                          ? "Bi-weekly"
+                          : freq.charAt(0).toUpperCase() + freq.slice(1)}
+                      </button>
+                    )}
+                  />
+                ),
+              )}
             </div>
           </div>
 
@@ -485,7 +522,7 @@ export function CreateCircleForm() {
                     <div
                       className={cn(
                         "flex size-9 items-center justify-center rounded-lg",
-                        field.value ? "bg-muted" : "bg-primary/10"
+                        field.value ? "bg-muted" : "bg-primary/10",
                       )}
                     >
                       {field.value ? (
@@ -536,20 +573,30 @@ export function CreateCircleForm() {
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{watchedValues.name || "—"}</CardTitle>
-              <CardDescription>{watchedValues.description || "—"}</CardDescription>
+              <CardTitle className="text-base">
+                {watchedValues.name || "—"}
+              </CardTitle>
+              <CardDescription>
+                {watchedValues.description || "—"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-0 divide-y divide-border -mt-2">
               <SummaryRow
                 label="Contribution / cycle"
-                value={contributionNum > 0 ? formatNaira(contributionNum * 100) : "—"}
+                value={
+                  contributionNum > 0 ? formatNaira(contributionNum * 100) : "—"
+                }
               />
-              <SummaryRow label="Members" value={watchedValues.maxMembers || "—"} />
+              <SummaryRow
+                label="Members"
+                value={watchedValues.maxMembers || "—"}
+              />
               <SummaryRow
                 label="Frequency"
                 value={
                   watchedValues.frequency
-                    ? watchedValues.frequency.charAt(0).toUpperCase() + watchedValues.frequency.slice(1)
+                    ? watchedValues.frequency.charAt(0).toUpperCase() +
+                      watchedValues.frequency.slice(1)
                     : "—"
                 }
               />
@@ -557,7 +604,8 @@ export function CreateCircleForm() {
                 label="Payout order"
                 value={
                   watchedValues.payoutOrder
-                    ? watchedValues.payoutOrder.charAt(0).toUpperCase() + watchedValues.payoutOrder.slice(1)
+                    ? watchedValues.payoutOrder.charAt(0).toUpperCase() +
+                      watchedValues.payoutOrder.slice(1)
                     : "—"
                 }
               />
@@ -566,7 +614,10 @@ export function CreateCircleForm() {
                 value={goalKobo > 0 ? formatNaira(goalKobo) : "—"}
                 highlight
               />
-              <SummaryRow label="Visibility" value={watchedValues.isPrivate ? "Private" : "Public"} />
+              <SummaryRow
+                label="Visibility"
+                value={watchedValues.isPrivate ? "Private" : "Public"}
+              />
             </CardContent>
           </Card>
 
@@ -579,7 +630,11 @@ export function CreateCircleForm() {
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-500">
                 A one-time fee of{" "}
-                <strong>{creationFee > 0 ? formatNaira(creationFee) : "5% of contribution"}</strong>{" "}
+                <strong>
+                  {creationFee > 0
+                    ? formatNaira(creationFee)
+                    : "5% of contribution"}
+                </strong>{" "}
                 will be deducted from your wallet when you create this circle.
               </p>
             </div>
@@ -599,7 +654,9 @@ export function CreateCircleForm() {
               className="flex-1"
               disabled={createCircle.isPending}
             >
-              {createCircle.isPending && <Loader2 className="size-4 animate-spin" />}
+              {createCircle.isPending && (
+                <Loader2 className="size-4 animate-spin" />
+              )}
               {createCircle.isPending ? "Creating…" : "Create Circle"}
             </Button>
           </div>

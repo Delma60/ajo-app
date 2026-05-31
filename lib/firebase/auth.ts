@@ -53,8 +53,8 @@ export async function signUpWithEmail(
     referralCode: generateReferralCode(user.uid),
     referredBy: referralCode,
     referralBonusAmount: 0,
-    isVerified: false,
-    kycStatus: "unverified",
+    // isVerified: false, // KYC removed
+    // kycStatus: "unverified", // KYC removed
     role: "user",
     status: "active",
     circleIds: [],
@@ -114,8 +114,8 @@ export async function signInWithGoogle(): Promise<User> {
       avatarUrl: user.photoURL ?? undefined,
       referralCode: generateReferralCode(user.uid),
       referralBonusAmount: 0,
-      isVerified: false,
-      kycStatus: "unverified",
+      // isVerified: false, // KYC removed
+      // kycStatus: "unverified", // KYC removed
       role: "user",
       status: "active",
       circleIds: [],

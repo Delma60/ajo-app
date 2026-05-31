@@ -65,12 +65,6 @@ const TYPE_META: Record<
     iconColor: "text-red-600 dark:text-red-400",
     label: "Penalty",
   },
-  kyc_approved: {
-    icon: ShieldCheckIcon,
-    iconBg: "bg-emerald-100 dark:bg-emerald-900/30",
-    iconColor: "text-emerald-600 dark:text-emerald-400",
-    label: "KYC",
-  },
   dispute_raised: {
     icon: AlertTriangleIcon,
     iconBg: "bg-orange-100 dark:bg-orange-900/30",
@@ -92,8 +86,8 @@ function relativeTime(timestamp: any): string {
     timestamp?.toDate?.() instanceof Date
       ? timestamp.toDate()
       : timestamp instanceof Date
-      ? timestamp
-      : new Date();
+        ? timestamp
+        : new Date();
 
   const diff = Date.now() - date.getTime();
   const seconds = Math.floor(diff / 1000);
@@ -136,7 +130,7 @@ function NotificationRow({ notification, onRead }: NotificationRowProps) {
         "border-b border-border last:border-0",
         !notification.read
           ? "bg-primary/[0.03] hover:bg-primary/[0.06] dark:bg-primary/5 dark:hover:bg-primary/10"
-          : "hover:bg-muted/40"
+          : "hover:bg-muted/40",
       )}
       onClick={handleClick}
     >
@@ -144,7 +138,7 @@ function NotificationRow({ notification, onRead }: NotificationRowProps) {
       <div
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-xl",
-          meta.iconBg
+          meta.iconBg,
         )}
       >
         <Icon className={cn("size-3.5", meta.iconColor)} />
@@ -156,7 +150,9 @@ function NotificationRow({ notification, onRead }: NotificationRowProps) {
           <p
             className={cn(
               "text-sm leading-snug",
-              !notification.read ? "font-semibold text-foreground" : "font-medium text-foreground/80"
+              !notification.read
+                ? "font-semibold text-foreground"
+                : "font-medium text-foreground/80",
             )}
           >
             {notification.title}
@@ -253,7 +249,9 @@ export function NotificationsContent() {
     markAllAsRead,
   } = useNotifications();
 
-  const [tab, setTab] = useState<"all" | "unread" | "contributions" | "payouts">("all");
+  const [tab, setTab] = useState<
+    "all" | "unread" | "contributions" | "payouts"
+  >("all");
 
   function filterNotifications(list: Notification[]) {
     switch (tab) {
@@ -261,7 +259,7 @@ export function NotificationsContent() {
         return list.filter((n) => !n.read);
       case "contributions":
         return list.filter(
-          (n) => n.type === "contribution_due" || n.type === "penalty_applied"
+          (n) => n.type === "contribution_due" || n.type === "penalty_applied",
         );
       case "payouts":
         return list.filter((n) => n.type === "payout_received");
@@ -275,7 +273,6 @@ export function NotificationsContent() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-6">
       <div className="max-w-2xl mx-auto px-4 md:px-6 py-5 space-y-5">
-
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -328,55 +325,53 @@ export function NotificationsContent() {
           </TabsList>
 
           {/* All tabs share one panel since we filter above */}
-          {(["all", "unread", "contributions", "payouts"] as const).map(
-            (t) => (
-              <TabsContent key={t} value={t} className="mt-4">
-                <Card>
-                  <CardContent className="p-0">
-                    {isLoading ? (
-                      Array.from({ length: 8 }).map((_, i) => (
-                        <RowSkeleton key={i} />
-                      ))
-                    ) : filtered.length === 0 ? (
-                      <EmptyState filtered={t !== "all"} />
-                    ) : (
-                      <>
-                        {filtered.map((n) => (
-                          <NotificationRow
-                            key={n.id}
-                            notification={n}
-                            onRead={markAsRead}
-                          />
-                        ))}
+          {(["all", "unread", "contributions", "payouts"] as const).map((t) => (
+            <TabsContent key={t} value={t} className="mt-4">
+              <Card>
+                <CardContent className="p-0">
+                  {isLoading ? (
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <RowSkeleton key={i} />
+                    ))
+                  ) : filtered.length === 0 ? (
+                    <EmptyState filtered={t !== "all"} />
+                  ) : (
+                    <>
+                      {filtered.map((n) => (
+                        <NotificationRow
+                          key={n.id}
+                          notification={n}
+                          onRead={markAsRead}
+                        />
+                      ))}
 
-                        {/* Load more */}
-                        {hasMore && t === "all" && (
-                          <div className="px-4 py-3 border-t border-border">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full"
-                              disabled={isLoadingMore}
-                              onClick={loadMore}
-                            >
-                              {isLoadingMore ? (
-                                <>
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                  Loading…
-                                </>
-                              ) : (
-                                "Load older notifications"
-                              )}
-                            </Button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )
-          )}
+                      {/* Load more */}
+                      {hasMore && t === "all" && (
+                        <div className="px-4 py-3 border-t border-border">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            disabled={isLoadingMore}
+                            onClick={loadMore}
+                          >
+                            {isLoadingMore ? (
+                              <>
+                                <Loader2 className="size-3.5 animate-spin" />
+                                Loading…
+                              </>
+                            ) : (
+                              "Load older notifications"
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ))}
         </Tabs>
       </div>
     </div>

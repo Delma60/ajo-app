@@ -25,7 +25,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const profileSchema = z.object({
@@ -35,34 +41,13 @@ const profileSchema = z.object({
     .max(60, "Name must be under 60 characters"),
   phone: z
     .string()
-    .regex(/^(\+?234|0)[7-9][0-1]\d{8}$/, "Enter a valid Nigerian phone number"),
+    .regex(
+      /^(\+?234|0)[7-9][0-1]\d{8}$/,
+      "Enter a valid Nigerian phone number",
+    ),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
-
-const KYC_META = {
-  unverified: {
-    label: "Not Verified",
-    description: "Complete KYC to unlock full platform features and higher payout limits.",
-    badge: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    icon: AlertCircleIcon,
-    iconCls: "text-red-500",
-  },
-  pending: {
-    label: "Verification Pending",
-    description: "Your documents are under review. This usually takes 1–2 business days.",
-    badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    icon: ClockIcon,
-    iconCls: "text-amber-500",
-  },
-  verified: {
-    label: "Verified",
-    description: "Your identity has been verified. You have full access to all features.",
-    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    icon: CheckCircle2Icon,
-    iconCls: "text-emerald-500",
-  },
-};
 
 export function ProfileTab() {
   const { appUser, firebaseUser, setAppUser } = useAuthStore();
@@ -81,10 +66,6 @@ export function ProfileTab() {
       phone: appUser?.phone ?? "",
     },
   });
-
-  const kycStatus = appUser?.kycStatus ?? "unverified";
-  const kycMeta = KYC_META[kycStatus];
-  const KycIcon = kycMeta.icon;
 
   const initials = (appUser?.name ?? firebaseUser?.displayName ?? "U")
     .split(" ")
@@ -147,12 +128,16 @@ export function ProfileTab() {
       <Card>
         <CardHeader>
           <CardTitle>Profile Photo</CardTitle>
-          <CardDescription>Your photo helps circle members recognise you.</CardDescription>
+          <CardDescription>
+            Your photo helps circle members recognise you.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-5">
           <div className="relative">
             <Avatar className="size-16">
-              <AvatarImage src={appUser?.avatarUrl ?? firebaseUser?.photoURL ?? undefined} />
+              <AvatarImage
+                src={appUser?.avatarUrl ?? firebaseUser?.photoURL ?? undefined}
+              />
               <AvatarFallback className="text-lg font-semibold bg-primary/10 text-primary">
                 {initials}
               </AvatarFallback>
@@ -173,14 +158,12 @@ export function ProfileTab() {
             />
           </div>
           <div className="space-y-1">
-            <p className="text-sm font-medium">{appUser?.name ?? firebaseUser?.displayName ?? "—"}</p>
-            <p className="text-xs text-muted-foreground">{firebaseUser?.email ?? "—"}</p>
-            <Badge
-              variant="outline"
-              className={cn("text-[10px] h-4 border-0 mt-1", kycMeta.badge)}
-            >
-              {kycMeta.label}
-            </Badge>
+            <p className="text-sm font-medium">
+              {appUser?.name ?? firebaseUser?.displayName ?? "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {firebaseUser?.email ?? "—"}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -192,7 +175,11 @@ export function ProfileTab() {
           <CardDescription>Update your name and phone number.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            noValidate
+            className="space-y-4"
+          >
             {/* Email (read-only) */}
             <div className="space-y-1.5">
               <Label>Email address</Label>
@@ -217,7 +204,9 @@ export function ProfileTab() {
                 {...register("name")}
               />
               {errors.name && (
-                <p className="text-xs text-destructive">{errors.name.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.name.message}
+                </p>
               )}
             </div>
 
@@ -232,7 +221,9 @@ export function ProfileTab() {
                 {...register("phone")}
               />
               {errors.phone ? (
-                <p className="text-xs text-destructive">{errors.phone.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.phone.message}
+                </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   Used for SMS contribution reminders. Nigerian numbers only.
@@ -240,51 +231,15 @@ export function ProfileTab() {
               )}
             </div>
 
-            <Button type="submit" disabled={isSaving || !isDirty} className="w-full sm:w-auto">
+            <Button
+              type="submit"
+              disabled={isSaving || !isDirty}
+              className="w-full sm:w-auto"
+            >
               {isSaving && <Loader2 className="size-4 animate-spin" />}
               {isSaving ? "Saving…" : "Save changes"}
             </Button>
           </form>
-        </CardContent>
-      </Card>
-
-      {/* KYC status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Identity Verification (KYC)</CardTitle>
-          <CardDescription>
-            Verified accounts can create circles and receive payouts above ₦50,000.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-4">
-            <div
-              className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-lg",
-                kycStatus === "verified"
-                  ? "bg-emerald-100 dark:bg-emerald-900/30"
-                  : kycStatus === "pending"
-                  ? "bg-amber-100 dark:bg-amber-900/30"
-                  : "bg-red-100 dark:bg-red-900/30"
-              )}
-            >
-              <KycIcon className={cn("size-5", kycMeta.iconCls)} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">{kycMeta.label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{kycMeta.description}</p>
-            </div>
-          </div>
-
-          {kycStatus !== "verified" && (
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={() => toast.info("KYC verification flow coming soon.")}
-            >
-              {kycStatus === "pending" ? "Check verification status" : "Start KYC Verification"}
-            </Button>
-          )}
         </CardContent>
       </Card>
 
@@ -293,7 +248,8 @@ export function ProfileTab() {
         <CardHeader>
           <CardTitle>Referral Program</CardTitle>
           <CardDescription>
-            Earn ₦500 for every friend who makes their first deposit of ₦1,000 or more.
+            Earn ₦500 for every friend who makes their first deposit of ₦1,000
+            or more.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -352,7 +308,9 @@ export function ProfileTab() {
               <p className="text-xs text-muted-foreground">Total earned</p>
             </div>
             <div>
-              <p className="text-lg font-bold font-mono text-foreground">₦500</p>
+              <p className="text-lg font-bold font-mono text-foreground">
+                ₦500
+              </p>
               <p className="text-xs text-muted-foreground">Per referral</p>
             </div>
           </div>

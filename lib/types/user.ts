@@ -8,8 +8,8 @@ export interface User {
   referralCode: string;
   referredBy?: string;
   referralBonusAmount: number;
-  isVerified: boolean;
-  kycStatus: 'unverified' | 'pending' | 'verified';
+  // isVerified: boolean; // KYC removed
+  // kycStatus: 'unverified' | 'pending' | 'verified'; // KYC removed
   role: 'user' | 'admin';
   status: 'active' | 'suspended' | 'banned';
   circleIds: string[];

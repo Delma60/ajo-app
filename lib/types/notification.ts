@@ -9,7 +9,6 @@ export interface Notification {
     | "member_joined"
     | "circle_invite"
     | "penalty_applied"
-    | "kyc_approved"
     | "dispute_raised"
     | "general";
   title: string;

@@ -45,7 +45,7 @@ const CREATION_FEE_PERCENT = 0.05; // 5%
 const LATE_PENALTY_PERCENT = 0.10; // 10%
 const PLATFORM_PAYOUT_FEE_PERCENT = 0.01; // 1%
 const GRACE_PERIOD_HOURS = 48;
-const KYC_PAYOUT_THRESHOLD_KOBO = 5_000_000; // ₦50,000
+// const KYC_PAYOUT_THRESHOLD_KOBO = 5_000_000; // KYC removed
 const CONSECUTIVE_MISSED_LIMIT = 3;
 const BID_CLOSE_HOURS_BEFORE_PAYOUT = 24;
 
@@ -84,9 +84,7 @@ export class CircleService {
       this.requireWallet(adminId),
     ]);
 
-    if (adminUser.kycStatus !== "verified") {
-      throw new CircleError("KYC_REQUIRED", "Complete KYC verification to create a circle.");
-    }
+    // KYC check removed
 
     const activeCount = await this.countActiveCircles(adminId);
     if (activeCount >= MAX_ACTIVE_CIRCLES) {
@@ -415,15 +413,7 @@ export class CircleService {
       const platformFee = Math.round(basePool * PLATFORM_PAYOUT_FEE_PERCENT);
       const netPayout = basePool - platformFee + bidPremiumKobo;
 
-      if (recipient.kycStatus !== "verified" && netPayout > KYC_PAYOUT_THRESHOLD_KOBO) {
-        void sendNotification(recipientId, {
-          type: "general",
-          title: "KYC Required for Payout",
-          body: `Your payout of ₦${netPayout / 100} from "${circle.name}" is on hold. Complete KYC to receive funds.`,
-          link: "/settings",
-        });
-        return;
-      }
+      // KYC payout gate removed
 
       // Mark winning bid
       if (winningBidRef) {

@@ -60,6 +60,10 @@ export async function getAvailableBalance(userId: string): Promise<number> {
  * Credit a user's wallet within an existing Firestore transaction.
  * Also creates the corresponding transaction document.
  *
+ * Use this for all cases EXCEPT webhook deposit confirmation — for that use
+ * creditWalletBalance() to avoid creating a duplicate transaction record
+ * (the pending record created by initializeDeposit is updated in-place instead).
+ *
  * @returns The ID of the new transaction document.
  */
 export async function creditWallet(
@@ -84,7 +88,6 @@ export async function creditWallet(
     throw new WalletError("NOT_FOUND", `Wallet not found for user ${userId}`);
   }
 
-  const wallet = walletSnap.data() as Wallet;
   const fee = meta?.fee ?? 0;
 
   // Update wallet fields
@@ -107,9 +110,7 @@ export async function creditWallet(
 
   // Create transaction record
   const txRef = adminDb.collection("transactions").doc();
-
-  // Build txDoc and remove undefined values
-  const txDocRaw: Omit<AppTransaction, "id"> = {
+  const txDoc: Omit<AppTransaction, "id"> = {
     userId,
     circleId: meta?.circleId,
     type,
@@ -124,11 +125,47 @@ export async function creditWallet(
     createdAt: FieldValue.serverTimestamp() as any,
     updatedAt: FieldValue.serverTimestamp() as any,
   };
-  // Remove undefined values
-  const txDoc = Object.fromEntries(Object.entries(txDocRaw).filter(([_, v]) => v !== undefined));
   firestoreTx.set(txRef, txDoc);
 
   return txRef.id;
+}
+
+/**
+ * Credit a user's wallet balance ONLY — no transaction document is created.
+ *
+ * Use this inside webhook deposit confirmation (processSuccessfulDeposit) where
+ * the pending transaction document already exists and will be updated in-place.
+ * This prevents the duplicate "Wallet funding" + "Wallet funding confirmed"
+ * records that would appear if creditWallet() were used.
+ */
+export async function creditWalletBalance(
+  firestoreTx: admin.firestore.Transaction,
+  userId: string,
+  amountKobo: number,
+  type: AppTransaction["type"]
+): Promise<void> {
+  assertPositive(amountKobo);
+
+  const walletRef = adminDb.collection("wallets").doc(userId);
+  const walletSnap = await firestoreTx.get(walletRef);
+
+  if (!walletSnap.exists) {
+    throw new WalletError("NOT_FOUND", `Wallet not found for user ${userId}`);
+  }
+
+  const update: Record<string, unknown> = {
+    available: FieldValue.increment(amountKobo),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  if (type === "payout") {
+    update.totalReceived = FieldValue.increment(amountKobo);
+  }
+  if (type === "referral_bonus") {
+    update.referralEarnings = FieldValue.increment(amountKobo);
+  }
+
+  firestoreTx.update(walletRef, update);
 }
 
 /**
