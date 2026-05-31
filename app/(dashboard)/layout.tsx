@@ -1,12 +1,12 @@
-"use client";
+'use client'
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { getUserProfile } from "@/lib/firebase/firestore";
 
-const Layout = async ({ children }: { children: React.ReactNode }) => {
+const Layout = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
-  const { user, isLoading:loading } = useAuth();
+  const { user, isLoading: loading } = useAuth();
   const [onboardingComplete, setOnboardingComplete] = React.useState<
     boolean | null
   >(null);
@@ -17,14 +17,15 @@ const Layout = async ({ children }: { children: React.ReactNode }) => {
       return;
     }
     if (user) {
-      getUserProfile(user.uid).then((profile) => {
+      (async () => {
+        const profile = await getUserProfile(user.uid);
         if (!profile?.onboardingComplete) {
           setOnboardingComplete(false);
           router.replace("/onboarding");
         } else {
           setOnboardingComplete(true);
         }
-      });
+      })();
     }
   }, [user, loading, router]);
 
