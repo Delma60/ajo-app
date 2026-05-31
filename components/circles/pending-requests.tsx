@@ -205,7 +205,7 @@ export function PendingRequests({
   async function handleAction(userId: string, action: "approve" | "decline") {
     setProcessingId(userId);
     try {
-      const res = await fetch(`/api/circles/${circleId}/requests`, {
+      const res = await fetch(`/api/circles/${circleId}/request`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, action }),

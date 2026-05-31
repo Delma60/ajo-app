@@ -14,7 +14,7 @@ import type {
   Investment,
   InvestmentPortfolioSummary,
   InvestmentWithProgress,
-} from "@/lib/types/investments";
+} from "@/lib/types/investment";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
