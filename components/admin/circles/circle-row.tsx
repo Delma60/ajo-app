@@ -26,7 +26,7 @@ import {
   FREQ_LABELS,
   PAYOUT_LABELS,
   TRUST_TIER,
-} from "./types";
+} from "@/lib/types/admin-circle";
 
 interface CircleRowProps {
   circle: AdminCircle;
