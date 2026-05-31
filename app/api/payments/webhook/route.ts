@@ -20,23 +20,29 @@ import { PaymentService } from "@/lib/services/payment-service";
  */
 export async function POST(request: NextRequest) {
   // Read raw body for signature verification — must happen before .json()
-  const rawBody = await request.text();
-
+  let rawBody = await request.text();
+  // Remove BOM if present
+  if (rawBody.charCodeAt(0) === 0xfeff) {
+    rawBody = rawBody.slice(1);
+  }
+  if (!rawBody.trim()) {
+    // Empty body, return 200 so Flutterwave doesn't retry
+    return Response.json({ success: true, data: null, error: "Empty body" });
+  }
   const signature = request.headers.get("verif-hash");
   const service = new PaymentService();
-
   if (!service.verifyWebhookSignature(rawBody, signature)) {
     console.warn("[webhook] Invalid or missing Flutterwave signature");
     return new Response("Unauthorized", { status: 401 });
   }
-
   let payload: Record<string, unknown>;
   try {
     payload = JSON.parse(rawBody);
-  } catch {
-    return new Response("Bad Request: invalid JSON", { status: 400 });
+  } catch (err) {
+    // Always return 200 so Flutterwave doesn't retry, but log the error
+    console.error("[webhook] Invalid JSON payload:", err, rawBody?.slice(0, 200));
+    return Response.json({ success: true, data: null, error: "Invalid JSON" });
   }
-
   try {
     await service.handleWebhook(payload);
     return Response.json({ success: true, data: null, error: null });

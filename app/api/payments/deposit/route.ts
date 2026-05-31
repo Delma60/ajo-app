@@ -25,9 +25,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch (err) {
+      return Response.json(
+        { success: false, data: null, error: "Malformed JSON body" },
+        { status: 400 }
+      );
+    }
     const { amount, email, name } = body;
-
     if (!amount || typeof amount !== "number" || amount <= 0) {
       return Response.json(
         { success: false, data: null, error: "Invalid amount" },

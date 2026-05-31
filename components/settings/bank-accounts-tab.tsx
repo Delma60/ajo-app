@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -14,6 +14,8 @@ import {
   CheckCircle2Icon,
   AlertCircleIcon,
   RefreshCwIcon,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from "sonner";
@@ -42,11 +44,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import type { BankAccount } from "@/lib/types/user";
-import * as React from "react";
-import { ChevronsUpDown, Check } from "lucide-react";
-import { Controller, useFormContext } from "react-hook-form";
 import {
   Popover,
   PopoverTrigger,
@@ -60,6 +57,8 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import type { BankAccount } from "@/lib/types/user";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,7 +80,14 @@ const addBankSchema = z.object({
 
 type AddBankFormValues = z.infer<typeof addBankSchema>;
 
-// ─── Hook: fetch banks from Flutterwave via our API ───────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const IS_DEV = process.env.NODE_ENV !== "production";
+
+/** In development Flutterwave only processes test transactions for Access Bank. */
+const DEV_ALLOWED_BANK_CODE = "044";
+
+// ─── Hook: fetch banks ────────────────────────────────────────────────────────
 
 function useBanksList() {
   const [banks, setBanks] = useState<FlutterwaveBank[]>([]);
@@ -95,10 +101,19 @@ function useBanksList() {
       const res = await fetch("/api/payments/banks");
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Failed to load banks");
-      setBanks(json.data ?? []);
+
+      const allBanks: FlutterwaveBank[] = json.data ?? [];
+
+      // In development, Flutterwave only supports bank code 044 (Access Bank)
+      // for test transactions. Filter the list so users can't accidentally pick
+      // a bank that will silently fail during testing.
+      const filtered = IS_DEV
+        ? allBanks.filter((b) => b.code === DEV_ALLOWED_BANK_CODE)
+        : allBanks;
+
+      setBanks(filtered);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load banks";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "Failed to load banks");
     } finally {
       setIsLoading(false);
     }
@@ -191,28 +206,115 @@ function BankAccountCard({
   );
 }
 
-// ─── Banks selector skeleton ──────────────────────────────────────────────────
+// ─── Bank selector ────────────────────────────────────────────────────────────
 
-function BankSelectorSkeleton() {
-  return <Skeleton className="h-8 w-full rounded-lg" />;
+interface BankSelectorProps {
+  banks: FlutterwaveBank[];
+  value: string;
+  onChange: (code: string) => void;
+  error?: string;
+}
+
+function BankSelector({ banks, value, onChange, error }: BankSelectorProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const selectedBank = banks.find((b) => b.code === value);
+
+  // Filter banks client-side based on the search string
+  const filtered = search.trim()
+    ? banks.filter((b) =>
+        b.name.toLowerCase().includes(search.toLowerCase().trim()),
+      )
+    : banks;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          aria-invalid={!!error}
+          className={cn(
+            "h-8 w-full justify-between font-normal",
+            !selectedBank && "text-muted-foreground",
+            error && "border-destructive",
+          )}
+          variant="outline"
+        >
+          <span className="truncate">
+            {selectedBank ? selectedBank.name : "Select a bank…"}
+          </span>
+          <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        align="start"
+      >
+        {/*
+          We manage filtering ourselves (filtered array above) so we set
+          shouldFilter={false} — this prevents cmdk from trying to match
+          against the `value` prop (bank code) instead of the visible label.
+        */}
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search banks…"
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {filtered.length === 0 ? (
+              <CommandEmpty>No bank found.</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {filtered.map((bank) => (
+                  <CommandItem
+                    key={bank.code}
+                    value={bank.code}
+                    onSelect={(selectedValue) => {
+                      onChange(selectedValue);
+                      setSearch("");
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 size-4 shrink-0",
+                        value === bank.code ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {bank.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 // ─── Add bank form ────────────────────────────────────────────────────────────
 
 function AddBankForm({
+  banks,
+  banksLoading,
+  banksError,
+  onBanksRetry,
   onAdded,
   onCancel,
 }: {
+  banks: FlutterwaveBank[];
+  banksLoading: boolean;
+  banksError: string | null;
+  onBanksRetry: () => void;
   onAdded: (account: BankAccount) => void;
   onCancel: () => void;
 }) {
-  const {
-    banks,
-    isLoading: banksLoading,
-    error: banksError,
-    refetch,
-  } = useBanksList();
-
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifiedName, setVerifiedName] = useState<string | null>(null);
@@ -221,16 +323,15 @@ function AddBankForm({
     accountNumber: string;
   } | null>(null);
 
-  const [openBankPopover, setOpenBankPopover] = React.useState(false);
   const {
     control,
     register,
     handleSubmit,
     watch,
     formState: { errors },
-  } = useFormContext?.() ||
-  useForm<AddBankFormValues>({
+  } = useForm<AddBankFormValues>({
     resolver: zodResolver(addBankSchema),
+    defaultValues: { bankCode: "", accountNumber: "" },
   });
 
   const bankCode = watch("bankCode");
@@ -303,21 +404,36 @@ function AddBankForm({
     onAdded(newAccount);
   }
 
-  const canVerify =
-    bankCode && bankCode !== "" && accountNumber?.length === 10 && !isVerifying;
-
   const alreadyVerified =
     verifiedName !== null &&
     lastVerifiedInput?.bankCode === bankCode &&
     lastVerifiedInput?.accountNumber === accountNumber;
 
+  const canVerify =
+    !!bankCode &&
+    accountNumber?.length === 10 &&
+    !isVerifying &&
+    !alreadyVerified;
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+      {/* Dev-mode notice */}
+      {IS_DEV && (
+        <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/10 dark:border-amber-800/30 p-3 text-xs text-amber-700 dark:text-amber-400">
+          <span className="font-bold shrink-0">DEV MODE</span>
+          <span>
+            Only <strong>Access Bank (044)</strong> is available in test mode.
+            All other banks are hidden until you switch to a live Flutterwave
+            key.
+          </span>
+        </div>
+      )}
+
       {/* Bank selector */}
       <div className="space-y-1.5">
-        <Label htmlFor="bank-select">Bank</Label>
+        <Label>Bank</Label>
         {banksLoading ? (
-          <BankSelectorSkeleton />
+          <Skeleton className="h-8 w-full rounded-lg" />
         ) : banksError ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2 rounded-lg bg-destructive/5 border border-destructive/20 p-3 text-xs text-destructive">
@@ -328,7 +444,7 @@ function AddBankForm({
               type="button"
               variant="outline"
               size="sm"
-              onClick={refetch}
+              onClick={onBanksRetry}
               className="gap-1.5"
             >
               <RefreshCwIcon className="size-3.5" />
@@ -339,60 +455,14 @@ function AddBankForm({
           <Controller
             name="bankCode"
             control={control}
-            render={({ field }) => {
-              const selectedBank = banks.find((b) => b.code === field.value);
-              return (
-                <Popover
-                  open={openBankPopover}
-                  onOpenChange={setOpenBankPopover}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      role="combobox"
-                      aria-expanded={openBankPopover}
-                      className={cn(
-                        "h-8 w-full justify-between",
-                        errors.bankCode && "border-destructive",
-                      )}
-                    >
-                      {selectedBank ? selectedBank.name : "Select a bank…"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                    <Command shouldFilter={true}>
-                      <CommandInput placeholder="Search banks…" />
-                      <CommandList>
-                        <CommandEmpty>No bank found.</CommandEmpty>
-                        <CommandGroup>
-                          {banks.map((bank) => (
-                            <CommandItem
-                              key={bank.code}
-                              value={bank.code}
-                              onSelect={() => {
-                                field.onChange(bank.code);
-                                setOpenBankPopover(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  field.value === bank.code
-                                    ? "opacity-100"
-                                    : "opacity-0",
-                                )}
-                              />
-                              {bank.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              );
-            }}
+            render={({ field }) => (
+              <BankSelector
+                banks={banks}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.bankCode?.message}
+              />
+            )}
           />
         )}
         {errors.bankCode && (
@@ -418,7 +488,7 @@ function AddBankForm({
             type="button"
             variant={alreadyVerified ? "secondary" : "outline"}
             size="sm"
-            disabled={!canVerify || alreadyVerified}
+            disabled={!canVerify}
             onClick={verifyAccount}
             className="shrink-0"
           >
@@ -492,6 +562,12 @@ function AddBankForm({
 
 export function BankAccountsTab() {
   const { appUser, firebaseUser, setAppUser } = useAuthStore();
+  const {
+    banks,
+    isLoading: banksLoading,
+    error: banksError,
+    refetch,
+  } = useBanksList();
   const [showAddForm, setShowAddForm] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -545,7 +621,6 @@ export function BankAccountsTab() {
     setRemovingId(null);
     try {
       const filtered = bankAccounts.filter((b) => b.id !== id);
-      // If we removed the default, promote the first remaining account
       const updated =
         filtered.length > 0 && !filtered.some((b) => b.isDefault)
           ? [{ ...filtered[0], isDefault: true }, ...filtered.slice(1)]
@@ -584,12 +659,17 @@ export function BankAccountsTab() {
             )}
           </div>
         </CardHeader>
+
         <CardContent className="space-y-4">
           {/* Add form */}
           {showAddForm && (
             <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-4">
               <p className="text-sm font-semibold">New bank account</p>
               <AddBankForm
+                banks={banks}
+                banksLoading={banksLoading}
+                banksError={banksError}
+                onBanksRetry={refetch}
                 onAdded={handleAdded}
                 onCancel={() => setShowAddForm(false)}
               />

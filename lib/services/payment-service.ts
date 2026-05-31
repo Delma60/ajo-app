@@ -21,7 +21,7 @@
  * All amounts are in kobo (1 NGN = 100 kobo).
  */
 
-import crypto from "crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import {
@@ -35,6 +35,27 @@ import { MIN_DEPOSIT_KOBO, MIN_WITHDRAW_KOBO } from "@/lib/constants";
 import type { User, BankAccount } from "@/lib/types/user";
 import type { Transaction } from "@/lib/types/transaction";
 import type { Wallet } from "@/lib/types/wallet";
+// ─── Flutterwave fetch helper ───────────────────────────────────────────────
+async function flwFetch(url: string, options: RequestInit): Promise<any> {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (err) {
+    throw new PaymentError(
+      "FLW_PARSE_ERROR",
+      `Flutterwave response was not valid JSON: ${text?.slice(0, 200)}`
+    );
+  }
+  if (!res.ok || data.status === "error" || data.status === "failed") {
+    throw new PaymentError(
+      "FLW_API_ERROR",
+      data.message || `Flutterwave API error: ${res.status}`
+    );
+  }
+  return data;
+}
 
 // ─── Custom error ─────────────────────────────────────────────────────────────
 
@@ -62,17 +83,16 @@ export class PaymentService {
   // ─── Webhook signature ─────────────────────────────────────────────────────
 
   verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
-    if (!signature) return false;
-    const secret = process.env.FLUTTERWAVE_SECRET_KEY!;
-    const expected = crypto
-      .createHmac("sha256", secret)
-      .update(rawBody)
-      .digest("hex");
-    const expectedBuf = Buffer.from(expected);
-    const signatureBuf = Buffer.from(signature);
-    if (expectedBuf.length !== signatureBuf.length) return false;
-    return crypto.timingSafeEqual(expectedBuf, signatureBuf);
-  }
+  if (!signature) return false;
+  const secret = process.env.FLUTTERWAVE_SECRET_KEY!;
+  const expected = createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signature);
+  if (expectedBuf.length !== signatureBuf.length) return false;
+  return timingSafeEqual(expectedBuf, signatureBuf);
+}
 
   // ─── Deposit ───────────────────────────────────────────────────────────────
 
@@ -96,11 +116,7 @@ export class PaymentService {
         `Minimum deposit is ₦${MIN_DEPOSIT_KOBO / 100}.`
       );
     }
-
-    // Use the reference as the Firestore document ID so the webhook can
-    // locate and update it with a simple .doc(reference).get() — no query needed.
     const reference = `DEP-${userId.slice(0, 6)}-${Date.now()}`;
-
     await this.txCol.doc(reference).set({
       id: reference,
       userId,
@@ -111,45 +127,48 @@ export class PaymentService {
       netAmount: amountKobo,
       status: "pending",
       provider: "flutterwave",
-      providerReference: null, // filled in by the webhook
+      providerReference: undefined,
       reference,
       description: "Wallet funding",
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    } satisfies Omit<Transaction, "id"> & { id: string });
-
-    const res = await fetch(`${FLW_API}/payments`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tx_ref: reference,
-        amount: amountKobo / 100,
-        currency: "NGN",
-        redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/wallet/deposit/callback`,
-        customer: { email, name, phone_number: phone },
-        customizations: {
-          title: "AjoSave Deposit",
-          description: "Secure wallet funding",
-          logo: `${process.env.NEXT_PUBLIC_APP_URL}/icon.png`,
+      createdAt: FieldValue.serverTimestamp() as unknown as Timestamp,
+      updatedAt: FieldValue.serverTimestamp() as unknown as Timestamp,
+    } as Omit<Transaction, "id"> & { id: string });
+    let data;
+    try {
+      data = await flwFetch(`${FLW_API}/payments`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+          "Content-Type": "application/json",
         },
-      }),
-    });
-
-    const data = await res.json();
-
-    if (data.status !== "success" || !data.data?.link) {
-      // Clean up the pending record so it doesn't become an orphan
+        body: JSON.stringify({
+          tx_ref: reference,
+          amount: amountKobo / 100,
+          currency: "NGN",
+          redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/wallet/deposit/callback`,
+          customer: { email, name, phone_number: phone },
+          customizations: {
+            title: "AjoSave Deposit",
+            description: "Secure wallet funding",
+            logo: `${process.env.NEXT_PUBLIC_APP_URL}/icon.png`,
+          },
+        }),
+      });
+    } catch (err: any) {
       await this.txCol.doc(reference).delete();
-      console.error("[payment-service] Flutterwave init failed:", data);
+      console.error("[payment-service] Flutterwave init failed:", err);
+      throw new PaymentError(
+        "PROVIDER_ERROR",
+        err?.message ?? "Payment initialisation failed."
+      );
+    }
+    if (!data.data?.link) {
+      await this.txCol.doc(reference).delete();
       throw new PaymentError(
         "PROVIDER_ERROR",
         data.message ?? "Payment initialisation failed."
       );
     }
-
     return { paymentLink: data.data.link, reference };
   }
 
@@ -226,28 +245,25 @@ export class PaymentService {
     });
 
     // Dispatch Flutterwave Transfer (outside transaction — intentional)
-    const transferRes = await fetch(`${FLW_API}/transfers`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        account_bank: bankAccount.bankCode,
-        account_number: bankAccount.accountNumber,
-        amount: netAmount / 100,
-        currency: "NGN",
-        reference,
-        narration: `AjoSave withdrawal for ${user.name}`,
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/webhook`,
-      }),
-    });
-
-    const transferData = await transferRes.json();
-
-    if (transferData.status !== "success") {
-      console.error("[payment-service] Flutterwave transfer rejected:", transferData);
-
+    let transferData;
+    try {
+      transferData = await flwFetch(`${FLW_API}/transfers`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          account_bank: bankAccount.bankCode,
+          account_number: bankAccount.accountNumber,
+          amount: netAmount / 100,
+          currency: "NGN",
+          reference,
+          narration: `AjoSave withdrawal for ${user.name}`,
+          callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/webhook`,
+        }),
+      });
+    } catch (err: any) {
       // Refund the deducted amount immediately
       await adminDb.runTransaction(async (tx) => {
         await creditWallet(
@@ -259,7 +275,6 @@ export class PaymentService {
           { reference }
         );
       });
-
       // Mark the debit transaction as failed
       const debitSnap = await this.txCol
         .where("reference", "==", reference)
@@ -272,10 +287,9 @@ export class PaymentService {
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
-
       throw new PaymentError(
         "PROVIDER_ERROR",
-        transferData.message ?? "Transfer failed. Your funds have been refunded."
+        err?.message ?? "Transfer failed. Your funds have been refunded."
       );
     }
 
@@ -306,54 +320,41 @@ export class PaymentService {
   private async processSuccessfulDeposit(
     flwData: Record<string, unknown>
   ): Promise<void> {
-    const providerReference = String(flwData.id); // Flutterwave transaction ID
-    const txRef = flwData.tx_ref as string; // our internal reference
-    const amountNaira = flwData.amount as number;
+    // Null/field guards
+    if (!flwData || typeof flwData !== "object") return;
+    const providerReference = flwData.id ? String(flwData.id) : null;
+    const txRef = flwData.tx_ref as string | undefined;
+    const amountNaira = flwData.amount as number | undefined;
+    if (!providerReference || !txRef || typeof amountNaira !== "number") {
+      console.warn("[payment-service] Missing required fields in deposit webhook", { providerReference, txRef, amountNaira });
+      return;
+    }
     const amountKobo = Math.round(amountNaira * 100);
-
-    // ── Locate the pending transaction doc ────────────────────────────────────
-    // We store the doc under the reference ID directly, so no query needed.
     const pendingRef = this.txCol.doc(txRef);
-
     await adminDb.runTransaction(async (tx) => {
       const pendingSnap = await tx.get(pendingRef);
-
       if (!pendingSnap.exists) {
         console.warn(
           `[payment-service] No pending transaction found for ref ${txRef} — skipping.`
         );
         return;
       }
-
       const pendingData = pendingSnap.data() as Transaction;
-
-      // ── Idempotency guard ──────────────────────────────────────────────────
-      // If the status is anything other than "pending", this webhook has already
-      // been processed (duplicate delivery). Return immediately without changes.
       if (pendingData.status !== "pending") {
         console.warn(
           `[payment-service] Transaction ${txRef} already has status "${pendingData.status}" — skipping duplicate webhook.`
         );
         return;
       }
-
       const userId = pendingData.userId;
-
-      // ── 1. Update the existing pending doc to "success" ────────────────────
-      // This is the ONLY write to the transactions collection for this deposit.
       tx.update(pendingRef, {
         status: "success",
         providerReference,
-        // Reconcile the amount from Flutterwave in case it differs (e.g. partial)
         amount: amountKobo,
         netAmount: amountKobo,
         updatedAt: FieldValue.serverTimestamp(),
       });
-
-      // ── 2. Credit the wallet balance — no new transaction doc ──────────────
       await creditWalletBalance(tx, userId, amountKobo, "deposit");
-
-      // ── 3. Referral bonus (best-effort, creates its own tx doc) ────────────
       try {
         await this.maybeAwardReferralBonus(tx, userId, amountKobo);
       } catch (err) {
@@ -363,17 +364,20 @@ export class PaymentService {
         );
       }
     });
-
-    // ── Notify user after the transaction commits ──────────────────────────
-    void sendNotification(
-      (await pendingRef.get()).data()?.userId as string,
-      {
-        type: "general",
-        title: "Deposit Confirmed",
-        body: `₦${(amountKobo / 100).toLocaleString("en-NG")} has been added to your wallet.`,
-        link: "/wallet",
-      }
-    );
+    // Notify user after the transaction commits
+    const pendingSnap = await pendingRef.get();
+    const userId = pendingSnap.data()?.userId as string | undefined;
+    if (userId) {
+      void sendNotification(
+        userId,
+        {
+          type: "general",
+          title: "Deposit Confirmed",
+          body: `₦${(amountKobo / 100).toLocaleString("en-NG")} has been added to your wallet.`,
+          link: "/wallet",
+        }
+      );
+    }
   }
 
   // ─── Private: withdrawal status ────────────────────────────────────────────
@@ -382,30 +386,28 @@ export class PaymentService {
     flwData: Record<string, unknown>,
     outcome: "success" | "failed"
   ): Promise<void> {
-    const reference = flwData.reference as string;
-
+    if (!flwData || typeof flwData !== "object") return;
+    const reference = flwData.reference as string | undefined;
+    if (!reference) {
+      console.warn("[payment-service] Missing reference in withdrawal webhook", flwData);
+      return;
+    }
     // Find the withdrawal debit transaction
     const txSnap = await this.txCol
       .where("reference", "==", reference)
       .where("direction", "==", "debit")
       .limit(1)
       .get();
-
     if (txSnap.empty) {
       console.warn(
         `[payment-service] No withdrawal transaction found for ref ${reference}`
       );
       return;
     }
-
     const txDoc = txSnap.docs[0];
     const txData = txDoc.data() as Transaction;
-
-    // Idempotency: already finalised
     if (txData.status !== "pending") return;
-
     if (outcome === "failed") {
-      // Refund the gross amount that was debited
       await adminDb.runTransaction(async (tx) => {
         tx.update(txDoc.ref, {
           status: "failed",
@@ -420,7 +422,6 @@ export class PaymentService {
           { reference }
         );
       });
-
       void sendNotification(txData.userId, {
         type: "general",
         title: "Withdrawal Failed",
@@ -430,10 +431,9 @@ export class PaymentService {
     } else {
       await txDoc.ref.update({
         status: "success",
-        providerReference: String(flwData.id),
+        providerReference: flwData.id ? String(flwData.id) : undefined,
         updatedAt: FieldValue.serverTimestamp(),
       });
-
       void sendNotification(txData.userId, {
         type: "general",
         title: "Withdrawal Successful",

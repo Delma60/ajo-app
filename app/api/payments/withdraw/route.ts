@@ -31,16 +31,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch (err) {
+      return Response.json(
+        { success: false, data: null, error: "Malformed JSON body" },
+        { status: 400 }
+      );
+    }
     const { amount, bankAccountId } = body;
-
     if (!amount || typeof amount !== "number" || amount <= 0) {
       return Response.json(
         { success: false, data: null, error: "amount must be a positive number (kobo)" },
         { status: 400 }
       );
     }
-
     if (!bankAccountId || typeof bankAccountId !== "string") {
       return Response.json(
         { success: false, data: null, error: "bankAccountId is required" },
