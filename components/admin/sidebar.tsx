@@ -48,13 +48,13 @@ const NAV_GROUPS = [
       {
         icon: LayoutDashboard,
         label: "Dashboard",
-        href: "/admin/dashboard",
+        href: "/admin",
       },
       {
         icon: Activity,
         label: "Analytics",
         href: "/admin/analytics",
-        badge: "Soon",
+        // badge: "Soon",
       },
     ],
   },
