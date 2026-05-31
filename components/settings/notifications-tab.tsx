@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, BellIcon, MessageSquareIcon, MailIcon } from "lucide-react";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2, BellIcon, MessageSquareIcon, MailIcon, CheckCircle2Icon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { db } from "@/lib/firebase/client";
 import { Switch } from "@/components/ui/switch";
 import {
   Card,
@@ -16,38 +14,9 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface NotificationPrefs {
-  // In-app
-  inApp_contributionDue: boolean;
-  inApp_payoutReceived: boolean;
-  inApp_memberJoined: boolean;
-  inApp_penaltyApplied: boolean;
-  // SMS
-  sms_contributionDue: boolean;
-  sms_payoutReceived: boolean;
-  sms_lateWarning: boolean;
-  // Email
-  email_contributionReceipt: boolean;
-  email_payoutNotice: boolean;
-  email_disputeUpdates: boolean;
-}
-
-const DEFAULT_PREFS: NotificationPrefs = {
-  inApp_contributionDue: true,
-  inApp_payoutReceived: true,
-  inApp_memberJoined: true,
-  inApp_penaltyApplied: true,
-  sms_contributionDue: true,
-  sms_payoutReceived: true,
-  sms_lateWarning: true,
-  email_contributionReceipt: true,
-  email_payoutNotice: true,
-  email_disputeUpdates: true,
-};
+import { Skeleton } from "@/components/ui/skeleton";
+import type { NotificationPrefs } from "@/lib/types/user";
+import { DEFAULT_NOTIFICATION_PREFS } from "@/lib/types/user";
 
 // ─── Toggle row ───────────────────────────────────────────────────────────────
 
@@ -67,7 +36,9 @@ function ToggleRow({
   return (
     <div className="flex items-start justify-between gap-4 py-3 border-b border-border last:border-0">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium">{label}</p>
+        <p className={`text-sm font-medium ${disabled ? "text-muted-foreground" : ""}`}>
+          {label}
+        </p>
         <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
       <Switch
@@ -80,7 +51,36 @@ function ToggleRow({
   );
 }
 
-// ─── Channel section ──────────────────────────────────────────────────────────
+// ─── Skeleton for loading state ───────────────────────────────────────────────
+
+function ChannelSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2.5">
+          <Skeleton className="size-8 rounded-lg" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-0">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex items-start justify-between gap-4 py-3 border-b border-border last:border-0">
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3.5 w-40" />
+              <Skeleton className="h-3 w-64" />
+            </div>
+            <Skeleton className="h-5 w-9 rounded-full shrink-0" />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Channel section wrapper ──────────────────────────────────────────────────
 
 function ChannelSection({
   icon: Icon,
@@ -114,38 +114,114 @@ function ChannelSection({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function NotificationsTab() {
-  const { appUser, firebaseUser, setAppUser } = useAuthStore();
-  const [isSaving, setIsSaving] = useState(false);
+  const { appUser, firebaseUser } = useAuthStore();
 
-  // Merge stored prefs with defaults
-  const [prefs, setPrefs] = useState<NotificationPrefs>(() => ({
-    ...DEFAULT_PREFS,
-    ...((appUser as any)?.notificationPrefs ?? {}),
-  }));
+  const [prefs, setPrefs] = useState<NotificationPrefs>({ ...DEFAULT_NOTIFICATION_PREFS });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const hasPhone = !!(appUser?.phone);
 
-  function update<K extends keyof NotificationPrefs>(key: K, value: NotificationPrefs[K]) {
+  // ── Load prefs from server on mount ──────────────────────────────────────
+
+  const loadPrefs = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(false);
+    try {
+      const res = await fetch("/api/notifications/preferences");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      setPrefs({ ...DEFAULT_NOTIFICATION_PREFS, ...json.data });
+    } catch {
+      setLoadError(true);
+      // Fall back to whatever is on the appUser doc
+      setPrefs({
+        ...DEFAULT_NOTIFICATION_PREFS,
+        ...((appUser as any)?.notificationPrefs ?? {}),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [appUser]);
+
+  useEffect(() => {
+    if (firebaseUser) loadPrefs();
+  }, [firebaseUser, loadPrefs]);
+
+  // ── Update a single pref key ──────────────────────────────────────────────
+
+  function update<K extends keyof NotificationPrefs>(
+    key: K,
+    value: NotificationPrefs[K]
+  ) {
     setPrefs((prev) => ({ ...prev, [key]: value }));
+    setIsDirty(true);
   }
+
+  // ── Save all prefs via API route ──────────────────────────────────────────
 
   async function savePrefs() {
     if (!firebaseUser) return;
     setIsSaving(true);
     try {
-      await updateDoc(doc(db, "users", firebaseUser.uid), {
-        notificationPrefs: prefs,
-        updatedAt: serverTimestamp(),
+      const res = await fetch("/api/notifications/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(prefs),
       });
-      if (appUser) {
-        setAppUser({ ...appUser, ...(({ notificationPrefs: prefs } as any)) });
-      }
-      toast.success("Notification preferences saved.");
-    } catch {
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? "Save failed");
+
+      setPrefs({ ...DEFAULT_NOTIFICATION_PREFS, ...json.data });
+      setIsDirty(false);
+      toast.success("Notification preferences saved.", {
+        description: "Your settings will apply to all future reminders.",
+        icon: <CheckCircle2Icon className="size-4 text-emerald-600" />,
+      });
+    } catch (err) {
       toast.error("Failed to save preferences. Please try again.");
     } finally {
       setIsSaving(false);
     }
+  }
+
+  // ── Loading skeleton ──────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <ChannelSkeleton />
+        <ChannelSkeleton />
+        <ChannelSkeleton />
+        <div className="flex justify-end">
+          <Skeleton className="h-8 w-36 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Error state ───────────────────────────────────────────────────────────
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+        <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+          <BellIcon className="size-5 text-muted-foreground" />
+        </div>
+        <div>
+          <p className="text-sm font-medium">Couldn't load preferences</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Check your connection and try again.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadPrefs} className="gap-1.5">
+          <RefreshCwIcon className="size-3.5" />
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -250,8 +326,22 @@ export function NotificationsTab() {
       </ChannelSection>
 
       {/* Save button */}
-      <div className="flex justify-end">
-        <Button onClick={savePrefs} disabled={isSaving}>
+      <div className="flex items-center justify-between gap-4 py-2">
+        {isDirty && !isSaving && (
+          <p className="text-xs text-muted-foreground">
+            You have unsaved changes.
+          </p>
+        )}
+        {!isDirty && !isSaving && (
+          <p className="text-xs text-muted-foreground invisible select-none">
+            &nbsp;
+          </p>
+        )}
+        <Button
+          onClick={savePrefs}
+          disabled={isSaving || !isDirty}
+          className="gap-1.5 shrink-0"
+        >
           {isSaving && <Loader2 className="size-4 animate-spin" />}
           {isSaving ? "Saving…" : "Save preferences"}
         </Button>

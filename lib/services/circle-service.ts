@@ -23,7 +23,18 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { MAX_ACTIVE_CIRCLES } from "@/lib/constants";
 import { sendNotification } from "@/lib/services/notification-service";
 import * as smsService from "@/lib/services/sms-service";
+import {
+  sendDueRemindersForCircle,
+  sendPayoutNotification,
+  sendLatePaymentWarning,
+  sendContributionReceipt,
+} from "@/lib/services/circle-notification-helpers";
 import { debitWallet, creditWallet } from "@/lib/services/wallet-service";
+import {
+  recordOnTimePayment,
+  recordLatePayment,
+  recordMissedPayment,
+} from "@/lib/services/trust-score-service";
 import type { Circle } from "@/lib/types/circle";
 import type { Contribution } from "@/lib/types/contribution";
 import type { Bid } from "@/lib/types/bid";
@@ -41,11 +52,10 @@ export class CircleError extends Error {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CREATION_FEE_PERCENT = 0.05; // 5%
-const LATE_PENALTY_PERCENT = 0.10; // 10%
-const PLATFORM_PAYOUT_FEE_PERCENT = 0.01; // 1%
+const CREATION_FEE_PERCENT = 0.05;
+const LATE_PENALTY_PERCENT = 0.10;
+const PLATFORM_PAYOUT_FEE_PERCENT = 0.01;
 const GRACE_PERIOD_HOURS = 48;
-// const KYC_PAYOUT_THRESHOLD_KOBO = 5_000_000; // KYC removed
 const CONSECUTIVE_MISSED_LIMIT = 3;
 const BID_CLOSE_HOURS_BEFORE_PAYOUT = 24;
 
@@ -79,12 +89,10 @@ export class CircleService {
       throw new CircleError("INVALID_INPUT", "Minimum contribution is ₦500.");
     }
 
-    const [adminUser, adminWallet] = await Promise.all([
+    const [, adminWallet] = await Promise.all([
       this.requireUser(adminId),
       this.requireWallet(adminId),
     ]);
-
-    // KYC check removed
 
     const activeCount = await this.countActiveCircles(adminId);
     if (activeCount >= MAX_ACTIVE_CIRCLES) {
@@ -106,7 +114,6 @@ export class CircleService {
       const circleRef = this.circlesCol.doc();
       const { nextDueDate, nextPayoutDate } = this.nextDates(frequency, new Date());
 
-      // Deduct creation fee
       await debitWallet(tx, adminId, creationFee, "creation_fee", `Circle creation fee for "${name}"`, {
         circleId: circleRef.id,
       });
@@ -208,7 +215,6 @@ export class CircleService {
         updatedAt: now,
       });
 
-      // Notifications — fire-and-forget after transaction commits
       void sendNotification(circle.adminId, {
         type: "member_joined",
         title: "New Member Joined",
@@ -257,7 +263,6 @@ export class CircleService {
         );
       }
 
-      // Find or create the contribution document for this cycle
       const contribQuery = await this.contributionsCol
         .where("circleId", "==", circleId)
         .where("userId", "==", userId)
@@ -290,7 +295,6 @@ export class CircleService {
         throw new CircleError("ALREADY_PAID", "You have already paid for this cycle.");
       }
 
-      // Calculate total to deduct (contribution + any unpaid penalty)
       let penaltyKobo = 0;
       if (contrib.status === "late" && !contrib.penaltyPaid) {
         penaltyKobo = Math.round(circle.contribution * LATE_PENALTY_PERCENT);
@@ -304,14 +308,12 @@ export class CircleService {
         );
       }
 
-      // Debit wallet for contribution
       const contribTxId = await debitWallet(
         tx, userId, amountKobo, "contribution",
         `Contribution to "${circle.name}" — Cycle ${circle.currentCycle}`,
         { circleId }
       );
 
-      // Debit wallet for penalty (if applicable)
       if (penaltyKobo > 0) {
         await debitWallet(
           tx, userId, penaltyKobo, "penalty",
@@ -332,16 +334,15 @@ export class CircleService {
 
       tx.update(this.circlesCol.doc(circleId), {
         saved: FieldValue.increment(amountKobo),
-        "trustScoreBreakdown.onTimePayments": FieldValue.increment(
-          contrib.status === "pending" ? 1 : 0
-        ),
         updatedAt: now,
       });
 
-      // SMS confirmation (fire-and-forget)
-      if (user.phone) {
-        void smsService.sendContributionReceived(user.phone, circle.name, amountKobo);
+      // ── Trust score: record on-time only if it was still pending (not late) ──
+      if (contrib.status === "pending") {
+        await recordOnTimePayment(tx, circleId, circle.trustScoreBreakdown);
       }
+
+      void sendContributionReceipt(userId, user, circle, amountKobo);
 
       return { ...contrib, status: "paid", paidAt: Timestamp.now(), transactionId: contribTxId } as Contribution;
     });
@@ -369,7 +370,6 @@ export class CircleService {
   private async processSinglePayout(circleDoc: admin.firestore.QueryDocumentSnapshot): Promise<void> {
     const circle = circleDoc.data() as Circle;
 
-    // Verify all members have paid for this cycle
     const paidSnap = await this.contributionsCol
       .where("circleId", "==", circle.id)
       .where("cycle", "==", circle.currentCycle)
@@ -386,7 +386,6 @@ export class CircleService {
     await adminDb.runTransaction(async (tx) => {
       const circleRef = this.circlesCol.doc(circle.id);
 
-      // Determine recipient
       let recipientId = circle.currentRecipientId;
       let bidPremiumKobo = 0;
       let winningBidRef: admin.firestore.DocumentReference | null = null;
@@ -398,28 +397,21 @@ export class CircleService {
           bidPremiumKobo = bidResult.amount;
           winningBidRef = bidResult.ref;
         }
-        // If no bids, fall through to rotational logic below
       }
 
       if (circle.payoutOrder === "random") {
-        // Secure random selection from members who haven't received payout yet
         recipientId = circle.memberIds[Math.floor(Math.random() * circle.memberIds.length)];
       }
 
-      // KYC gate
       const recipientSnap = await tx.get(this.usersCol.doc(recipientId));
       const recipient = recipientSnap.data() as User;
       const basePool = circle.contribution * circle.memberIds.length;
       const platformFee = Math.round(basePool * PLATFORM_PAYOUT_FEE_PERCENT);
       const netPayout = basePool - platformFee + bidPremiumKobo;
 
-      // KYC payout gate removed
-
-      // Mark winning bid
       if (winningBidRef) {
         tx.update(winningBidRef, { status: "won", updatedAt: FieldValue.serverTimestamp() });
 
-        // Mark all other active bids as lost
         const otherBidsSnap = await this.bidsCol
           .where("circleId", "==", circle.id)
           .where("cycle", "==", circle.currentCycle)
@@ -431,7 +423,6 @@ export class CircleService {
           }
         }
 
-        // Distribute bid premium equally to non-winning members
         if (bidPremiumKobo > 0) {
           const nonWinners = circle.memberIds.filter((id) => id !== recipientId);
           if (nonWinners.length > 0) {
@@ -447,14 +438,12 @@ export class CircleService {
         }
       }
 
-      // Credit payout to recipient
       await creditWallet(
         tx, recipientId, netPayout, "payout",
         `Payout from "${circle.name}" — Cycle ${circle.currentCycle}`,
         { circleId: circle.id }
       );
 
-      // Advance cycle state
       const nextCycle = circle.currentCycle + 1;
       const isComplete = nextCycle > circle.totalCycles;
       const nextRecipientId = isComplete ? "" : this.advanceRecipient(circle, recipientId);
@@ -470,17 +459,7 @@ export class CircleService {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Notify recipient (fire-and-forget)
-      void sendNotification(recipientId, {
-        type: "payout_received",
-        title: "Payout Received! 🎉",
-        body: `₦${netPayout / 100} has been credited to your wallet from "${circle.name}".`,
-        link: "/wallet",
-      });
-
-      if (recipient.phone) {
-        void smsService.sendPayoutReceived(recipient.phone, circle.name, netPayout);
-      }
+      void sendPayoutNotification(recipientId, recipient, circle.name, circle.id, netPayout);
     });
   }
 
@@ -488,43 +467,20 @@ export class CircleService {
 
   async sendContributionReminders(): Promise<void> {
     const now = Timestamp.now();
-
     const snap = await this.circlesCol
       .where("status", "==", "active")
       .where("nextDueDate", "<=", now)
       .get();
-
     for (const circleDoc of snap.docs) {
       const circle = circleDoc.data() as Circle;
-
       const paidSnap = await this.contributionsCol
         .where("circleId", "==", circle.id)
         .where("cycle", "==", circle.currentCycle)
         .where("status", "==", "paid")
         .get();
-
       const paidIds = new Set(paidSnap.docs.map((d) => d.data().userId as string));
-
-      for (const memberId of circle.memberIds) {
-        if (paidIds.has(memberId)) continue;
-
-        void sendNotification(memberId, {
-          type: "contribution_due",
-          title: "Contribution Due",
-          body: `₦${circle.contribution / 100} due for "${circle.name}" — Cycle ${circle.currentCycle}.`,
-          link: `/circles/${circle.id}`,
-        });
-
-        try {
-          const userSnap = await this.usersCol.doc(memberId).get();
-          const user = userSnap.data() as User;
-          if (user?.phone) {
-            void smsService.sendContributionReminder(user.phone, circle.name, circle.contribution);
-          }
-        } catch {
-          // individual reminder failures must not block the loop
-        }
-      }
+      const unpaidMemberIds = circle.memberIds.filter((id) => !paidIds.has(id));
+      await sendDueRemindersForCircle(circle, unpaidMemberIds);
     }
   }
 
@@ -562,20 +518,7 @@ export class CircleService {
       const circle = circleSnap.data() as Circle;
       const user = userSnap.data() as User;
 
-      tx.update(contribDoc.ref, {
-        status: "late",
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-
-      // Update trust score breakdown
-      tx.update(this.circlesCol.doc(contrib.circleId), {
-        "trustScoreBreakdown.latePayments": FieldValue.increment(1),
-        "trustScoreBreakdown.lastUpdated": FieldValue.serverTimestamp(),
-        trustScore: FieldValue.increment(-5), // deduct 5 points per late payment
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-
-      // Check for three consecutive missed payments
+      // Check for three consecutive missed payments before marking this one
       const missedSnap = await this.contributionsCol
         .where("circleId", "==", contrib.circleId)
         .where("userId", "==", contrib.userId)
@@ -585,8 +528,15 @@ export class CircleService {
         .get();
 
       if (missedSnap.size >= CONSECUTIVE_MISSED_LIMIT - 1) {
-        // Mark this as missed and auto-remove
-        tx.update(contribDoc.ref, { status: "missed" });
+        // Escalate to missed and auto-remove
+        tx.update(contribDoc.ref, {
+          status: "missed",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        // ── Trust score: record missed payment ────────────────────────────────
+        await recordMissedPayment(tx, contrib.circleId, circle.trustScoreBreakdown);
+
         tx.update(this.circlesCol.doc(contrib.circleId), {
           memberIds: FieldValue.arrayRemove(contrib.userId),
           updatedAt: FieldValue.serverTimestamp(),
@@ -605,18 +555,18 @@ export class CircleService {
         return;
       }
 
-      const penaltyKobo = Math.round(circle.contribution * LATE_PENALTY_PERCENT);
-
-      void sendNotification(contrib.userId, {
-        type: "penalty_applied",
-        title: "Late Payment Warning",
-        body: `Your contribution to "${circle.name}" is late. A ₦${penaltyKobo / 100} penalty applies on payment.`,
-        link: `/circles/${contrib.circleId}`,
+      // Mark as late
+      tx.update(contribDoc.ref, {
+        status: "late",
+        updatedAt: FieldValue.serverTimestamp(),
       });
 
-      if (user.phone) {
-        void smsService.sendLatePaymentWarning(user.phone, circle.name, penaltyKobo);
-      }
+      // ── Trust score: record late payment ──────────────────────────────────
+      await recordLatePayment(tx, contrib.circleId, circle.trustScoreBreakdown);
+
+      const penaltyKobo = Math.round(circle.contribution * LATE_PENALTY_PERCENT);
+
+      void sendLatePaymentWarning(contrib.userId, user, circle, penaltyKobo);
     });
   }
 
@@ -647,7 +597,6 @@ export class CircleService {
         throw new CircleError("BID_CLOSED", "Bidding for this cycle has closed.");
       }
 
-      // Check for duplicate bid from same user this cycle
       const existingBidSnap = await this.bidsCol
         .where("circleId", "==", circleId)
         .where("userId", "==", userId)
@@ -732,7 +681,6 @@ export class CircleService {
         throw new CircleError("INVALID_OPERATION", "Circle is not paused.");
       }
 
-      // Recalculate dates from now to account for the paused period
       const { nextDueDate, nextPayoutDate } = this.nextDates(circle.frequency, new Date());
 
       tx.update(this.circlesCol.doc(circleId), {
@@ -790,7 +738,6 @@ export class CircleService {
         updatedAt: now,
       });
 
-      // Cancel pending contributions for removed member
       const pendingContribsSnap = await this.contributionsCol
         .where("circleId", "==", circleId)
         .where("userId", "==", memberId)
@@ -840,10 +787,6 @@ export class CircleService {
     return snap.size;
   }
 
-  /**
-   * Resolve the winning bid for a bidding-order circle.
-   * Returns the highest bid, or null if none found.
-   */
   private async resolveWinningBid(
     circle: Circle,
     _tx: admin.firestore.Transaction
@@ -851,7 +794,7 @@ export class CircleService {
     const deadline = new Date(circle.nextPayoutDate.toDate());
     deadline.setHours(deadline.getHours() - BID_CLOSE_HOURS_BEFORE_PAYOUT);
 
-    if (new Date() < deadline) return null; // bidding still open
+    if (new Date() < deadline) return null;
 
     const snap = await this.bidsCol
       .where("circleId", "==", circle.id)
@@ -868,20 +811,12 @@ export class CircleService {
     return { userId: bid.userId, amount: bid.amount, ref: doc.ref };
   }
 
-  /**
-   * Advance the current recipient pointer for rotational circles.
-   * For random/bidding the caller resolves the recipient separately.
-   */
   private advanceRecipient(circle: Circle, currentRecipientId: string): string {
     if (circle.payoutOrder !== "rotational") return currentRecipientId;
     const idx = circle.memberIds.indexOf(currentRecipientId);
     return circle.memberIds[(idx + 1) % circle.memberIds.length];
   }
 
-  /**
-   * Calculate nextDueDate and nextPayoutDate based on frequency from a base date.
-   * All dates are set to 09:00 UTC.
-   */
   private nextDates(
     frequency: Circle["frequency"],
     from: Date
