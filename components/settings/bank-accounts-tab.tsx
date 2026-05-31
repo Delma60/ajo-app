@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,6 +12,8 @@ import {
   Trash2Icon,
   ShieldCheckIcon,
   CheckCircle2Icon,
+  AlertCircleIcon,
+  RefreshCwIcon,
 } from "lucide-react";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from "sonner";
@@ -39,38 +41,17 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { BankAccount } from "@/lib/types/user";
 
-// ─── Nigerian banks list ──────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const NIGERIAN_BANKS = [
-  { code: "044", name: "Access Bank" },
-  { code: "023", name: "Citibank Nigeria" },
-  { code: "050", name: "Ecobank Nigeria" },
-  { code: "011", name: "First Bank of Nigeria" },
-  { code: "214", name: "First City Monument Bank" },
-  { code: "058", name: "Guaranty Trust Bank" },
-  { code: "030", name: "Heritage Bank" },
-  { code: "301", name: "Jaiz Bank" },
-  { code: "082", name: "Keystone Bank" },
-  { code: "526", name: "Moniepoint MFB" },
-  { code: "076", name: "Polaris Bank" },
-  { code: "101", name: "ProvidusBank" },
-  { code: "221", name: "Stanbic IBTC Bank" },
-  { code: "068", name: "Standard Chartered Bank" },
-  { code: "232", name: "Sterling Bank" },
-  { code: "100", name: "SunTrust Bank" },
-  { code: "032", name: "Union Bank of Nigeria" },
-  { code: "033", name: "United Bank for Africa" },
-  { code: "215", name: "Unity Bank" },
-  { code: "035", name: "Wema Bank" },
-  { code: "057", name: "Zenith Bank" },
-  { code: "627", name: "Kuda Bank" },
-  { code: "565", name: "Carbon" },
-  { code: "50515", name: "OPay" },
-  { code: "50304", name: "Palmpay" },
-];
+interface FlutterwaveBank {
+  id: number;
+  code: string;
+  name: string;
+}
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -83,6 +64,36 @@ const addBankSchema = z.object({
 });
 
 type AddBankFormValues = z.infer<typeof addBankSchema>;
+
+// ─── Hook: fetch banks from Flutterwave via our API ───────────────────────────
+
+function useBanksList() {
+  const [banks, setBanks] = useState<FlutterwaveBank[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchBanks = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/payments/banks");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? "Failed to load banks");
+      setBanks(json.data ?? []);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load banks";
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBanks();
+  }, [fetchBanks]);
+
+  return { banks, isLoading, error, refetch: fetchBanks };
+}
 
 // ─── Bank account card ────────────────────────────────────────────────────────
 
@@ -164,6 +175,12 @@ function BankAccountCard({
   );
 }
 
+// ─── Banks selector skeleton ──────────────────────────────────────────────────
+
+function BankSelectorSkeleton() {
+  return <Skeleton className="h-8 w-full rounded-lg" />;
+}
+
 // ─── Add bank form ────────────────────────────────────────────────────────────
 
 function AddBankForm({
@@ -173,8 +190,12 @@ function AddBankForm({
   onAdded: (account: BankAccount) => void;
   onCancel: () => void;
 }) {
+  const { banks, isLoading: banksLoading, error: banksError, refetch } = useBanksList();
+
   const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifiedName, setVerifiedName] = useState<string | null>(null);
+  const [lastVerifiedInput, setLastVerifiedInput] = useState<{ bankCode: string; accountNumber: string } | null>(null);
 
   const {
     register,
@@ -188,17 +209,43 @@ function AddBankForm({
   const bankCode = watch("bankCode");
   const accountNumber = watch("accountNumber");
 
-  // Simulate bank account verification (replace with real Flutterwave call)
+  // Reset verified name whenever the user changes either field
+  useEffect(() => {
+    if (
+      lastVerifiedInput &&
+      (bankCode !== lastVerifiedInput.bankCode ||
+        accountNumber !== lastVerifiedInput.accountNumber)
+    ) {
+      setVerifiedName(null);
+      setVerifyError(null);
+    }
+  }, [bankCode, accountNumber, lastVerifiedInput]);
+
   async function verifyAccount() {
     if (!bankCode || accountNumber?.length !== 10) return;
+
     setIsVerifying(true);
+    setVerifyError(null);
     setVerifiedName(null);
+
     try {
-      // In production: call /api/payments/verify-account { bankCode, accountNumber }
-      await new Promise((r) => setTimeout(r, 1200));
-      setVerifiedName("ADAEZE CHINYERE OKONKWO"); // mock
+      const res = await fetch("/api/payments/verify-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountNumber, bankCode }),
+      });
+
+      const json = await res.json();
+
+      if (!json.success || !json.data?.accountName) {
+        setVerifyError(json.error ?? "Could not verify account. Please check the details.");
+        return;
+      }
+
+      setVerifiedName(json.data.accountName as string);
+      setLastVerifiedInput({ bankCode, accountNumber });
     } catch {
-      toast.error("Could not verify account. Check the details and try again.");
+      setVerifyError("Network error. Please check your connection and try again.");
     } finally {
       setIsVerifying(false);
     }
@@ -209,7 +256,8 @@ function AddBankForm({
       toast.error("Please verify the account number first.");
       return;
     }
-    const bank = NIGERIAN_BANKS.find((b) => b.code === values.bankCode);
+
+    const bank = banks.find((b) => b.code === values.bankCode);
     if (!bank) return;
 
     const newAccount: BankAccount = {
@@ -220,30 +268,64 @@ function AddBankForm({
       accountName: verifiedName,
       isDefault: false,
     };
+
     onAdded(newAccount);
   }
+
+  const canVerify =
+    bankCode &&
+    bankCode !== "" &&
+    accountNumber?.length === 10 &&
+    !isVerifying;
+
+  const alreadyVerified =
+    verifiedName !== null &&
+    lastVerifiedInput?.bankCode === bankCode &&
+    lastVerifiedInput?.accountNumber === accountNumber;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
       {/* Bank selector */}
       <div className="space-y-1.5">
         <Label htmlFor="bank-select">Bank</Label>
-        <select
-          id="bank-select"
-          className={cn(
-            "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none",
-            "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-            errors.bankCode ? "border-destructive" : ""
-          )}
-          {...register("bankCode")}
-        >
-          <option value="">Select a bank…</option>
-          {NIGERIAN_BANKS.sort((a, b) => a.name.localeCompare(b.name)).map((bank) => (
-            <option key={bank.code} value={bank.code}>
-              {bank.name}
-            </option>
-          ))}
-        </select>
+        {banksLoading ? (
+          <BankSelectorSkeleton />
+        ) : banksError ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 rounded-lg bg-destructive/5 border border-destructive/20 p-3 text-xs text-destructive">
+              <AlertCircleIcon className="size-4 shrink-0" />
+              <span>{banksError}</span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={refetch}
+              className="gap-1.5"
+            >
+              <RefreshCwIcon className="size-3.5" />
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <select
+            id="bank-select"
+            className={cn(
+              "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none",
+              "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
+              errors.bankCode ? "border-destructive" : ""
+            )}
+            {...register("bankCode")}
+          >
+            <option value="">Select a bank…</option>
+            {banks.map((bank) => (
+              <option key={bank.code} value={bank.code}>
+                {bank.name}
+              </option>
+            ))}
+          </select>
+        )}
         {errors.bankCode && (
           <p className="text-xs text-destructive">{errors.bankCode.message}</p>
         )}
@@ -265,14 +347,16 @@ function AddBankForm({
           />
           <Button
             type="button"
-            variant="outline"
+            variant={alreadyVerified ? "secondary" : "outline"}
             size="sm"
-            disabled={!bankCode || accountNumber?.length !== 10 || isVerifying}
+            disabled={!canVerify || alreadyVerified}
             onClick={verifyAccount}
             className="shrink-0"
           >
             {isVerifying ? (
               <Loader2 className="size-3.5 animate-spin" />
+            ) : alreadyVerified ? (
+              <CheckCircle2Icon className="size-3.5 text-emerald-600" />
             ) : (
               "Verify"
             )}
@@ -282,6 +366,14 @@ function AddBankForm({
           <p className="text-xs text-destructive">{errors.accountNumber.message}</p>
         )}
       </div>
+
+      {/* Verification error */}
+      {verifyError && (
+        <div className="flex items-start gap-2 rounded-lg bg-destructive/5 border border-destructive/20 p-3 text-xs text-destructive">
+          <AlertCircleIcon className="size-4 shrink-0 mt-0.5" />
+          <p>{verifyError}</p>
+        </div>
+      )}
 
       {/* Verified account name */}
       {verifiedName && (
@@ -308,7 +400,7 @@ function AddBankForm({
         <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" className="flex-1" disabled={!verifiedName}>
+        <Button type="submit" className="flex-1" disabled={!verifiedName || banksLoading}>
           Add account
         </Button>
       </div>
@@ -346,7 +438,7 @@ export function BankAccountsTab() {
       setShowAddForm(false);
       toast.success("Bank account added.");
     } catch {
-      toast.error("Failed to save bank account.");
+      toast.error("Failed to save bank account. Please try again.");
     } finally {
       setIsUpdating(false);
     }
