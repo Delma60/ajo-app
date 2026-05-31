@@ -52,7 +52,9 @@ export function OnboardingComplete() {
     updateDoc(doc(db, "users", user.uid), {
       onboardingComplete: true,
       updatedAt: serverTimestamp(),
-    }).catch(console.error);
+    })
+      .then(() => fetch("/api/auth/session/refresh-meta", { method: "POST" }))
+      .catch(console.error);
   }, [user]);
 
   // Auto-redirect after 3.5 seconds
@@ -111,7 +113,12 @@ export function OnboardingComplete() {
           className="flex justify-center"
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 300, damping: 18, delay: 0.2 }}
+          transition={{
+            type: "spring",
+            stiffness: 300,
+            damping: 18,
+            delay: 0.2,
+          }}
         >
           <div className="size-20 rounded-full bg-primary/10 ring-4 ring-primary/20 flex items-center justify-center">
             <CheckCircle2Icon className="size-10 text-primary" />

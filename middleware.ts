@@ -1,11 +1,33 @@
+// middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
-import { adminAuth } from "@/lib/firebase/admin";
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
 
 export const runtime = "nodejs";
+
 const SESSION_COOKIE_NAME = "__session";
 
 // Routes that require authentication
-const PROTECTED_PREFIXES = ["/dashboard", "/circles", "/wallet", "/transactions", "/investments", "/settings", "/onboarding", "/notifications"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/circles",
+  "/wallet",
+  "/transactions",
+  "/investments",
+  "/settings",
+  "/notifications",
+];
+
+// Dashboard routes that also require onboarding to be complete
+// /onboarding itself is excluded so the user can actually reach it
+const REQUIRES_ONBOARDING_COMPLETE = [
+  "/dashboard",
+  "/circles",
+  "/wallet",
+  "/transactions",
+  "/investments",
+  "/settings",
+  "/notifications",
+];
 
 // Routes that authenticated users should NOT see
 const AUTH_ONLY_ROUTES = ["/login", "/register"];
@@ -13,22 +35,53 @@ const AUTH_ONLY_ROUTES = ["/login", "/register"];
 // Admin-only routes
 const ADMIN_PREFIXES = ["/admin"];
 
-async function getSessionUser(request: NextRequest) {
+// ─── Session helpers ──────────────────────────────────────────────────────────
+
+interface SessionUser {
+  uid: string;
+  email?: string;
+  role?: string;
+  onboardingComplete?: boolean;
+}
+
+async function getSessionUser(request: NextRequest): Promise<SessionUser | null> {
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (!sessionCookie) return null;
 
   try {
     const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
-    return decoded;
+
+    // Fetch onboardingComplete and role from Firestore
+    // We do a lightweight get — only the fields we need
+    const userSnap = await adminDb
+      .collection("users")
+      .doc(decoded.uid)
+      .get();
+
+    if (!userSnap.exists) {
+      // Session cookie is valid but user doc missing — treat as unauthenticated
+      return null;
+    }
+
+    const data = userSnap.data()!;
+
+    return {
+      uid: decoded.uid,
+      email: decoded.email,
+      role: data.role as string | undefined,
+      onboardingComplete: data.onboardingComplete as boolean | undefined,
+    };
   } catch {
     return null;
   }
 }
 
+// ─── Middleware ───────────────────────────────────────────────────────────────
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip API routes and static files
+  // Skip API routes, static files, and Next internals
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
@@ -40,29 +93,62 @@ export async function middleware(request: NextRequest) {
 
   const sessionUser = await getSessionUser(request);
 
-  // Redirect authenticated users away from login/register
+  // ── Redirect authenticated users away from login/register ──────────────────
   if (AUTH_ONLY_ROUTES.some((r) => pathname.startsWith(r))) {
     if (sessionUser) {
+      // If they're authenticated but haven't finished onboarding,
+      // send them to onboarding rather than dashboard
+      if (sessionUser.onboardingComplete === false) {
+        return NextResponse.redirect(new URL("/onboarding", request.url));
+      }
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
     return NextResponse.next();
   }
 
-  // Protect dashboard routes
+  // ── Protect dashboard/app routes ───────────────────────────────────────────
   if (PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))) {
     if (!sessionUser) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(loginUrl);
     }
+
+    // Authenticated but onboarding not complete → force to onboarding
+    // Exception: /onboarding itself must be reachable
+    if (
+      sessionUser.onboardingComplete === false &&
+      REQUIRES_ONBOARDING_COMPLETE.some((p) => pathname.startsWith(p))
+    ) {
+      return NextResponse.redirect(new URL("/onboarding", request.url));
+    }
   }
 
-  // Admin route guard
+  // ── Onboarding route: only accessible while not complete ───────────────────
+  if (pathname.startsWith("/onboarding")) {
+    if (!sessionUser) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", "/onboarding");
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // If they've already finished onboarding, don't let them back in
+    if (sessionUser.onboardingComplete === true) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+  }
+
+  // ── Admin route guard ──────────────────────────────────────────────────────
   if (ADMIN_PREFIXES.some((p) => pathname.startsWith(p))) {
     if (!sessionUser) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    // Role check happens in the admin layout via Firestore
+
+    // Role check in middleware — no need to hit Firestore again in the layout
+    if (sessionUser.role !== "admin") {
+      // Redirect non-admins to dashboard with a clear signal
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   return NextResponse.next();
