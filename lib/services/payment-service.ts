@@ -127,7 +127,7 @@ export class PaymentService {
       netAmount: amountKobo,
       status: "pending",
       provider: "flutterwave",
-      providerReference: undefined,
+      providerReference: null,
       reference,
       description: "Wallet funding",
       createdAt: FieldValue.serverTimestamp() as unknown as Timestamp,

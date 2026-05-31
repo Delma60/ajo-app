@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeftIcon,
@@ -16,6 +16,8 @@ import {
   PlayIcon,
   MoreHorizontalIcon,
   BellIcon,
+  Trash2Icon,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -25,11 +27,7 @@ import { useCircleRealtime } from "@/lib/hooks/use-circle";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { db } from "@/lib/firebase/client";
 import { formatNaira, cn } from "@/lib/utils";
-import {
-  FREQ_LABELS,
-  PAYOUT_LABELS,
-  STATUS_META,
-} from "@/lib/types/circle";
+import { FREQ_LABELS, PAYOUT_LABELS, STATUS_META } from "@/lib/types/circle";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +55,9 @@ import {
 import { ContributionDialog } from "@/components/circles/contribution-dialog";
 import { BidDialog } from "@/components/circles/bid-dialog";
 import { MembersList } from "@/components/circles/members-list";
+// import { PendingRequests } from "@/components/circles/pending-requests";
+import { LeaveCircleDialog } from "@/components/circles/leave-circle-dialog";
+import { PendingRequests } from "./pending-requests";
 
 interface CircleDetailContentProps {
   circleId: string;
@@ -74,7 +75,15 @@ export function CircleDetailContent({
   const [contributeOpen, setContributeOpen] = useState(false);
   const [bidOpen, setBidOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isTogglingPause, setIsTogglingPause] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Re-renders when pendingRequestIds changes via real-time listener
+  const handleRequestProcessed = useCallback(() => {
+    // The real-time listener on useCircleRealtime automatically refreshes
+    // pendingRequestIds — no manual state update needed here
+  }, []);
 
   if (isLoading) {
     return <CircleDetailSkeleton />;
@@ -96,54 +105,91 @@ export function CircleDetailContent({
 
   const isAdmin = circle.adminId === firebaseUser?.uid;
   const isMember = circle.memberIds.includes(firebaseUser?.uid ?? "");
+  const isPending = circle.pendingRequestIds?.includes(firebaseUser?.uid ?? "");
+  const isCurrentRecipient = circle.currentRecipientId === firebaseUser?.uid;
+
   const progress =
     circle.goal > 0 ? Math.round((circle.saved / circle.goal) * 100) : 0;
   const statusMeta = STATUS_META[circle.status];
+
+  // Determine user's turn position (1-indexed)
+  const myTurnPosition = isMember
+    ? circle.memberIds.indexOf(firebaseUser?.uid ?? "") + 1
+    : 0;
+
+  // Check if user has a pending contribution for this cycle
+  // (Approximate: if saved < expected-per-member × cycle, assume pending)
+  const hasPendingContribution = isMember && circle.status === "active";
 
   const progressColorCls =
     progress >= 80
       ? "[&>[data-slot=progress-indicator]]:bg-emerald-500"
       : progress >= 50
-      ? "[&>[data-slot=progress-indicator]]:bg-amber-400"
-      : "[&>[data-slot=progress-indicator]]:bg-blue-500";
+        ? "[&>[data-slot=progress-indicator]]:bg-amber-400"
+        : "[&>[data-slot=progress-indicator]]:bg-blue-500";
 
-  const nextDueDate =
-    circle.nextDueDate?.toDate?.() ?? new Date();
-  const nextPayoutDate =
-    circle.nextPayoutDate?.toDate?.() ?? new Date();
+  const nextDueDate = circle.nextDueDate?.toDate?.() ?? new Date();
+  const nextPayoutDate = circle.nextPayoutDate?.toDate?.() ?? new Date();
 
   async function handleTogglePause() {
-    if (!isAdmin) return;
+    if (!isAdmin || !circle) return;
     setIsTogglingPause(true);
     try {
-      const newStatus =
-        circle.status === "active" ? "paused" : "active";
-      await updateDoc(doc(db, "circles", circleId), {
-        status: newStatus,
-        updatedAt: serverTimestamp(),
+      const action = circle.status === "active" ? "pause" : "unpause";
+      const res = await fetch(`/api/circles/${circleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error ?? "Failed to update");
       toast.success(
-        newStatus === "active" ? "Circle resumed." : "Circle paused."
+        circle.status === "active" ? "Circle paused." : "Circle resumed.",
       );
-    } catch {
-      toast.error("Failed to update circle status.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update circle status.",
+      );
     } finally {
       setIsTogglingPause(false);
     }
   }
 
+  async function handleDeleteCircle() {
+    if (!isAdmin) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/circles/${circleId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!data.success)
+        throw new Error(data.error ?? "Failed to delete circle");
+      toast.success("Circle has been cancelled.");
+      router.push("/circles");
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to delete circle. Please try again.",
+      );
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+    }
+  }
+
   function copyInviteCode() {
-    navigator.clipboard.writeText(circle.inviteCode ?? "");
+    navigator.clipboard.writeText(circle!.inviteCode ?? "");
     toast.success("Invite code copied!");
   }
 
-  // Build mock members for demo — replace with real Firestore user lookups
-  const mockMembers = circle.memberIds.map((uid, i) => ({
+  // Build members list with actual data
+  const membersList = circle.memberIds.map((uid, i) => ({
     uid,
     name:
-      uid === firebaseUser?.uid
-        ? appUser?.name ?? "You"
-        : `Member ${i + 1}`,
+      uid === firebaseUser?.uid ? (appUser?.name ?? "You") : `Member ${i + 1}`,
     turnPosition: i + 1,
     paymentStatus: "up_to_date" as const,
     isCurrentRecipient: uid === circle.currentRecipientId,
@@ -161,7 +207,7 @@ export function CircleDetailContent({
           My Circles
         </Link>
 
-        {/* ── Hero card ───────────────────────────────────────────────────── */}
+        {/* ── Hero card ── */}
         <div className="rounded-2xl overflow-hidden border border-border bg-card">
           {/* Header */}
           <div className="p-5 pb-4 space-y-3">
@@ -175,7 +221,7 @@ export function CircleDetailContent({
                     variant="outline"
                     className={cn(
                       "border-0 text-xs shrink-0",
-                      statusMeta.badgeCls
+                      statusMeta.badgeCls,
                     )}
                   >
                     {statusMeta.label}
@@ -200,26 +246,37 @@ export function CircleDetailContent({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleTogglePause} disabled={isTogglingPause}>
-                      {circle.status === "active" ? (
-                        <>
-                          <PauseIcon className="size-4" />
-                          Pause circle
-                        </>
+                    <DropdownMenuItem
+                      onClick={handleTogglePause}
+                      disabled={
+                        isTogglingPause ||
+                        circle.status === "completed" ||
+                        circle.status === "cancelled"
+                      }
+                    >
+                      {isTogglingPause ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : circle.status === "active" ? (
+                        <PauseIcon className="size-4" />
                       ) : (
-                        <>
-                          <PlayIcon className="size-4" />
-                          Resume circle
-                        </>
+                        <PlayIcon className="size-4" />
                       )}
+                      {circle.status === "active"
+                        ? "Pause circle"
+                        : "Resume circle"}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={copyInviteCode}>
                       <CopyIcon className="size-4" />
                       Copy invite code
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive">
-                      Delete circle
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      disabled={circle.status === "completed"}
+                    >
+                      <Trash2Icon className="size-4" />
+                      Cancel circle
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -267,8 +324,8 @@ export function CircleDetailContent({
                   circle.trustScore >= 80
                     ? "Excellent"
                     : circle.trustScore >= 50
-                    ? "Good"
-                    : "Building",
+                      ? "Good"
+                      : "Building",
               },
             ].map(({ label, value, sub }) => (
               <div key={label} className="p-3 space-y-0.5">
@@ -283,7 +340,9 @@ export function CircleDetailContent({
           <div className="px-5 py-4 border-t border-border space-y-2">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{formatNaira(circle.saved)} saved</span>
-              <span>{formatNaira(circle.goal)} goal · {progress}%</span>
+              <span>
+                {formatNaira(circle.goal)} goal · {progress}%
+              </span>
             </div>
             <Progress
               value={progress}
@@ -321,7 +380,7 @@ export function CircleDetailContent({
             </div>
           </div>
 
-          {/* CTA */}
+          {/* CTAs for active members */}
           {isMember && circle.status === "active" && (
             <div className="px-5 py-4 border-t border-border flex gap-2 flex-wrap">
               <Button
@@ -354,7 +413,7 @@ export function CircleDetailContent({
           )}
 
           {/* Pending join request notice */}
-          {!isMember && circle.pendingRequestIds?.includes(firebaseUser?.uid ?? "") && (
+          {!isMember && isPending && (
             <div className="px-5 py-3 border-t border-border flex items-center gap-2 text-xs text-muted-foreground">
               <BellIcon className="size-3.5" />
               Your join request is pending admin approval.
@@ -362,7 +421,7 @@ export function CircleDetailContent({
           )}
         </div>
 
-        {/* ── Detail tabs ──────────────────────────────────────────────────── */}
+        {/* ── Detail tabs ── */}
         <Tabs defaultValue="members">
           <TabsList>
             <TabsTrigger value="members">
@@ -372,7 +431,7 @@ export function CircleDetailContent({
             {isAdmin && (
               <TabsTrigger value="requests">
                 Requests
-                {circle.pendingRequestIds?.length > 0 && (
+                {(circle.pendingRequestIds?.length ?? 0) > 0 && (
                   <span className="ml-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                     {circle.pendingRequestIds.length}
                   </span>
@@ -385,7 +444,7 @@ export function CircleDetailContent({
             <Card>
               <CardContent className="pt-2">
                 <MembersList
-                  members={mockMembers}
+                  members={membersList}
                   adminId={circle.adminId}
                   currentUserId={firebaseUser?.uid ?? ""}
                   isAdmin={isAdmin}
@@ -409,13 +468,15 @@ export function CircleDetailContent({
               <PendingRequests
                 pendingIds={circle.pendingRequestIds ?? []}
                 circleId={circleId}
+                onRequestProcessed={handleRequestProcessed}
               />
             </TabsContent>
           )}
         </Tabs>
       </div>
 
-      {/* Dialogs */}
+      {/* ── Dialogs ── */}
+
       <ContributionDialog
         open={contributeOpen}
         onOpenChange={setContributeOpen}
@@ -436,97 +497,53 @@ export function CircleDetailContent({
         />
       )}
 
-      {/* Leave circle confirm */}
-      <AlertDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+      {/* Leave circle dialog — fully wired */}
+      <LeaveCircleDialog
+        open={leaveDialogOpen}
+        onOpenChange={setLeaveDialogOpen}
+        circleId={circleId}
+        circleName={circle.name}
+        hasPendingContribution={hasPendingContribution}
+        contributionKobo={circle.contribution}
+        isNextRecipient={isCurrentRecipient}
+        turnPosition={myTurnPosition}
+        totalCycles={circle.totalCycles}
+        currentCycle={circle.currentCycle}
+      />
+
+      {/* Delete / Cancel circle confirm */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Leave circle?</AlertDialogTitle>
+            <AlertDialogTitle>Cancel this circle?</AlertDialogTitle>
             <AlertDialogDescription>
-              You will lose your position in <strong>{circle.name}</strong>.
-              You cannot rejoin unless the admin re-invites you.
+              This will permanently cancel <strong>{circle.name}</strong> and
+              suspend all pending contributions. Members will be notified. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>
+              Keep circle
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              onClick={() => {
-                // TODO: wire leave API
-                setLeaveDialogOpen(false);
-                toast.info("Leave functionality coming soon.");
-              }}
+              disabled={isDeleting}
+              onClick={handleDeleteCircle}
             >
-              Leave circle
+              {isDeleting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Cancelling…
+                </>
+              ) : (
+                "Cancel circle"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-// ─── Pending join requests (admin only) ──────────────────────────────────────
-
-function PendingRequests({
-  pendingIds,
-  circleId,
-}: {
-  pendingIds: string[];
-  circleId: string;
-}) {
-  if (pendingIds.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            No pending join requests.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Pending Requests ({pendingIds.length})</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {pendingIds.map((uid) => (
-          <div
-            key={uid}
-            className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0"
-          >
-            <div className="flex items-center gap-2">
-              <div className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">
-                ?
-              </div>
-              <div>
-                <p className="text-sm font-medium">User {uid.slice(0, 6)}…</p>
-                <p className="text-xs text-muted-foreground">Requested to join</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-destructive border-destructive/30 hover:bg-destructive/5"
-                onClick={() => toast.info("Decline coming soon.")}
-              >
-                Decline
-              </Button>
-              <Button
-                size="sm"
-                className="h-7"
-                onClick={() => toast.info("Approve coming soon.")}
-              >
-                Approve
-              </Button>
-            </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -561,6 +578,7 @@ function CircleDetailSkeleton() {
             <Skeleton className="h-2 w-full rounded-full" />
           </div>
         </div>
+        <Skeleton className="h-10 w-full rounded-lg" />
       </div>
     </div>
   );

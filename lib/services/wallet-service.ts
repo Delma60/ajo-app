@@ -112,7 +112,7 @@ export async function creditWallet(
   const txRef = adminDb.collection("transactions").doc();
   const txDoc: Omit<AppTransaction, "id"> = {
     userId,
-    circleId: meta?.circleId,
+    circleId: meta?.circleId ?? null,
     type,
     direction: "credit",
     amount: amountKobo,
@@ -120,7 +120,7 @@ export async function creditWallet(
     netAmount: amountKobo - fee,
     status: "success",
     reference: meta?.reference ?? txRef.id,
-    providerReference: meta?.providerReference,
+    providerReference: meta?.providerReference ?? null,
     description,
     createdAt: FieldValue.serverTimestamp() as any,
     updatedAt: FieldValue.serverTimestamp() as any,
@@ -213,7 +213,7 @@ export async function debitWallet(
   const txRef = adminDb.collection("transactions").doc();
   const txDoc: Omit<AppTransaction, "id"> = {
     userId,
-    circleId: meta?.circleId,
+    circleId: meta?.circleId ?? null,
     type,
     direction: "debit",
     amount: amountKobo,

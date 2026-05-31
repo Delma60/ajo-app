@@ -90,7 +90,7 @@ export class DisputeService {
     const dispute: Omit<Dispute, "id"> = {
       circleId: input.circleId,
       raisedBy: input.raisedBy,
-      againstUserId: input.againstUserId,
+      againstUserId: input.againstUserId ?? null,
       type: input.type,
       description: input.description.trim(),
       status: "open",
