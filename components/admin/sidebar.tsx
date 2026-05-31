@@ -80,7 +80,7 @@ const NAV_GROUPS = [
         icon: TrendingUp,
         label: "Investments",
         href: "/admin/investments",
-        badge: "Soon",
+        // badge: "Soon",
       },
     ],
   },

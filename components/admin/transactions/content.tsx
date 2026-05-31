@@ -49,6 +49,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -290,7 +291,7 @@ function StatsStrip({
             <div
               className={cn(
                 "flex size-8 shrink-0 items-center justify-center rounded-lg",
-                item.iconBg
+                item.iconBg,
               )}
             >
               <item.icon className={cn("size-4", item.iconColor)} />
@@ -336,7 +337,7 @@ function TransactionRow({
       <div
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-xl",
-          typeMeta.iconBg
+          typeMeta.iconBg,
         )}
       >
         <typeMeta.icon className={cn("size-4", typeMeta.iconColor)} />
@@ -383,8 +384,8 @@ function TransactionRow({
             tx.status === "success"
               ? "text-emerald-600 dark:text-emerald-400"
               : tx.status === "pending"
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-red-600 dark:text-red-400"
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-red-600 dark:text-red-400",
           )}
         />
         <span
@@ -393,8 +394,8 @@ function TransactionRow({
             tx.status === "success"
               ? "text-emerald-700 dark:text-emerald-400"
               : tx.status === "pending"
-              ? "text-amber-700 dark:text-amber-400"
-              : "text-red-700 dark:text-red-400"
+                ? "text-amber-700 dark:text-amber-400"
+                : "text-red-700 dark:text-red-400",
           )}
         >
           {statusMeta.label}
@@ -406,14 +407,14 @@ function TransactionRow({
         {fmtDate(tx.createdAt)}
       </p>
 
-      {/* Amount */}
+      {/* Amount + Status (mobile) */}
       <div className="text-right shrink-0">
         <p
           className={cn(
             "text-sm font-semibold font-mono tabular-nums",
             tx.direction === "credit"
               ? "text-emerald-600 dark:text-emerald-400"
-              : "text-foreground"
+              : "text-foreground",
           )}
         >
           {tx.direction === "credit" ? "+" : "−"}
@@ -424,6 +425,29 @@ function TransactionRow({
             fee {fmtNaira(tx.fee)}
           </p>
         )}
+        {/* Status for mobile (shown below amount, hidden on sm+) */}
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 mt-0.5 text-[10px] font-medium sm:hidden",
+            tx.status === "success"
+              ? "text-emerald-700 dark:text-emerald-400"
+              : tx.status === "pending"
+                ? "text-amber-700 dark:text-amber-400"
+                : "text-red-700 dark:text-red-400",
+          )}
+        >
+          <StatusIcon
+            className={cn(
+              "size-3.5",
+              tx.status === "success"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : tx.status === "pending"
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-red-600 dark:text-red-400",
+            )}
+          />
+          {statusMeta.label}
+        </span>
       </div>
 
       <ChevronRightIcon className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
@@ -437,11 +461,20 @@ function TransactionDetailSheet({
   tx,
   open,
   onOpenChange,
+  onStatusChange,
 }: {
   tx: AdminTransaction | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onStatusChange?: (status: string) => void;
 }) {
+  const [status, setStatus] = useState(tx?.status || "pending");
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    setStatus(tx?.status || "pending");
+  }, [tx]);
+
   if (!tx) return null;
 
   const typeMeta = TYPE_META[tx.type] ?? {
@@ -450,7 +483,7 @@ function TransactionDetailSheet({
     iconBg: "bg-muted",
     iconColor: "text-muted-foreground",
   };
-  const statusMeta = STATUS_META[tx.status] ?? STATUS_META.pending;
+  const statusMeta = STATUS_META[status] ?? STATUS_META.pending;
 
   const initials = tx.userName
     .split(" ")
@@ -480,7 +513,7 @@ function TransactionDetailSheet({
             className={cn(
               "text-xs text-right truncate",
               mono && "font-mono font-medium",
-              valueClassName
+              valueClassName,
             )}
           >
             {value || "—"}
@@ -489,6 +522,25 @@ function TransactionDetailSheet({
         </div>
       </div>
     );
+  }
+
+  async function handleStatusUpdate() {
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/admin/transactions/${tx?.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to update");
+      toast.success("Transaction status updated");
+      if (onStatusChange) onStatusChange(status);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update status");
+    } finally {
+      setIsUpdating(false);
+    }
   }
 
   return (
@@ -503,7 +555,7 @@ function TransactionDetailSheet({
             <div
               className={cn(
                 "flex size-12 shrink-0 items-center justify-center rounded-2xl",
-                typeMeta.iconBg
+                typeMeta.iconBg,
               )}
             >
               <typeMeta.icon className={cn("size-5", typeMeta.iconColor)} />
@@ -519,7 +571,7 @@ function TransactionDetailSheet({
                 <span
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                    statusMeta.cls
+                    statusMeta.cls,
                   )}
                 >
                   <statusMeta.icon className="size-3" />
@@ -533,6 +585,33 @@ function TransactionDetailSheet({
           </div>
         </SheetHeader>
 
+        {/* Status update UI */}
+        <div className="px-5 pt-4 pb-2">
+          <label className="block text-xs font-semibold mb-1 text-muted-foreground">
+            Change Status
+          </label>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="w-full max-w-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="success">Success</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            className="mt-2"
+            size="sm"
+            onClick={handleStatusUpdate}
+            disabled={isUpdating || status === tx.status}
+            loading={isUpdating}
+          >
+            Update Status
+          </Button>
+        </div>
+
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
           {/* Amount card */}
@@ -542,13 +621,15 @@ function TransactionDetailSheet({
             </p>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <p className="text-[10px] text-muted-foreground mb-0.5">Gross</p>
+                <p className="text-[10px] text-muted-foreground mb-0.5">
+                  Gross
+                </p>
                 <p
                   className={cn(
                     "text-xl font-black font-mono leading-none",
                     tx.direction === "credit"
                       ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-foreground"
+                      : "text-foreground",
                   )}
                 >
                   {tx.direction === "credit" ? "+" : "−"}
@@ -557,7 +638,9 @@ function TransactionDetailSheet({
               </div>
               {tx.fee > 0 && (
                 <div>
-                  <p className="text-[10px] text-muted-foreground mb-0.5">Fee</p>
+                  <p className="text-[10px] text-muted-foreground mb-0.5">
+                    Fee
+                  </p>
                   <p className="text-sm font-semibold font-mono text-muted-foreground">
                     −{fmtNairaFull(tx.fee)}
                   </p>
@@ -613,11 +696,16 @@ function TransactionDetailSheet({
               {tx.circleId && (
                 <InfoRow label="Circle ID" value={tx.circleId} mono copyable />
               )}
-              {tx.provider && (
-                <InfoRow label="Provider" value={tx.provider} />
-              )}
+              {tx.provider && <InfoRow label="Provider" value={tx.provider} />}
               <InfoRow label="Type" value={typeMeta.label} />
-              <InfoRow label="Direction" value={tx.direction === "credit" ? "Credit (incoming)" : "Debit (outgoing)"} />
+              <InfoRow
+                label="Direction"
+                value={
+                  tx.direction === "credit"
+                    ? "Credit (incoming)"
+                    : "Debit (outgoing)"
+                }
+              />
               <InfoRow label="Created" value={fmtDateTime(tx.createdAt)} />
               <InfoRow label="Updated" value={fmtDateTime(tx.updatedAt)} />
             </div>
@@ -834,6 +922,7 @@ const DEFAULT_FILTERS: Filters = {
 };
 
 export function AdminTransactionsContent() {
+  const router = useRouter();
   const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -858,7 +947,8 @@ export function AdminTransactionsContent() {
         const params = new URLSearchParams({ limit: "30" });
         if (filters.type !== "all") params.set("type", filters.type);
         if (filters.status !== "all") params.set("status", filters.status);
-        if (filters.direction !== "all") params.set("direction", filters.direction);
+        if (filters.direction !== "all")
+          params.set("direction", filters.direction);
         if (filters.search.trim()) params.set("search", filters.search.trim());
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
@@ -870,7 +960,7 @@ export function AdminTransactionsContent() {
         if (!json.success) throw new Error(json.error ?? "Failed to load");
 
         setTransactions((prev) =>
-          reset ? json.data : [...prev, ...json.data]
+          reset ? json.data : [...prev, ...json.data],
         );
         setHasMore(json.meta?.hasMore ?? false);
         setNextCursor(json.meta?.nextCursor ?? null);
@@ -878,13 +968,13 @@ export function AdminTransactionsContent() {
       } catch (err) {
         setHasError(true);
         toast.error(
-          err instanceof Error ? err.message : "Failed to load transactions"
+          err instanceof Error ? err.message : "Failed to load transactions",
         );
       } finally {
         reset ? setIsLoading(false) : setIsLoadingMore(false);
       }
     },
-    [filters]
+    [filters],
   );
 
   // Debounce on search, immediate on other filter changes
@@ -911,7 +1001,6 @@ export function AdminTransactionsContent() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-5">
-
         {/* ── Page header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -929,7 +1018,9 @@ export function AdminTransactionsContent() {
             className="gap-1.5 self-start sm:self-auto"
             disabled={isLoading}
           >
-            <RefreshCwIcon className={cn("size-3.5", isLoading && "animate-spin")} />
+            <RefreshCwIcon
+              className={cn("size-3.5", isLoading && "animate-spin")}
+            />
             Refresh
           </Button>
         </div>
@@ -948,7 +1039,8 @@ export function AdminTransactionsContent() {
         {/* ── Result count ── */}
         {!isLoading && !hasError && (
           <p className="text-xs text-muted-foreground">
-            {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+            {transactions.length} transaction
+            {transactions.length !== 1 ? "s" : ""}
             {hasMore ? "+" : ""} found
           </p>
         )}
@@ -986,7 +1078,9 @@ export function AdminTransactionsContent() {
                   <AlertCircleIcon className="size-5 text-destructive" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Failed to load transactions</p>
+                  <p className="text-sm font-medium">
+                    Failed to load transactions
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Check your connection and try again.
                   </p>
@@ -1031,7 +1125,8 @@ export function AdminTransactionsContent() {
         {hasMore && !isLoading && !hasError && (
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
-              Showing {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+              Showing {transactions.length} transaction
+              {transactions.length !== 1 ? "s" : ""}
             </p>
             <Button
               variant="outline"
@@ -1056,6 +1151,12 @@ export function AdminTransactionsContent() {
         tx={detailTx}
         open={!!detailTx}
         onOpenChange={(open) => !open && setDetailTx(null)}
+        onStatusChange={(newStatus) => {
+          if (!detailTx) return;
+          setDetailTx({ ...detailTx, status: newStatus });
+          router.refresh();
+          // Optionally, refresh the list or stats if needed
+        }}
       />
     </div>
   );
