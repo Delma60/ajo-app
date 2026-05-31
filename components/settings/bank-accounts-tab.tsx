@@ -44,6 +44,22 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { BankAccount } from "@/lib/types/user";
+import * as React from "react";
+import { ChevronsUpDown, Check } from "lucide-react";
+import { Controller, useFormContext } from "react-hook-form";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,19 +130,19 @@ function BankAccountCard({
         "flex items-center gap-3 rounded-xl border p-4 transition-colors",
         account.isDefault
           ? "border-primary/40 bg-primary/5"
-          : "border-border bg-card"
+          : "border-border bg-card",
       )}
     >
       <div
         className={cn(
           "flex size-10 shrink-0 items-center justify-center rounded-lg",
-          account.isDefault ? "bg-primary/10" : "bg-muted"
+          account.isDefault ? "bg-primary/10" : "bg-muted",
         )}
       >
         <BuildingIcon
           className={cn(
             "size-5",
-            account.isDefault ? "text-primary" : "text-muted-foreground"
+            account.isDefault ? "text-primary" : "text-muted-foreground",
           )}
         />
       </div>
@@ -190,19 +206,30 @@ function AddBankForm({
   onAdded: (account: BankAccount) => void;
   onCancel: () => void;
 }) {
-  const { banks, isLoading: banksLoading, error: banksError, refetch } = useBanksList();
+  const {
+    banks,
+    isLoading: banksLoading,
+    error: banksError,
+    refetch,
+  } = useBanksList();
 
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifiedName, setVerifiedName] = useState<string | null>(null);
-  const [lastVerifiedInput, setLastVerifiedInput] = useState<{ bankCode: string; accountNumber: string } | null>(null);
+  const [lastVerifiedInput, setLastVerifiedInput] = useState<{
+    bankCode: string;
+    accountNumber: string;
+  } | null>(null);
 
+  const [openBankPopover, setOpenBankPopover] = React.useState(false);
   const {
+    control,
     register,
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<AddBankFormValues>({
+  } = useFormContext?.() ||
+  useForm<AddBankFormValues>({
     resolver: zodResolver(addBankSchema),
   });
 
@@ -238,14 +265,18 @@ function AddBankForm({
       const json = await res.json();
 
       if (!json.success || !json.data?.accountName) {
-        setVerifyError(json.error ?? "Could not verify account. Please check the details.");
+        setVerifyError(
+          json.error ?? "Could not verify account. Please check the details.",
+        );
         return;
       }
 
       setVerifiedName(json.data.accountName as string);
       setLastVerifiedInput({ bankCode, accountNumber });
     } catch {
-      setVerifyError("Network error. Please check your connection and try again.");
+      setVerifyError(
+        "Network error. Please check your connection and try again.",
+      );
     } finally {
       setIsVerifying(false);
     }
@@ -273,10 +304,7 @@ function AddBankForm({
   }
 
   const canVerify =
-    bankCode &&
-    bankCode !== "" &&
-    accountNumber?.length === 10 &&
-    !isVerifying;
+    bankCode && bankCode !== "" && accountNumber?.length === 10 && !isVerifying;
 
   const alreadyVerified =
     verifiedName !== null &&
@@ -308,23 +336,64 @@ function AddBankForm({
             </Button>
           </div>
         ) : (
-          <select
-            id="bank-select"
-            className={cn(
-              "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none",
-              "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              errors.bankCode ? "border-destructive" : ""
-            )}
-            {...register("bankCode")}
-          >
-            <option value="">Select a bank…</option>
-            {banks.map((bank) => (
-              <option key={bank.code} value={bank.code}>
-                {bank.name}
-              </option>
-            ))}
-          </select>
+          <Controller
+            name="bankCode"
+            control={control}
+            render={({ field }) => {
+              const selectedBank = banks.find((b) => b.code === field.value);
+              return (
+                <Popover
+                  open={openBankPopover}
+                  onOpenChange={setOpenBankPopover}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      role="combobox"
+                      aria-expanded={openBankPopover}
+                      className={cn(
+                        "h-8 w-full justify-between",
+                        errors.bankCode && "border-destructive",
+                      )}
+                    >
+                      {selectedBank ? selectedBank.name : "Select a bank…"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                    <Command shouldFilter={true}>
+                      <CommandInput placeholder="Search banks…" />
+                      <CommandList>
+                        <CommandEmpty>No bank found.</CommandEmpty>
+                        <CommandGroup>
+                          {banks.map((bank) => (
+                            <CommandItem
+                              key={bank.code}
+                              value={bank.code}
+                              onSelect={() => {
+                                field.onChange(bank.code);
+                                setOpenBankPopover(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  field.value === bank.code
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                              {bank.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              );
+            }}
+          />
         )}
         {errors.bankCode && (
           <p className="text-xs text-destructive">{errors.bankCode.message}</p>
@@ -363,7 +432,9 @@ function AddBankForm({
           </Button>
         </div>
         {errors.accountNumber && (
-          <p className="text-xs text-destructive">{errors.accountNumber.message}</p>
+          <p className="text-xs text-destructive">
+            {errors.accountNumber.message}
+          </p>
         )}
       </div>
 
@@ -397,10 +468,19 @@ function AddBankForm({
       </div>
 
       <div className="flex gap-2">
-        <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1"
+          onClick={onCancel}
+        >
           Cancel
         </Button>
-        <Button type="submit" className="flex-1" disabled={!verifiedName || banksLoading}>
+        <Button
+          type="submit"
+          className="flex-1"
+          disabled={!verifiedName || banksLoading}
+        >
           Add account
         </Button>
       </div>
@@ -447,7 +527,10 @@ export function BankAccountsTab() {
   async function handleSetDefault(id: string) {
     setIsUpdating(true);
     try {
-      const updated = bankAccounts.map((b) => ({ ...b, isDefault: b.id === id }));
+      const updated = bankAccounts.map((b) => ({
+        ...b,
+        isDefault: b.id === id,
+      }));
       await persistAccounts(updated);
       toast.success("Default account updated.");
     } catch {
@@ -484,7 +567,8 @@ export function BankAccountsTab() {
             <div>
               <CardTitle>Bank Accounts</CardTitle>
               <CardDescription className="mt-1">
-                Saved accounts for receiving withdrawals. You can add up to 5 accounts.
+                Saved accounts for receiving withdrawals. You can add up to 5
+                accounts.
               </CardDescription>
             </div>
             {!showAddForm && bankAccounts.length < 5 && (
@@ -566,7 +650,8 @@ export function BankAccountsTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove bank account?</AlertDialogTitle>
             <AlertDialogDescription>
-              This bank account will be removed from your profile. You can add it again at any time.
+              This bank account will be removed from your profile. You can add
+              it again at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
