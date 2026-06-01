@@ -127,14 +127,18 @@ export interface ContributionReminderEmailParams {
   circleId: string;
 }
 
-export function buildContributionReminderEmail({
-  name,
-  circleName,
-  amountKobo,
-  dueDate,
-  cycleNumber,
-  circleId,
-}: ContributionReminderEmailParams): EmailTemplate {
+export function buildContributionReminderEmail(
+  {
+    name,
+    circleName,
+    amountKobo,
+    dueDate,
+    cycleNumber,
+    circleId,
+  }: ContributionReminderEmailParams,
+  context: EmailSettingsContext = DEFAULT_SETTINGS
+): EmailTemplate {
+  const { appUrl } = context;
   const subject = `⏰ Contribution due tomorrow — ${circleName}`;
   const firstName = name.split(" ")[0];
 
@@ -186,12 +190,12 @@ export function buildContributionReminderEmail({
         </div>
 
         <div style="text-align: center; margin: 28px 0;">
-          <a href="${APP_URL}/circles/${circleId}" class="btn-primary">Pay now</a>
+          <a href="${appUrl}/circles/${circleId}" class="btn-primary">Pay now</a>
         </div>
 
         <p class="email-text" style="font-size: 13px; color: #9ca3af; text-align: center;">
           Ensure your wallet has sufficient funds before paying.
-          <a href="${APP_URL}/wallet/deposit" style="color: #047857;">Fund wallet →</a>
+          <a href="${appUrl}/wallet/deposit" style="color: #047857;">Fund wallet →</a>
         </p>
       </div>
     `,

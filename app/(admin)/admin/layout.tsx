@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { getSettings } from "@/lib/services/settings-service";
 import { AdminShell } from "@/components/admin/shell";
 
 async function verifyAdmin() {
@@ -14,6 +15,15 @@ async function verifyAdmin() {
     const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
     if (!userSnap.exists || userSnap.data()?.role !== "admin") {
       redirect("/dashboard");
+    }
+
+    // Check if admins are locked out due to maintenance mode with allowedAdminAccess=false
+    const settings = await getSettings();
+    if (
+      settings.maintenance.maintenanceMode &&
+      !settings.maintenance.allowedAdminAccess
+    ) {
+      redirect("/admin-locked");
     }
   } catch {
     redirect("/login");

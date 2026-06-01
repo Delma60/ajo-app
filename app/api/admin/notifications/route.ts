@@ -177,12 +177,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { userId, type, title, body: notifBody, link } = body;
+    const payload = await request.json();
+    const { userId, userIds, type, title, body: notifBody, link } = payload;
 
-    if (!userId || typeof userId !== "string") {
+    const recipients: string[] = Array.isArray(userIds)
+      ? userIds
+      : typeof userId === "string" && userId.trim()
+      ? [userId]
+      : [];
+
+    if (recipients.length === 0) {
       return NextResponse.json(
-        { success: false, data: null, error: "userId is required" },
+        { success: false, data: null, error: "userId or userIds are required" },
         { status: 400 }
       );
     }
@@ -204,32 +210,40 @@ export async function POST(request: NextRequest) {
     ];
     const notifType = validTypes.includes(type) ? type : "general";
 
-    // Verify user exists
-    const userSnap = await adminDb.collection("users").doc(userId).get();
-    if (!userSnap.exists) {
-      return NextResponse.json(
-        { success: false, data: null, error: "User not found" },
-        { status: 404 }
-      );
-    }
+    const createdIds: string[] = [];
 
-    const notifRef = adminDb.collection("notifications").doc();
-    await notifRef.set({
-      id: notifRef.id,
-      userId,
-      type: notifType,
-      title: title.trim(),
-      body: notifBody.trim(),
-      read: false,
-      link: link ?? null,
-      sentByAdmin: admin.uid,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    // Cap to reasonable limit for manual sends
+    const cap = 500;
+    const toProcess = recipients.slice(0, cap);
+
+    for (const uid of toProcess) {
+      try {
+        const userSnap = await adminDb.collection("users").doc(uid).get();
+        if (!userSnap.exists) continue;
+
+        const notifRef = adminDb.collection("notifications").doc();
+        await notifRef.set({
+          id: notifRef.id,
+          userId: uid,
+          type: notifType,
+          title: title.trim(),
+          body: notifBody.trim(),
+          read: false,
+          link: link ?? null,
+          sentByAdmin: admin.uid,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        createdIds.push(notifRef.id);
+      } catch (e) {
+        // skip failures for individual recipients
+        console.error("failed to create notification for", uid, e);
+      }
+    }
 
     return NextResponse.json(
       {
         success: true,
-        data: { id: notifRef.id },
+        data: { created: createdIds.length, ids: createdIds },
         error: null,
       },
       { status: 201 }
