@@ -4,6 +4,8 @@
  * Email is the fallback/receipt channel; SMS is first.
  */
 
+'use server';
+
 import { getSettings } from "@/lib/services/settings-service";
 
 const TERMII_API_URL = "https://api.ng.termii.com/api/sms/send";

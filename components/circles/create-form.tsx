@@ -50,8 +50,8 @@ const TEMPLATES = [
     id: "weekly-5k",
     label: "Weekly ₦5k",
     description: "10 members, weekly contributions",
-    contribution: "5000",
-    maxMembers: "10",
+    contribution: 5000,
+    maxMembers: 10,
     frequency: "weekly" as const,
     payoutOrder: "rotational" as const,
   },
@@ -59,8 +59,8 @@ const TEMPLATES = [
     id: "monthly-10k",
     label: "Monthly ₦10k",
     description: "12 members, monthly contributions",
-    contribution: "10000",
-    maxMembers: "12",
+    contribution: 10000,
+    maxMembers: 12,
     frequency: "monthly" as const,
     payoutOrder: "rotational" as const,
   },
@@ -68,8 +68,8 @@ const TEMPLATES = [
     id: "daily-1k",
     label: "Daily ₦1k",
     description: "30 members, daily contributions",
-    contribution: "1000",
-    maxMembers: "30",
+    contribution: 1000,
+    maxMembers: 30,
     frequency: "daily" as const,
     payoutOrder: "rotational" as const,
   },
@@ -176,8 +176,8 @@ export function CreateCircleForm() {
   });
 
   const watchedValues = watch();
-  const contributionNum = parseFloat(watchedValues.contribution ?? "0") || 0;
-  const maxMembersNum = parseInt(watchedValues.maxMembers ?? "0") || 0;
+  const contributionNum = Number(watchedValues.contribution ?? 0) || 0;
+  const maxMembersNum = Number(watchedValues.maxMembers ?? 0) || 0;
   const goalKobo = contributionNum * 100 * maxMembersNum;
   const creationFee = Math.round(contributionNum * 100 * 0.05); // 5%
   const walletBalance = appUser ? 0 : 0; // will come from wallet store
@@ -191,20 +191,17 @@ export function CreateCircleForm() {
 
   function addTag() {
     const tag = tagInput.trim().toLowerCase();
-    if (
-      !tag ||
-      watchedValues.tags.includes(tag) ||
-      watchedValues.tags.length >= 5
-    )
-      return;
-    setValue("tags", [...watchedValues.tags, tag]);
+    const tags = watchedValues.tags ?? [];
+    if (!tag || tags.includes(tag) || tags.length >= 5) return;
+    setValue("tags", [...tags, tag]);
     setTagInput("");
   }
 
   function removeTag(tag: string) {
+    const tags = watchedValues.tags ?? [];
     setValue(
       "tags",
-      watchedValues.tags.filter((t) => t !== tag),
+      tags.filter((t) => t !== tag),
     );
   }
 
@@ -218,13 +215,13 @@ export function CreateCircleForm() {
     try {
       const result = await createCircle.mutateAsync({
         name: values.name,
-        description: values.description,
+        description: values.description ?? "",
         contribution: Math.round(contributionNum * 100),
-        maxMembers: parseInt(values.maxMembers),
+        maxMembers: Number(values.maxMembers),
         frequency: values.frequency,
         payoutOrder: values.payoutOrder,
-        isPrivate: values.isPrivate,
-        tags: values.tags,
+        isPrivate: values.isPrivate ?? false,
+        tags: values.tags ?? [],
       });
       toast.success("Circle created! Your creation fee has been deducted.");
       router.push(`/circles/${result.id}`);
@@ -364,15 +361,15 @@ export function CreateCircleForm() {
                   variant="outline"
                   size="sm"
                   onClick={addTag}
-                  disabled={watchedValues.tags?.length >= 5}
+                  disabled={(watchedValues.tags ?? []).length >= 5}
                 >
                   <TagIcon className="size-3.5" />
                   Add
                 </Button>
               </div>
-              {watchedValues.tags?.length > 0 && (
+              {(watchedValues.tags ?? []).length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  {watchedValues.tags.map((tag) => (
+                  {(watchedValues.tags ?? []).map((tag) => (
                     <Badge key={tag} variant="secondary" className="gap-1 pr-1">
                       {tag}
                       <button
@@ -589,7 +586,11 @@ export function CreateCircleForm() {
               />
               <SummaryRow
                 label="Members"
-                value={watchedValues.maxMembers || "—"}
+                value={
+                  watchedValues.maxMembers
+                    ? String(watchedValues.maxMembers)
+                    : "—"
+                }
               />
               <SummaryRow
                 label="Frequency"

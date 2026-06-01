@@ -201,7 +201,7 @@ export function buildContributionReminderEmail(
     `,
   });
 
-  const text = `Hi ${firstName},\n\nYour contribution of ${fmtNaira(amountKobo)} to ${circleName} (Cycle ${cycleNumber}) is due by ${fmtDate(dueDate)}.\n\nPay now: ${APP_URL}/circles/${circleId}\n\nLate payments attract a 10% penalty.`;
+  const text = `Hi ${firstName},\n\nYour contribution of ${fmtNaira(amountKobo)} to ${circleName} (Cycle ${cycleNumber}) is due by ${fmtDate(dueDate)}.\n\nPay now: ${appUrl}/circles/${circleId}\n\nLate payments attract a 10% penalty.`;
 
   return { subject, html, text };
 }
@@ -228,7 +228,8 @@ export function buildContributionReceiptEmail({
   cycleNumber,
   transactionReference,
   circleId,
-}: ContributionReceiptEmailParams): EmailTemplate {
+}: ContributionReceiptEmailParams, context: EmailSettingsContext = DEFAULT_SETTINGS): EmailTemplate {
+  const { appUrl } = context;
   const total = amountKobo + penaltyKobo;
   const subject = `✅ Contribution confirmed — ${circleName}`;
   const firstName = name.split(" ")[0];
@@ -284,13 +285,13 @@ export function buildContributionReceiptEmail({
         </table>
 
         <div style="text-align: center; margin: 28px 0;">
-          <a href="${APP_URL}/circles/${circleId}" class="btn-outline">View circle</a>
+          <a href="${appUrl}/circles/${circleId}" class="btn-outline">View circle</a>
         </div>
       </div>
     `,
   });
 
-  const text = `Hi ${firstName},\n\nYour ${fmtNaira(amountKobo)} contribution to ${circleName} (Cycle ${cycleNumber}) was confirmed on ${fmtDate(paidAt)}.\n\nReference: ${transactionReference}\n\nView circle: ${APP_URL}/circles/${circleId}`;
+  const text = `Hi ${firstName},\n\nYour ${fmtNaira(amountKobo)} contribution to ${circleName} (Cycle ${cycleNumber}) was confirmed on ${fmtDate(paidAt)}.\n\nReference: ${transactionReference}\n\nView circle: ${appUrl}/circles/${circleId}`;
 
   return { subject, html, text };
 }
@@ -319,7 +320,8 @@ export function buildPayoutEmail({
   circleId,
   payoutDate,
   transactionReference,
-}: PayoutEmailParams): EmailTemplate {
+}: PayoutEmailParams, context: EmailSettingsContext = DEFAULT_SETTINGS): EmailTemplate {
+  const { appUrl } = context;
   const subject = `🎉 You received a payout of ${fmtNaira(netPayoutKobo)} from ${circleName}!`;
   const firstName = name.split(" ")[0];
 
@@ -377,8 +379,8 @@ export function buildPayoutEmail({
         </table>
 
         <div style="text-align: center; margin: 28px 0; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-          <a href="${APP_URL}/wallet" class="btn-primary">Go to wallet</a>
-          <a href="${APP_URL}/wallet/withdraw" class="btn-outline">Withdraw to bank</a>
+          <a href="${appUrl}/wallet" class="btn-primary">Go to wallet</a>
+          <a href="${appUrl}/wallet/withdraw" class="btn-outline">Withdraw to bank</a>
         </div>
 
         <div class="alert-success">
@@ -392,7 +394,7 @@ export function buildPayoutEmail({
     `,
   });
 
-  const text = `Congratulations ${firstName}!\n\nYou received ${fmtNaira(netPayoutKobo)} payout from ${circleName} (Cycle ${cycleNumber}) on ${fmtDate(payoutDate)}.\n\nGross: ${fmtNaira(grossPayoutKobo)} | Fee: ${fmtNaira(platformFeeKobo)} | Net: ${fmtNaira(netPayoutKobo)}\nReference: ${transactionReference}\n\nWithdraw: ${APP_URL}/wallet/withdraw`;
+  const text = `Congratulations ${firstName}!\n\nYou received ${fmtNaira(netPayoutKobo)} payout from ${circleName} (Cycle ${cycleNumber}) on ${fmtDate(payoutDate)}.\n\nGross: ${fmtNaira(grossPayoutKobo)} | Fee: ${fmtNaira(platformFeeKobo)} | Net: ${fmtNaira(netPayoutKobo)}\nReference: ${transactionReference}\n\nWithdraw: ${appUrl}/wallet/withdraw`;
 
   return { subject, html, text };
 }
@@ -415,7 +417,8 @@ export function buildLatePaymentEmail({
   penaltyKobo,
   circleId,
   originalDueDate,
-}: LatePaymentEmailParams): EmailTemplate {
+}: LatePaymentEmailParams, context: EmailSettingsContext = DEFAULT_SETTINGS): EmailTemplate {
+  const { appUrl } = context;
   const subject = `⚠️ Overdue: Your contribution to ${circleName} is late`;
   const firstName = name.split(" ")[0];
   const totalOwed = contributionKobo + penaltyKobo;
@@ -470,20 +473,20 @@ export function buildLatePaymentEmail({
         </div>
 
         <div style="text-align: center; margin: 28px 0;">
-          <a href="${APP_URL}/circles/${circleId}" class="btn-primary" style="background-color: #b91c1c;">
+          <a href="${appUrl}/circles/${circleId}" class="btn-primary" style="background-color: #b91c1c;">
             Pay ${fmtNaira(totalOwed)} now
           </a>
         </div>
 
         <p class="email-text" style="font-size: 13px; color: #9ca3af; text-align: center;">
           Need to fund your wallet first?
-          <a href="${APP_URL}/wallet/deposit" style="color: #047857;">Add funds →</a>
+          <a href="${appUrl}/wallet/deposit" style="color: #047857;">Add funds →</a>
         </p>
       </div>
     `,
   });
 
-  const text = `Hi ${firstName},\n\nYour contribution to ${circleName} is overdue.\nTotal now owed: ${fmtNaira(totalOwed)} (contribution ${fmtNaira(contributionKobo)} + penalty ${fmtNaira(penaltyKobo)})\n\nPay now to avoid removal: ${APP_URL}/circles/${circleId}`;
+  const text = `Hi ${firstName},\n\nYour contribution to ${circleName} is overdue.\nTotal now owed: ${fmtNaira(totalOwed)} (contribution ${fmtNaira(contributionKobo)} + penalty ${fmtNaira(penaltyKobo)})\n\nPay now to avoid removal: ${appUrl}/circles/${circleId}`;
 
   return { subject, html, text };
 }
@@ -514,10 +517,11 @@ export function buildCircleInviteEmail({
   inviteToken,
   circleId,
   expiresAt,
-}: CircleInviteEmailParams): EmailTemplate {
+}: CircleInviteEmailParams, context: EmailSettingsContext = DEFAULT_SETTINGS): EmailTemplate {
+  const { appUrl } = context;
   const subject = `${senderName} invited you to join "${circleName}" on AjoSave`;
   const firstName = recipientName.split(" ")[0];
-  const inviteUrl = `${APP_URL}/circles/${circleId}?invite=${inviteToken}`;
+  const inviteUrl = `${appUrl}/circles/${circleId}?invite=${inviteToken}`;
 
   const freqLabel: Record<string, string> = {
     daily: "Daily",
@@ -604,7 +608,8 @@ export function buildDisputeAdminEmail({
   description,
   disputeId,
   againstUserName,
-}: DisputeAdminEmailParams): EmailTemplate {
+}: DisputeAdminEmailParams, context: EmailSettingsContext = DEFAULT_SETTINGS): EmailTemplate {
+  const { appUrl } = context;
   const subject = `[Admin] New dispute raised — ${circleName}`;
   const firstName = adminName.split(" ")[0];
 
@@ -667,7 +672,7 @@ export function buildDisputeAdminEmail({
         </div>
 
         <div style="text-align: center; margin: 28px 0;">
-          <a href="${APP_URL}/admin/disputes" class="btn-primary" style="background-color: #7c3aed;">
+          <a href="${appUrl}/admin/disputes" class="btn-primary" style="background-color: #7c3aed;">
             Review in admin dashboard
           </a>
         </div>
@@ -675,7 +680,7 @@ export function buildDisputeAdminEmail({
     `,
   });
 
-  const text = `New dispute raised.\n\nCircle: ${circleName}\nType: ${typeLabels[disputeType] ?? disputeType}\nRaised by: ${reporterName} (${reporterEmail})\nID: ${disputeId}\n\nDescription:\n${description}\n\nReview: ${APP_URL}/admin/disputes`;
+  const text = `New dispute raised.\n\nCircle: ${circleName}\nType: ${typeLabels[disputeType] ?? disputeType}\nRaised by: ${reporterName} (${reporterEmail})\nID: ${disputeId}\n\nDescription:\n${description}\n\nReview: ${appUrl}/admin/disputes`;
 
   return { subject, html, text };
 }
@@ -696,7 +701,8 @@ export function buildDisputeConfirmEmail({
   disputeType,
   disputeId,
   circleId,
-}: DisputeConfirmEmailParams): EmailTemplate {
+}: DisputeConfirmEmailParams, context: EmailSettingsContext = DEFAULT_SETTINGS): EmailTemplate {
+  const { appUrl } = context;
   const subject = `Dispute submitted — we're on it`;
   const firstName = name.split(" ")[0];
 
@@ -738,7 +744,7 @@ export function buildDisputeConfirmEmail({
         </p>
 
         <div style="text-align: center; margin: 28px 0;">
-          <a href="${APP_URL}/circles/${circleId}" class="btn-outline">
+          <a href="${appUrl}/circles/${circleId}" class="btn-outline">
             View circle
           </a>
         </div>
@@ -752,7 +758,7 @@ export function buildDisputeConfirmEmail({
     `,
   });
 
-  const text = `Hi ${firstName},\n\nYour dispute for "${circleName}" has been received.\nReference: ${disputeId}\n\nWe'll review within 24–48 hours and notify you by email.\n\nView circle: ${APP_URL}/circles/${circleId}`;
+  const text = `Hi ${firstName},\n\nYour dispute for "${circleName}" has been received.\nReference: ${disputeId}\n\nWe'll review within 24–48 hours and notify you by email.\n\nView circle: ${appUrl}/circles/${circleId}`;
 
   return { subject, html, text };
 }
@@ -775,7 +781,8 @@ export function buildDisputeResolvedEmail({
   resolution,
   disputeId,
   circleId,
-}: DisputeResolvedEmailParams): EmailTemplate {
+}: DisputeResolvedEmailParams, context: EmailSettingsContext = DEFAULT_SETTINGS): EmailTemplate {
+  const { appUrl } = context;
   const outcomeLabel = outcome === "resolved" ? "Resolved" : "Dismissed";
   const subject = `Your dispute has been ${outcomeLabel.toLowerCase()} — ${circleName}`;
   const firstName = name.split(" ")[0];
@@ -829,7 +836,7 @@ export function buildDisputeResolvedEmail({
         </p>
 
         <div style="text-align: center; margin: 28px 0;">
-          <a href="${APP_URL}/circles/${circleId}" class="btn-primary">
+          <a href="${appUrl}/circles/${circleId}" class="btn-primary">
             Return to circle
           </a>
         </div>
@@ -844,7 +851,7 @@ export function buildDisputeResolvedEmail({
     `,
   });
 
-  const text = `Hi ${firstName},\n\nYour dispute for "${circleName}" has been ${outcomeLabel}.\nReference: ${disputeId}\n${resolution ? `\nResolution: ${resolution}\n` : ""}\nReturn to circle: ${APP_URL}/circles/${circleId}`;
+  const text = `Hi ${firstName},\n\nYour dispute for "${circleName}" has been ${outcomeLabel}.\nReference: ${disputeId}\n${resolution ? `\nResolution: ${resolution}\n` : ""}\nReturn to circle: ${appUrl}/circles/${circleId}`;
 
   return { subject, html, text };
 }

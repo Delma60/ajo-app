@@ -2,9 +2,9 @@ import { adminDb, adminStorage } from "@/lib/firebase/admin";
 import { Timestamp } from "firebase-admin/firestore";
 
 // PATCH /api/disputes/[id]
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = params.id;
+    const { id } = await params;
     const body = await request.json();
     const { action, summary, status, fileBase64, fileName } = body;
     const disputeRef = adminDb.collection("disputes").doc(id);
@@ -31,7 +31,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
     await disputeRef.update(updates);
     return new Response(JSON.stringify({ success: true, data: { id, ...updates, fileUrl } }), { status: 200 });
-  } catch (error) {
-    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(JSON.stringify({ success: false, error: message }), { status: 500 });
   }
 }

@@ -57,7 +57,7 @@ export const placeBidSchema = z.object({
   amount: z.coerce.number().positive("Bid amount must be positive"),
 });
 
-export type CreateCircleFormValues = z.infer<typeof createCircleSchema>;
+export type CreateCircleFormValues = z.input<typeof createCircleSchema>;
 export type JoinCircleRequest = z.infer<typeof joinCircleSchema>;
 export type ContributeRequest = z.infer<typeof contributeSchema>;
 export type PlaceBidRequest = z.infer<typeof placeBidSchema>;

@@ -18,6 +18,7 @@
 // import { timingSafeEqual } from "node:crypto";
 import crypto from "crypto";
 import { adminDb, admin } from "@/lib/firebase/admin";
+
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import {
   creditWallet,
@@ -116,7 +117,7 @@ export class PaymentService {
       );
     }
     const reference = `DEP-${userId.slice(0, 6)}-${Date.now()}`;
-    await this.txCol.doc(reference).set({
+    const txDoc = {
       id: reference,
       userId,
       type: "deposit",
@@ -129,9 +130,10 @@ export class PaymentService {
       providerReference: null,
       reference,
       description: "Wallet funding",
-      createdAt: FieldValue.serverTimestamp() as unknown as Timestamp,
-      updatedAt: FieldValue.serverTimestamp() as unknown as Timestamp,
-    } as Omit<Transaction, "id"> & { id: string });
+      createdAt: FieldValue.serverTimestamp() as any,
+      updatedAt: FieldValue.serverTimestamp() as any,
+    } as unknown as Omit<Transaction, "id"> & { id: string };
+    await this.txCol.doc(reference).set(txDoc);
 
     let data;
     try {

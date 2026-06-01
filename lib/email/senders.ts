@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * Email Sender Functions
  *
@@ -122,9 +124,7 @@ export async function sendLatePaymentEmail(
     console.error("[sendLatePaymentEmail]", err);
   }
 }
-  const { subject, html, text } = buildLatePaymentEmail(params);
-  void sendEmail({ to: email, subject, html, text });
-}
+
 
 // ─── 6. Circle Invite ─────────────────────────────────────────────────────────
 

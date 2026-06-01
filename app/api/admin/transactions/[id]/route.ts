@@ -21,7 +21,7 @@ async function getAdminUser(request: NextRequest) {
  * Body: { status: "pending" | "success" | "failed" | "cancelled" }
  * Only allows status update by admin.
  */
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdminUser(request);
   if (!admin) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });

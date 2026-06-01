@@ -239,13 +239,7 @@ export async function recordMissedPayment(
   });
 }
 
-  tx.update(adminDb.collection("circles").doc(circleId), {
-    trustScore: newScore,
-    "trustScoreBreakdown.missedPayments": FieldValue.increment(1),
-    "trustScoreBreakdown.lastUpdated": FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-}
+// duplicate block removed
 
 // ─── Full recompute (cron / admin action) ─────────────────────────────────────
 

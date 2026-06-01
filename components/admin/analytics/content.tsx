@@ -29,7 +29,13 @@ import {
   AlertCircleIcon,
 } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -166,19 +172,28 @@ function KpiPill({
             </>
           ) : (
             <>
-              <p className="text-xl font-bold font-mono leading-none">{value}</p>
-              <p className={cn(
-                "text-xs mt-1",
-                trend === "up" && "text-emerald-600 dark:text-emerald-400",
-                trend === "down" && "text-red-500",
-                (!trend || trend === "neutral") && "text-muted-foreground",
-              )}>
+              <p className="text-xl font-bold font-mono leading-none">
+                {value}
+              </p>
+              <p
+                className={cn(
+                  "text-xs mt-1",
+                  trend === "up" && "text-emerald-600 dark:text-emerald-400",
+                  trend === "down" && "text-red-500",
+                  (!trend || trend === "neutral") && "text-muted-foreground",
+                )}
+              >
                 {sub}
               </p>
             </>
           )}
         </div>
-        <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-xl", iconBg)}>
+        <div
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-xl",
+            iconBg,
+          )}
+        >
           <Icon className={cn("size-4", iconColor)} />
         </div>
       </CardContent>
@@ -212,7 +227,9 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
       </div>
       <div>
         <p className="text-sm font-medium">Failed to load analytics</p>
-        <p className="text-xs text-muted-foreground mt-1">Check your connection and try again.</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Check your connection and try again.
+        </p>
       </div>
       <Button variant="outline" size="sm" onClick={onRetry} className="gap-1.5">
         <RefreshCwIcon className="size-3.5" />
@@ -238,11 +255,15 @@ function SectionHeader({
       <div>
         <CardTitle className="text-sm">{title}</CardTitle>
         {description && (
-          <CardDescription className="text-xs mt-0.5">{description}</CardDescription>
+          <CardDescription className="text-xs mt-0.5">
+            {description}
+          </CardDescription>
         )}
       </div>
       {badge && (
-        <Badge variant="secondary" className="text-xs shrink-0">{badge}</Badge>
+        <Badge variant="secondary" className="text-xs shrink-0">
+          {badge}
+        </Badge>
       )}
     </div>
   );
@@ -253,20 +274,28 @@ function SectionHeader({
 export function AnalyticsContent() {
   const [range, setRange] = useState<Range>("30d");
 
-  const { data: resp, error, isLoading, mutate } = useSWR<{ success: boolean; data: AnalyticsData }>(
+  const {
+    data: resp,
+    error,
+    isLoading,
+    mutate,
+  } = useSWR<{ success: boolean; data: AnalyticsData }>(
     `/api/admin/analytics?range=${range}`,
     fetcher,
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: false },
   );
 
   const d = resp?.data;
   const hasError = !!error || (resp && !resp.success);
 
   // ── KPI summaries computed from series ────────────────────────────────────
-  const totalDepositsNaira = d?.depositSeries.reduce((s, b) => s + b.deposits, 0) ?? 0;
-  const totalWithdrawalsNaira = d?.depositSeries.reduce((s, b) => s + b.withdrawals, 0) ?? 0;
+  const totalDepositsNaira =
+    d?.depositSeries.reduce((s, b) => s + b.deposits, 0) ?? 0;
+  const totalWithdrawalsNaira =
+    d?.depositSeries.reduce((s, b) => s + b.withdrawals, 0) ?? 0;
   const totalNewUsers = d?.userGrowthSeries.reduce((s, b) => s + b.new, 0) ?? 0;
-  const totalCirclesCreated = d?.circleSeries.reduce((s, b) => s + b.created, 0) ?? 0;
+  const totalCirclesCreated =
+    d?.circleSeries.reduce((s, b) => s + b.created, 0) ?? 0;
 
   // ── Retention gauges ──────────────────────────────────────────────────────
   const retentionGauges = d
@@ -295,7 +324,6 @@ export function AnalyticsContent() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 space-y-6">
-
         {/* ── Page header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -318,7 +346,7 @@ export function AnalyticsContent() {
                   "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
                   range === opt.value
                     ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {opt.label}
@@ -389,27 +417,67 @@ export function AnalyticsContent() {
                     <Skeleton className="h-60 w-full rounded-lg" />
                   ) : (
                     <ResponsiveContainer width="100%" height={240}>
-                      <AreaChart data={d?.depositSeries} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                      <AreaChart
+                        data={d?.depositSeries}
+                        margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+                      >
                         <defs>
-                          <linearGradient id="depositGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#047857" stopOpacity={0.2} />
-                            <stop offset="95%" stopColor="#047857" stopOpacity={0} />
+                          <linearGradient
+                            id="depositGrad"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="5%"
+                              stopColor="#047857"
+                              stopOpacity={0.2}
+                            />
+                            <stop
+                              offset="95%"
+                              stopColor="#047857"
+                              stopOpacity={0}
+                            />
                           </linearGradient>
-                          <linearGradient id="withdrawGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
-                            <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                          <linearGradient
+                            id="withdrawGrad"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="5%"
+                              stopColor="#f97316"
+                              stopOpacity={0.2}
+                            />
+                            <stop
+                              offset="95%"
+                              stopColor="#f97316"
+                              stopOpacity={0}
+                            />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="var(--border)"
+                        />
                         <XAxis
                           dataKey="label"
-                          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                          tick={{
+                            fontSize: 10,
+                            fill: "var(--muted-foreground)",
+                          }}
                           tickLine={false}
                           axisLine={false}
                           interval="preserveStartEnd"
                         />
                         <YAxis
-                          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                          tick={{
+                            fontSize: 10,
+                            fill: "var(--muted-foreground)",
+                          }}
                           tickLine={false}
                           axisLine={false}
                           tickFormatter={(v) => fmtNaira(v)}
@@ -457,23 +525,49 @@ export function AnalyticsContent() {
                     <Skeleton className="h-60 w-full rounded-lg" />
                   ) : (
                     <ResponsiveContainer width="100%" height={240}>
-                      <AreaChart data={d?.userGrowthSeries} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+                      <AreaChart
+                        data={d?.userGrowthSeries}
+                        margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+                      >
                         <defs>
-                          <linearGradient id="userGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                          <linearGradient
+                            id="userGrad"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="5%"
+                              stopColor="#3b82f6"
+                              stopOpacity={0.2}
+                            />
+                            <stop
+                              offset="95%"
+                              stopColor="#3b82f6"
+                              stopOpacity={0}
+                            />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="var(--border)"
+                        />
                         <XAxis
                           dataKey="label"
-                          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                          tick={{
+                            fontSize: 10,
+                            fill: "var(--muted-foreground)",
+                          }}
                           tickLine={false}
                           axisLine={false}
                           interval="preserveStartEnd"
                         />
                         <YAxis
-                          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                          tick={{
+                            fontSize: 10,
+                            fill: "var(--muted-foreground)",
+                          }}
                           tickLine={false}
                           axisLine={false}
                           width={40}
@@ -492,7 +586,12 @@ export function AnalyticsContent() {
                           strokeWidth={2}
                           fill="url(#userGrad)"
                         />
-                        <Bar dataKey="new" name="New" fill="#bfdbfe" radius={[2, 2, 0, 0]} />
+                        <Bar
+                          dataKey="new"
+                          name="New"
+                          fill="#bfdbfe"
+                          radius={[2, 2, 0, 0]}
+                        />
                       </AreaChart>
                     </ResponsiveContainer>
                   )}
@@ -528,23 +627,38 @@ export function AnalyticsContent() {
                         margin={{ top: 4, right: 4, bottom: 24, left: 0 }}
                         layout="vertical"
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="var(--border)"
+                          horizontal={false}
+                        />
                         <XAxis
                           type="number"
-                          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                          tick={{
+                            fontSize: 10,
+                            fill: "var(--muted-foreground)",
+                          }}
                           tickLine={false}
                           axisLine={false}
                         />
                         <YAxis
                           type="category"
                           dataKey="label"
-                          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                          tick={{
+                            fontSize: 10,
+                            fill: "var(--muted-foreground)",
+                          }}
                           tickLine={false}
                           axisLine={false}
                           width={90}
                         />
                         <Tooltip content={<ChartTooltip />} />
-                        <Bar dataKey="count" name="Count" fill="#047857" radius={[0, 4, 4, 0]} />
+                        <Bar
+                          dataKey="count"
+                          name="Count"
+                          fill="#047857"
+                          radius={[0, 4, 4, 0]}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -585,11 +699,14 @@ export function AnalyticsContent() {
                           dataKey="value"
                         >
                           {d.transactionBreakdown.map((_, idx) => (
-                            <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                            <Cell
+                              key={idx}
+                              fill={PIE_COLORS[idx % PIE_COLORS.length]}
+                            />
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(v: number) => fmtNaira(v)}
+                          formatter={(v) => fmtNaira(Number(v ?? 0))}
                           contentStyle={{
                             fontSize: 11,
                             borderRadius: 8,
@@ -624,8 +741,15 @@ export function AnalyticsContent() {
                   <Skeleton className="h-40 w-full rounded-lg" />
                 ) : (
                   <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={d?.circleSeries} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <BarChart
+                      data={d?.circleSeries}
+                      margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        vertical={false}
+                      />
                       <XAxis
                         dataKey="label"
                         tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
@@ -641,7 +765,12 @@ export function AnalyticsContent() {
                         width={28}
                       />
                       <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="created" name="Circles Created" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                      <Bar
+                        dataKey="created"
+                        name="Circles Created"
+                        fill="#8b5cf6"
+                        radius={[4, 4, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -673,18 +802,26 @@ export function AnalyticsContent() {
                     : retentionGauges.map((g) => (
                         <div key={g.label} className="space-y-1.5">
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">{g.label}</span>
-                            <span className="font-semibold font-mono">{g.value}%</span>
+                            <span className="text-muted-foreground">
+                              {g.label}
+                            </span>
+                            <span className="font-semibold font-mono">
+                              {g.value}%
+                            </span>
                           </div>
                           <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                             <div
-                              className={cn("h-full rounded-full transition-all duration-700", g.color)}
+                              className={cn(
+                                "h-full rounded-full transition-all duration-700",
+                                g.color,
+                              )}
                               style={{ width: `${g.value}%` }}
                             />
                           </div>
                           <p className="text-xs text-muted-foreground">
                             {g.count.toLocaleString()} of{" "}
-                            {d?.retentionStats.totalUsers.toLocaleString()} users
+                            {d?.retentionStats.totalUsers.toLocaleString()}{" "}
+                            users
                           </p>
                         </div>
                       ))}
@@ -716,36 +853,53 @@ export function AnalyticsContent() {
                           c.trustScore >= 80
                             ? "bg-emerald-500"
                             : c.trustScore >= 55
-                            ? "bg-amber-400"
-                            : "bg-red-500";
+                              ? "bg-amber-400"
+                              : "bg-red-500";
 
                         const trustTextColor =
                           c.trustScore >= 80
                             ? "text-emerald-600 dark:text-emerald-400"
                             : c.trustScore >= 55
-                            ? "text-amber-600 dark:text-amber-400"
-                            : "text-red-600";
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-red-600";
 
                         return (
-                          <div key={c.id} className="flex items-center gap-3 py-2.5">
+                          <div
+                            key={c.id}
+                            className="flex items-center gap-3 py-2.5"
+                          >
                             <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-bold text-muted-foreground">
                               #{i + 1}
                             </span>
                             <div className="flex-1 min-w-0 space-y-1">
-                              <p className="text-sm font-medium truncate">{c.name}</p>
+                              <p className="text-sm font-medium truncate">
+                                {c.name}
+                              </p>
                               <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                                <span>{c.memberCount}/{c.maxMembers} members</span>
+                                <span>
+                                  {c.memberCount}/{c.maxMembers} members
+                                </span>
                                 <span>·</span>
-                                <span>Cycle {c.currentCycle}/{c.totalCycles}</span>
+                                <span>
+                                  Cycle {c.currentCycle}/{c.totalCycles}
+                                </span>
                               </div>
                               <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
                                 <div
-                                  className={cn("h-full rounded-full", trustColor)}
+                                  className={cn(
+                                    "h-full rounded-full",
+                                    trustColor,
+                                  )}
                                   style={{ width: `${c.trustScore}%` }}
                                 />
                               </div>
                             </div>
-                            <span className={cn("text-xs font-bold font-mono shrink-0", trustTextColor)}>
+                            <span
+                              className={cn(
+                                "text-xs font-bold font-mono shrink-0",
+                                trustTextColor,
+                              )}
+                            >
                               {c.trustScore}/100
                             </span>
                           </div>

@@ -38,7 +38,7 @@ export async function POST(
         {
           success: false,
           data: null,
-          error: parsed.error.errors[0]?.message ?? "Invalid input",
+          error: parsed.error.issues[0]?.message ?? "Invalid input",
         },
         { status: 400 }
       );

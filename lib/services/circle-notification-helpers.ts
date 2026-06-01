@@ -15,6 +15,8 @@
  * For reminders/warnings, email is sent as a fallback when SMS is off.
  */
 
+'use server';
+
 import { adminDb } from "@/lib/firebase/admin";
 import {
   sendNotification,

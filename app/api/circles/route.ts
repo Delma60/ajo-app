@@ -41,9 +41,9 @@ export async function GET(request: NextRequest) {
 
     const snap = await query.get();
 
-    let circles:Partial<Circle[]> = [];
+    let circles: Partial<Circle>[] = [];
     circles = snap.docs.map((doc) => {
-      const data = doc.data()! as Partial<Circle>; 
+      const data = doc.data()! as Partial<Circle>;
       return {
         id: doc.id,
         ...data,
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           data: null,
-          error: parsed.error.errors[0]?.message ?? "Invalid input",
+          error: parsed.error.issues[0]?.message ?? "Invalid input",
         },
         { status: 400 }
       );

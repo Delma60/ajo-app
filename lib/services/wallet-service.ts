@@ -17,6 +17,7 @@
  * tx.get() internally.
  */
 
+
 import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import type { Wallet } from "@/lib/types/wallet";
@@ -100,7 +101,7 @@ export async function creditWallet(
   const txRef = adminDb.collection("transactions").doc();
   const txDoc: Omit<AppTransaction, "id"> = {
     userId,
-    circleId: meta?.circleId ?? null,
+    circleId: meta?.circleId ?? undefined,
     type,
     direction: "credit",
     amount: amountKobo,
@@ -108,7 +109,7 @@ export async function creditWallet(
     netAmount: amountKobo - fee,
     status: "success",
     reference: meta?.reference ?? txRef.id,
-    providerReference: meta?.providerReference ?? null,
+    providerReference: meta?.providerReference ?? undefined,
     description,
     createdAt: FieldValue.serverTimestamp() as any,
     updatedAt: FieldValue.serverTimestamp() as any,
@@ -195,7 +196,7 @@ export async function debitWallet(
   const txRef = adminDb.collection("transactions").doc();
   const txDoc: Omit<AppTransaction, "id"> = {
     userId,
-    circleId: meta?.circleId ?? null,
+    circleId: meta?.circleId ?? undefined,
     type,
     direction: "debit",
     amount: amountKobo,

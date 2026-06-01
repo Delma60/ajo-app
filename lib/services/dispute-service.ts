@@ -90,7 +90,7 @@ export class DisputeService {
     const dispute: Omit<Dispute, "id"> = {
       circleId: input.circleId,
       raisedBy: input.raisedBy,
-      againstUserId: input.againstUserId ?? null,
+      againstUserId: input.againstUserId ?? undefined,
       type: input.type,
       description: input.description.trim(),
       status: "open",
@@ -262,7 +262,7 @@ export class DisputeService {
       );
     }
 
-    const update: Partial<Dispute> & Record<string, unknown> = {
+    const update: Record<string, unknown> = {
       status: newStatus,
       updatedAt: FieldValue.serverTimestamp(),
     };

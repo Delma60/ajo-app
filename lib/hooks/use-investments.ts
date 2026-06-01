@@ -9,7 +9,7 @@ import { useEffect, useState, useRef } from "react";
 import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { enrichInvestment } from "@/lib/services/investment-service";
+import { enrichInvestment } from "@/lib/utils/investment";
 import type {
   Investment,
   InvestmentPortfolioSummary,
