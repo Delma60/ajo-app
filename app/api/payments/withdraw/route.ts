@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { PaymentService, PaymentError } from "@/lib/services/payment-service";
+import { getWalletSettings } from "@/lib/services/settings-service";
 
 const SESSION_COOKIE = "__session";
 
@@ -50,6 +51,19 @@ export async function POST(request: NextRequest) {
     if (!bankAccountId || typeof bankAccountId !== "string") {
       return Response.json(
         { success: false, data: null, error: "bankAccountId is required" },
+        { status: 400 }
+      );
+    }
+
+    // Enforce settings minimum withdrawal
+    const walletSettings = await getWalletSettings();
+    if (amount < walletSettings.minWithdrawKobo) {
+      return Response.json(
+        {
+          success: false,
+          data: null,
+          error: `Minimum withdrawal is ₦${walletSettings.minWithdrawKobo / 100}`,
+        },
         { status: 400 }
       );
     }

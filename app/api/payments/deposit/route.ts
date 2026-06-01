@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { PaymentService } from "@/lib/services/payment-service";
+import { getWalletSettings } from "@/lib/services/settings-service";
 
 const SESSION_COOKIE = "__session";
 
@@ -38,6 +39,19 @@ export async function POST(request: NextRequest) {
     if (!amount || typeof amount !== "number" || amount <= 0) {
       return Response.json(
         { success: false, data: null, error: "Invalid amount" },
+        { status: 400 }
+      );
+    }
+
+    // Enforce settings minimum deposit
+    const walletSettings = await getWalletSettings();
+    if (amount < walletSettings.minDepositKobo) {
+      return Response.json(
+        {
+          success: false,
+          data: null,
+          error: `Minimum deposit is ₦${walletSettings.minDepositKobo / 100}`,
+        },
         { status: 400 }
       );
     }

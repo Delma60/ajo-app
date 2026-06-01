@@ -3,10 +3,10 @@ import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { creditWallet } from "@/lib/services/wallet-service";
 import { sendNotification } from "@/lib/services/notification-service";
+import { getInvestmentSettings } from "@/lib/services/settings-service";
 import { INVESTMENT_PACKAGES } from "@/lib/types/investment";
 
 const SESSION_COOKIE = "__session";
-const PLATFORM_FEE_PERCENT = 0.01;
 
 async function getAdminUser(request: NextRequest) {
   const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
@@ -77,7 +77,9 @@ export async function GET(
         : principalKobo;
 
     const pkg = INVESTMENT_PACKAGES.find((p) => p.id === d.packageId);
-    const platformFeeKobo = Math.round(interestKobo * PLATFORM_FEE_PERCENT);
+    const investmentSettings = await getInvestmentSettings();
+    const platformFeePercent = investmentSettings.platformInterestFeePercent / 100;
+    const platformFeeKobo = Math.round(interestKobo * platformFeePercent);
     const netReturnKobo = (d.expectedReturnKobo as number) - platformFeeKobo;
 
     return NextResponse.json({
@@ -193,7 +195,9 @@ export async function PATCH(
       const accruedInterest =
         totalMs > 0 ? Math.round((interestKobo * elapsed) / totalMs) : 0;
       const accruedTotal = principalKobo + accruedInterest;
-      const platformFeeKobo = Math.round(accruedInterest * PLATFORM_FEE_PERCENT);
+      const investmentSettings = await getInvestmentSettings();
+      const platformFeePercent = investmentSettings.platformInterestFeePercent / 100;
+      const platformFeeKobo = Math.round(accruedInterest * platformFeePercent);
       const netPayout = accruedTotal - platformFeeKobo;
 
       await adminDb.runTransaction(async (tx) => {

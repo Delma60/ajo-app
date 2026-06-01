@@ -4,12 +4,13 @@
 // re-validates against the live admin settings.
 
 import { z } from "zod";
+import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 
 // Constants matching DEFAULT_PLATFORM_SETTINGS.circles
-const MIN_CONTRIBUTION_KOBO = 50_000; // ₦500
-const MAX_CONTRIBUTION_KOBO = 100_000_000; // ₦1,000,000
-const MIN_CIRCLE_MEMBERS = 2;
-const MAX_CIRCLE_MEMBERS = 50;
+const MIN_CONTRIBUTION_KOBO = DEFAULT_PLATFORM_SETTINGS.circles.minContributionKobo;
+const MAX_CONTRIBUTION_KOBO = DEFAULT_PLATFORM_SETTINGS.circles.maxContributionKobo;
+const MIN_CIRCLE_MEMBERS = DEFAULT_PLATFORM_SETTINGS.circles.minCircleMembers;
+const MAX_CIRCLE_MEMBERS = DEFAULT_PLATFORM_SETTINGS.circles.maxCircleMembers;
 
 export const createCircleSchema = z.object({
   name: z
@@ -24,13 +25,11 @@ export const createCircleSchema = z.object({
   maxMembers: z
     .coerce.number()
     .int()
-    .min(2, "Circle must have at least 2 members")
     .min(MIN_CIRCLE_MEMBERS, `Circle must have at least ${MIN_CIRCLE_MEMBERS} members`)
     .max(MAX_CIRCLE_MEMBERS, `Maximum members allowed is ${MAX_CIRCLE_MEMBERS}`),
   contribution: z
     .coerce.number()
     .positive("Contribution must be a positive amount")
-    .min(1000, "Minimum contribution is ₦1000"),
     .min(MIN_CONTRIBUTION_KOBO / 100, `Minimum contribution is ₦${MIN_CONTRIBUTION_KOBO / 100}.`)
     .max(MAX_CONTRIBUTION_KOBO / 100, `Maximum contribution is ₦${MAX_CONTRIBUTION_KOBO / 100}.`),
   frequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"], {

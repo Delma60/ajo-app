@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { Timestamp } from "firebase-admin/firestore";
+import { getInvestmentSettings } from "@/lib/services/settings-service";
 import { INVESTMENT_PACKAGES } from "@/lib/types/investment";
 
 const SESSION_COOKIE = "__session";
@@ -189,6 +190,9 @@ export async function GET(request: NextRequest) {
 
     // Aggregate stats across ALL investments (unfiltered for accuracy)
     const allSnap = await adminDb.collection("investments").get();
+    const investmentSettings = await getInvestmentSettings();
+    const platformFeePercent = investmentSettings.platformInterestFeePercent / 100;
+    
     let totalActiveKobo = 0;
     let totalExpectedReturnKobo = 0;
     let totalWithdrawnKobo = 0;
@@ -209,7 +213,7 @@ export async function GET(request: NextRequest) {
       else if (status === "withdrawn") {
         withdrawnCount++;
         totalWithdrawnKobo += expected;
-        platformFeesKobo += Math.round(interest * 0.01);
+        platformFeesKobo += Math.round(interest * platformFeePercent);
       } else if (status === "cancelled") cancelledCount++;
     }
 
