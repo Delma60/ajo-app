@@ -1,17 +1,12 @@
-import { Suspense } from 'react';
-import Content from '@/components/admin/investments/content';
-import StatsStrip from '@/components/admin/investments/stats-strip';
-import FilterBar from '@/components/admin/investments/filter-bar';
+import type { Metadata } from "next";
+import { AdminInvestmentsContent } from "@/components/admin/investments/content";
+
+export const metadata: Metadata = {
+  title: "Investments — AjoSave Admin",
+  description:
+    "Monitor and manage all investment positions across the platform. Force payouts, cancel investments, and view portfolio analytics.",
+};
 
 export default function AdminInvestmentsPage() {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Investments</h1>
-      <Suspense fallback={null}>
-        <StatsStrip />
-      </Suspense>
-      <FilterBar />
-      <Content />
-    </div>
-  );
+  return <AdminInvestmentsContent />;
 }
