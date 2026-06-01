@@ -1,0 +1,133 @@
+// ─── Platform Settings Types ──────────────────────────────────────────────────
+
+export interface WalletSettings {
+  minDepositKobo: number;          // ₦500 default
+  minWithdrawKobo: number;         // ₦1,000 default
+  withdrawFeeFlatKobo: number;     // ₦50 flat fee
+  withdrawFeePercent: number;      // 1% of amount
+  withdrawFeeCapKobo: number;      // ₦500 cap
+  maxWalletBalanceKobo: number;    // safety ceiling (0 = unlimited)
+}
+
+export interface CircleSettings {
+  maxActiveCirclesPerUser: number; // 10 default
+  minContributionKobo: number;     // ₦500 default
+  maxContributionKobo: number;     // ₦1,000,000 default
+  minCircleMembers: number;        // 2 default
+  maxCircleMembers: number;        // 50 default
+  creationFeePercent: number;      // 5% of contribution
+  latePenaltyPercent: number;      // 10% of contribution
+  gracePeriodHours: number;        // 48h before late
+  consecutiveMissedLimit: number;  // 3 before auto-removal
+  bidCloseHoursBeforePayout: number; // 24h
+}
+
+export interface PayoutSettings {
+  platformPayoutFeePercent: number; // 1%
+  kycRequiredAboveKobo: number;    // ₦50,000
+  referralBonusKobo: number;       // ₦500 per referral
+  referralMinDepositKobo: number;  // ₦1,000 qualifying deposit
+  referralMonthlyLimit: number;    // 50 referrals/month cap
+}
+
+export interface InvestmentSettings {
+  platformInterestFeePercent: number; // 1% on interest only
+  earlyWithdrawalEnabled: boolean;
+}
+
+export interface TrustScoreSettings {
+  onTimePaymentWeight: number;  // +2
+  latePaymentWeight: number;    // -5
+  missedPaymentWeight: number;  // -15
+}
+
+export interface NotificationSettings {
+  smsEnabled: boolean;
+  emailEnabled: boolean;
+  smsProviderName: string; // "Termii"
+  emailProviderName: string; // "Nodemailer"
+}
+
+export interface MaintenanceSettings {
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+  allowedAdminAccess: boolean;
+}
+
+export interface PlatformSettings {
+  wallet: WalletSettings;
+  circles: CircleSettings;
+  payouts: PayoutSettings;
+  investments: InvestmentSettings;
+  trustScore: TrustScoreSettings;
+  notifications: NotificationSettings;
+  maintenance: MaintenanceSettings;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+// ─── Default values (mirrors lib/constants.ts) ────────────────────────────────
+
+export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
+  wallet: {
+    minDepositKobo: 50_000,
+    minWithdrawKobo: 100_000,
+    withdrawFeeFlatKobo: 5_000,
+    withdrawFeePercent: 1,
+    withdrawFeeCapKobo: 50_000,
+    maxWalletBalanceKobo: 0,
+  },
+  circles: {
+    maxActiveCirclesPerUser: 10,
+    minContributionKobo: 50_000,
+    maxContributionKobo: 100_000_000,
+    minCircleMembers: 2,
+    maxCircleMembers: 50,
+    creationFeePercent: 5,
+    latePenaltyPercent: 10,
+    gracePeriodHours: 48,
+    consecutiveMissedLimit: 3,
+    bidCloseHoursBeforePayout: 24,
+  },
+  payouts: {
+    platformPayoutFeePercent: 1,
+    kycRequiredAboveKobo: 5_000_000,
+    referralBonusKobo: 50_000,
+    referralMinDepositKobo: 100_000,
+    referralMonthlyLimit: 50,
+  },
+  investments: {
+    platformInterestFeePercent: 1,
+    earlyWithdrawalEnabled: false,
+  },
+  trustScore: {
+    onTimePaymentWeight: 2,
+    latePaymentWeight: -5,
+    missedPaymentWeight: -15,
+  },
+  notifications: {
+    smsEnabled: true,
+    emailEnabled: true,
+    smsProviderName: "Termii",
+    emailProviderName: "Nodemailer",
+  },
+  maintenance: {
+    maintenanceMode: false,
+    maintenanceMessage:
+      "AjoSave is currently undergoing scheduled maintenance. We'll be back shortly.",
+    allowedAdminAccess: true,
+  },
+};
+
+// ─── Audit log entry ──────────────────────────────────────────────────────────
+
+export interface SettingsAuditLog {
+  id: string;
+  adminId: string;
+  adminName: string;
+  section: string;
+  field: string;
+  oldValue: string;
+  newValue: string;
+  createdAt: string;
+}
