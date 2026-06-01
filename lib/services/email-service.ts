@@ -34,6 +34,7 @@
 
 import nodemailer, { type Transporter } from "nodemailer";
 import type { Options as MailOptions } from "nodemailer/lib/mailer";
+import { getSettings } from "@/lib/services/settings-service";
 
 // ─── Transport singleton ──────────────────────────────────────────────────────
 
@@ -120,6 +121,19 @@ const FROM_ADDRESS =
  * Returns true on success, false on failure.
  */
 export async function sendEmail(options: MailOptions): Promise<boolean> {
+  // Check if email is enabled in platform settings
+  try {
+    const settings = await getSettings();
+    if (!settings.notifications.emailEnabled) {
+      console.info(
+        `[email-service] Email is disabled in platform settings, skipping "${options.subject}" → ${options.to}`
+      );
+      return true; // Return true to indicate no-op success
+    }
+  } catch (err) {
+    console.error("[email-service] Failed to load settings, proceeding with email attempt:", err);
+  }
+
   // Skip silently in CI / test environments that explicitly opt out
   if (process.env.DISABLE_EMAIL === "true") {
     console.log(

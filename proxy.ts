@@ -1,6 +1,7 @@
 // middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { getSettings } from "@/lib/services/settings-service";
 
 
 const SESSION_COOKIE_NAME = "__session";
@@ -91,6 +92,30 @@ export async function proxy(request: NextRequest) {
   }
 
   const sessionUser = await getSessionUser(request);
+
+  // ── Maintenance mode check ─────────────────────────────────────────────────
+  // Allow admins and unauthenticated users to see login/register, but
+  // redirect non-admin authenticated users to maintenance page
+  try {
+    const settings = await getSettings();
+    if (settings.maintenance.maintenanceMode) {
+      // Allow login/register/admin routes even in maintenance mode
+      if (
+        !pathname.startsWith("/login") &&
+        !pathname.startsWith("/register") &&
+        !pathname.startsWith("/admin")
+      ) {
+        // If user is authenticated and is not an admin, redirect to maintenance
+        if (sessionUser && sessionUser.role !== "admin") {
+          const maintenanceUrl = new URL("/maintenance", request.url);
+          return NextResponse.redirect(maintenanceUrl);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[middleware] Failed to check maintenance mode:", err);
+    // Fail open — allow request to proceed
+  }
 
   // ── Redirect authenticated users away from login/register ──────────────────
   if (AUTH_ONLY_ROUTES.some((r) => pathname.startsWith(r))) {

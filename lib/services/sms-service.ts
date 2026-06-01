@@ -4,6 +4,8 @@
  * Email is the fallback/receipt channel; SMS is first.
  */
 
+import { getSettings } from "@/lib/services/settings-service";
+
 const TERMII_API_URL = "https://api.ng.termii.com/api/sms/send";
 
 interface SendSmsOptions {
@@ -28,6 +30,17 @@ export async function sendSms(
   message: string,
   options: SendSmsOptions = {}
 ): Promise<void> {
+  // Check if SMS is enabled in platform settings
+  try {
+    const settings = await getSettings();
+    if (!settings.notifications.smsEnabled) {
+      console.info("[sms-service] SMS is disabled in platform settings, skipping SMS to", phone);
+      return;
+    }
+  } catch (err) {
+    console.error("[sms-service] Failed to load settings, proceeding with SMS attempt:", err);
+  }
+
   const apiKey = process.env.TERMII_API_KEY;
   const senderId = options.senderId ?? process.env.TERMII_SENDER_ID;
 

@@ -25,8 +25,11 @@ import {
   debitWallet,
   calculateWithdrawalFee,
 } from "@/lib/services/wallet-service";
+import {
+  getPayoutSettings,
+  getWalletSettings,
+} from "@/lib/services/settings-service";
 import { sendNotification } from "@/lib/services/notification-service";
-import { MIN_DEPOSIT_KOBO, MIN_WITHDRAW_KOBO } from "@/lib/constants";
 import type { User, BankAccount } from "@/lib/types/user";
 import type { Transaction } from "@/lib/types/transaction";
 import type { Wallet } from "@/lib/types/wallet";
@@ -66,9 +69,6 @@ export class PaymentError extends Error {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const FLW_API = "https://api.flutterwave.com/v3";
-const REFERRAL_BONUS_KOBO = 50_000;        // ₦500
-const REFERRAL_MIN_DEPOSIT_KOBO = 100_000; // ₦1,000
-const REFERRAL_MONTHLY_LIMIT = 50;
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -108,10 +108,11 @@ export class PaymentService {
     name: string,
     phone?: string
   ): Promise<{ paymentLink: string; reference: string }> {
-    if (amountKobo < MIN_DEPOSIT_KOBO) {
+    const walletSettings = await getWalletSettings();
+    if (amountKobo < walletSettings.minDepositKobo) {
       throw new PaymentError(
         "BELOW_MINIMUM",
-        `Minimum deposit is ₦${MIN_DEPOSIT_KOBO / 100}.`
+        `Minimum deposit is ₦${walletSettings.minDepositKobo / 100}.`
       );
     }
     const reference = `DEP-${userId.slice(0, 6)}-${Date.now()}`;
@@ -188,8 +189,9 @@ export class PaymentService {
     amountKobo: number,
     bankAccountId: string
   ): Promise<{ reference: string }> {
-    if (amountKobo < MIN_WITHDRAW_KOBO) {
-      throw new PaymentError("BELOW_MINIMUM", `Minimum withdrawal is ₦${MIN_WITHDRAW_KOBO / 100}.`);
+    const walletSettings = await getWalletSettings();
+    if (amountKobo < walletSettings.minWithdrawKobo) {
+      throw new PaymentError("BELOW_MINIMUM", `Minimum withdrawal is ₦${walletSettings.minWithdrawKobo / 100}.`);
     }
 
     const [userSnap, walletSnap] = await Promise.all([
@@ -206,7 +208,7 @@ export class PaymentService {
 
     if (!bankAccount) throw new PaymentError("NOT_FOUND", "Bank account not found.");
 
-    const fee = calculateWithdrawalFee(amountKobo);
+    const fee = await calculateWithdrawalFee(amountKobo);
     const netAmount = amountKobo - fee;
 
     if (wallet.available < amountKobo) {
@@ -299,6 +301,9 @@ export class PaymentService {
     const amountKobo = Math.round(amountNaira * 100);
     const pendingRef = this.txCol.doc(txRef);
 
+    // Pre-fetch settings before entering transaction
+    const payoutSettings = await getPayoutSettings();
+
     await adminDb.runTransaction(async (tx) => {
 
       // ── PHASE 1: ALL READS ──────────────────────────────────────────────────
@@ -331,7 +336,7 @@ export class PaymentService {
       let referrerId: string | null = null;
       let shouldAwardBonus = false;
 
-      if (amountKobo >= REFERRAL_MIN_DEPOSIT_KOBO) {
+      if (amountKobo >= payoutSettings.referralMinDepositKobo) {
         const refereeSnap = await tx.get(this.usersCol.doc(userId));
         if (refereeSnap.exists) {
           const referee = refereeSnap.data() as User;
@@ -359,7 +364,7 @@ export class PaymentService {
                   .where("createdAt", ">=", startOfMonth)
                   .get();
 
-                if (monthlyBonusSnap.size < REFERRAL_MONTHLY_LIMIT) {
+                if (monthlyBonusSnap.size < payoutSettings.referralMonthlyLimit) {
                   referrerId = potentialReferrerId;
                   shouldAwardBonus = true;
                 }
@@ -391,9 +396,9 @@ export class PaymentService {
           circleId: null,
           type: "referral_bonus",
           direction: "credit",
-          amount: REFERRAL_BONUS_KOBO,
+          amount: payoutSettings.referralBonusKobo,
           fee: 0,
-          netAmount: REFERRAL_BONUS_KOBO,
+          netAmount: payoutSettings.referralBonusKobo,
           status: "success",
           reference: bonusTxRef.id,
           description: `Referral bonus — new member made first deposit`,
@@ -402,8 +407,8 @@ export class PaymentService {
         });
 
         tx.update(this.walletsCol.doc(referrerId), {
-          available: FieldValue.increment(REFERRAL_BONUS_KOBO),
-          referralEarnings: FieldValue.increment(REFERRAL_BONUS_KOBO),
+          available: FieldValue.increment(payoutSettings.referralBonusKobo),
+          referralEarnings: FieldValue.increment(payoutSettings.referralBonusKobo),
           updatedAt: FieldValue.serverTimestamp(),
         });
       }

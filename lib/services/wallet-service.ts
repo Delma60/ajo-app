@@ -21,6 +21,7 @@ import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import type { Wallet } from "@/lib/types/wallet";
 import type { Transaction as AppTransaction } from "@/lib/types/transaction";
+import { getWalletSettings } from "@/lib/services/settings-service";
 
 // ─── Custom error ─────────────────────────────────────────────────────────────
 
@@ -252,10 +253,11 @@ export async function addPending(
 
 // ─── Fee calculation ──────────────────────────────────────────────────────────
 
-export function calculateWithdrawalFee(amountKobo: number): number {
-  const percent = Math.round(amountKobo * 0.01);
-  const flat = 5_000;  // ₦50
-  const cap = 50_000;  // ₦500
+export async function calculateWithdrawalFee(amountKobo: number): Promise<number> {
+  const settings = await getWalletSettings();
+  const percent = Math.round(amountKobo * settings.withdrawFeePercent);
+  const flat = settings.withdrawFeeFlatKobo;
+  const cap = settings.withdrawFeeCapKobo;
   return Math.min(percent + flat, cap);
 }
 

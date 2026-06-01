@@ -17,6 +17,7 @@ import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { debitWallet, creditWallet } from "@/lib/services/wallet-service";
 import { sendNotification } from "@/lib/services/notification-service";
+import { getInvestmentSettings } from "@/lib/services/settings-service";
 import type {
   Investment,
   InvestmentPackage,
@@ -34,9 +35,7 @@ export class InvestmentError extends Error {
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const PLATFORM_FEE_PERCENT = 0.01; // 1% of interest only
+// ─── Settings (loaded at runtime from admin settings) ────────────────────────
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -204,18 +203,24 @@ export class InvestmentService {
       );
     }
 
+    const investmentSettings = await getInvestmentSettings();
+
     const now = Timestamp.now();
     if (now.toMillis() < inv.maturityDate.toMillis()) {
-      const daysLeft = Math.ceil(
-        (inv.maturityDate.toMillis() - now.toMillis()) / (1000 * 60 * 60 * 24)
-      );
-      throw new InvestmentError(
-        "NOT_MATURED",
-        `Investment matures in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}. Early withdrawal is not permitted.`
-      );
+      if (!investmentSettings.earlyWithdrawalEnabled) {
+        const daysLeft = Math.ceil(
+          (inv.maturityDate.toMillis() - now.toMillis()) / (1000 * 60 * 60 * 24)
+        );
+        throw new InvestmentError(
+          "NOT_MATURED",
+          `Investment matures in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}. Early withdrawal is not permitted.`
+        );
+      }
     }
 
-    const platformFeeKobo = Math.round(inv.interestKobo * PLATFORM_FEE_PERCENT);
+    const platformFeeKobo = Math.round(
+      inv.interestKobo * (investmentSettings.platformInterestFeePercent / 100)
+    );
     const netReturnKobo = inv.expectedReturnKobo - platformFeeKobo;
 
     await adminDb.runTransaction(async (tx) => {

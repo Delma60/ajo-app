@@ -4,6 +4,7 @@ import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import type { PlatformSettings } from "@/lib/types/admin-settings";
 import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
+import { invalidateCache } from "@/lib/services/settings-service";
 
 const SESSION_COOKIE = "__session";
 const SETTINGS_DOC = "platform_settings";

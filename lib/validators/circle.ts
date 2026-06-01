@@ -1,5 +1,15 @@
-// Zod schemas for circle create/edit placeholder
+// Zod schemas for circle create/edit
+// NOTE: These validators use default values that must match DEFAULT_PLATFORM_SETTINGS
+// in lib/types/admin-settings.ts. Server-side validation in app/api/circles/route.ts
+// re-validates against the live admin settings.
+
 import { z } from "zod";
+
+// Constants matching DEFAULT_PLATFORM_SETTINGS.circles
+const MIN_CONTRIBUTION_KOBO = 50_000; // ₦500
+const MAX_CONTRIBUTION_KOBO = 100_000_000; // ₦1,000,000
+const MIN_CIRCLE_MEMBERS = 2;
+const MAX_CIRCLE_MEMBERS = 50;
 
 export const createCircleSchema = z.object({
   name: z
@@ -15,11 +25,14 @@ export const createCircleSchema = z.object({
     .coerce.number()
     .int()
     .min(2, "Circle must have at least 2 members")
-    .max(50, "Maximum members allowed is 50"),
+    .min(MIN_CIRCLE_MEMBERS, `Circle must have at least ${MIN_CIRCLE_MEMBERS} members`)
+    .max(MAX_CIRCLE_MEMBERS, `Maximum members allowed is ${MAX_CIRCLE_MEMBERS}`),
   contribution: z
     .coerce.number()
     .positive("Contribution must be a positive amount")
     .min(1000, "Minimum contribution is ₦1000"),
+    .min(MIN_CONTRIBUTION_KOBO / 100, `Minimum contribution is ₦${MIN_CONTRIBUTION_KOBO / 100}.`)
+    .max(MAX_CONTRIBUTION_KOBO / 100, `Maximum contribution is ₦${MAX_CONTRIBUTION_KOBO / 100}.`),
   frequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"], {
     message: "Please select a valid frequency",
   }),

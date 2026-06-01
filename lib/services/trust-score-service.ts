@@ -36,9 +36,13 @@
 
 import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { getTrustScoreSettings } from "@/lib/services/settings-service";
 
 // ─── Weights ──────────────────────────────────────────────────────────────────
 
+// TRUST_WEIGHTS are now loaded from admin settings
+// These are fallback values if needed, but calculateTrustScore expects
+// weights to be passed from getTrustScoreSettings()
 export const TRUST_WEIGHTS = {
   ON_TIME: 2,
   LATE: -5,
@@ -111,16 +115,26 @@ export interface TrustScoreInput {
 }
 
 /**
- * Calculate trust score from raw payment counts.
+ * Calculate trust score from raw payment counts and trust score settings.
  * Pure function — no side effects, safe to call anywhere.
+ * Weights should be passed from getTrustScoreSettings() and used throughout.
  */
-export function calculateTrustScore(input: TrustScoreInput): number {
+export function calculateTrustScore(
+  input: TrustScoreInput,
+  weights?: { onTimePaymentWeight: number; latePaymentWeight: number; missedPaymentWeight: number }
+): number {
   const { onTimePayments, latePayments, missedPayments } = input;
+  // Use provided weights from settings, or fallback to defaults if not available
+  const w = weights || {
+    onTimePaymentWeight: TRUST_WEIGHTS.ON_TIME,
+    latePaymentWeight: TRUST_WEIGHTS.LATE,
+    missedPaymentWeight: TRUST_WEIGHTS.MISSED,
+  };
   const raw =
     100 +
-    onTimePayments * TRUST_WEIGHTS.ON_TIME +
-    latePayments * TRUST_WEIGHTS.LATE +
-    missedPayments * TRUST_WEIGHTS.MISSED;
+    onTimePayments * w.onTimePaymentWeight +
+    latePayments * w.latePaymentWeight +
+    missedPayments * w.missedPaymentWeight;
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
@@ -139,12 +153,17 @@ export async function recordOnTimePayment(
     missedPayments: number;
   }
 ): Promise<void> {
+  const settings = await getTrustScoreSettings();
   const newBreakdown = {
     onTimePayments: currentBreakdown.onTimePayments + 1,
     latePayments: currentBreakdown.latePayments,
     missedPayments: currentBreakdown.missedPayments,
   };
-  const newScore = calculateTrustScore(newBreakdown);
+  const newScore = calculateTrustScore(newBreakdown, {
+    onTimePaymentWeight: settings.onTimePaymentWeight,
+    latePaymentWeight: settings.latePaymentWeight,
+    missedPaymentWeight: settings.missedPaymentWeight,
+  });
 
   tx.update(adminDb.collection("circles").doc(circleId), {
     trustScore: newScore,
@@ -167,12 +186,17 @@ export async function recordLatePayment(
     missedPayments: number;
   }
 ): Promise<void> {
+  const settings = await getTrustScoreSettings();
   const newBreakdown = {
     onTimePayments: currentBreakdown.onTimePayments,
     latePayments: currentBreakdown.latePayments + 1,
     missedPayments: currentBreakdown.missedPayments,
   };
-  const newScore = calculateTrustScore(newBreakdown);
+  const newScore = calculateTrustScore(newBreakdown, {
+    onTimePaymentWeight: settings.onTimePaymentWeight,
+    latePaymentWeight: settings.latePaymentWeight,
+    missedPaymentWeight: settings.missedPaymentWeight,
+  });
 
   tx.update(adminDb.collection("circles").doc(circleId), {
     trustScore: newScore,
@@ -195,12 +219,25 @@ export async function recordMissedPayment(
     missedPayments: number;
   }
 ): Promise<void> {
+  const settings = await getTrustScoreSettings();
   const newBreakdown = {
     onTimePayments: currentBreakdown.onTimePayments,
     latePayments: currentBreakdown.latePayments,
     missedPayments: currentBreakdown.missedPayments + 1,
   };
-  const newScore = calculateTrustScore(newBreakdown);
+  const newScore = calculateTrustScore(newBreakdown, {
+    onTimePaymentWeight: settings.onTimePaymentWeight,
+    latePaymentWeight: settings.latePaymentWeight,
+    missedPaymentWeight: settings.missedPaymentWeight,
+  });
+
+  tx.update(adminDb.collection("circles").doc(circleId), {
+    trustScore: newScore,
+    "trustScoreBreakdown.missedPayments": FieldValue.increment(1),
+    "trustScoreBreakdown.lastUpdated": FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
 
   tx.update(adminDb.collection("circles").doc(circleId), {
     trustScore: newScore,

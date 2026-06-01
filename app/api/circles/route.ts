@@ -2,9 +2,11 @@ import { NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { CircleService } from "@/lib/services/circle-service";
 import { createCircleSchema } from "@/lib/validators/circle";
+import { getSettings } from "@/lib/services/settings-service";
 import { Circle } from "@/lib/types/circle";
 
 const SESSION_COOKIE = "__session";
+const DEFAULT_CIRCLES_LIST_LIMIT = 50;
 
 async function getSessionUser(request: NextRequest) {
   const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
       .where("isPrivate", "==", false)
       .where("status", "==", "active")
       .orderBy("createdAt", "desc")
-      .limit(50);
+        .limit(DEFAULT_CIRCLES_LIST_LIMIT);
 
     const snap = await query.get();
 
@@ -113,6 +115,59 @@ export async function POST(request: NextRequest) {
       isPrivate,
       tags,
     } = parsed.data;
+
+      // Re-validate against dynamic server-side settings
+      try {
+        const settings = await getSettings();
+        const circleSettings = settings.circles;
+
+        if (contribution < circleSettings.minContributionKobo) {
+          return Response.json(
+            {
+              success: false,
+              data: null,
+              error: `Minimum contribution is ₦${circleSettings.minContributionKobo / 100}.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        if (contribution > circleSettings.maxContributionKobo) {
+          return Response.json(
+            {
+              success: false,
+              data: null,
+              error: `Maximum contribution is ₦${circleSettings.maxContributionKobo / 100}.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        if (maxMembers < circleSettings.minCircleMembers) {
+          return Response.json(
+            {
+              success: false,
+              data: null,
+              error: `Circle must have at least ${circleSettings.minCircleMembers} members.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        if (maxMembers > circleSettings.maxCircleMembers) {
+          return Response.json(
+            {
+              success: false,
+              data: null,
+              error: `Maximum members allowed is ${circleSettings.maxCircleMembers}.`,
+            },
+            { status: 400 }
+          );
+        }
+      } catch (settingsErr) {
+        console.error("[POST /api/circles] Failed to validate against settings:", settingsErr);
+        // Proceed anyway; service layer will re-validate with settings
+      }
 
     const service = new CircleService();
     const circle = await service.createCircle(

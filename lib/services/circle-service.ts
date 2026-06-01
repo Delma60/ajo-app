@@ -1,21 +1,27 @@
 import { debitWallet, creditWallet, addPending, confirmPending } from "@/lib/services/wallet-service";
+import {
+  getSettings,
+  getCircleSettings,
+  getPayoutSettings,
+} from "@/lib/services/settings-service";
 /**
  * Circle Service
  * Business logic for circle lifecycle: create, join, contribute, payout,
  * penalty application, bid submission, pause/unpause, and member removal.
  *
  * Rules enforced here (never client-side):
- *  - Creation fee = 5% of contribution amount
+ *  - Creation fee = dynamic per admin settings (default 5% of contribution)
  *  - Admin is always turn position 1 (index 0) in rotational circles
  *  - Payouts only when all member slots are filled
  *  - Contribution state machine: pending → paid | late → paid | missed
- *  - Late penalty = 10% of contribution amount
- *  - Three consecutive missed payments → auto-removal
+ *  - Late penalty = dynamic per admin settings (default 10% of contribution)
+ *  - Consecutive missed payments → auto-removal (dynamic per settings, default 3)
+ *  - Grace period = dynamic per settings (default 48 hours)
  *  - KYC gate for circle creation and payouts > ₦50,000
  *  - Maximum 10 active circles per user
- *  - Bid deadline = 24 h before nextPayoutDate
+ *  - Bid deadline = dynamic per settings (default 24h before nextPayoutDate)
  *  - Bid premium distributed equally to non-winning members
- *  - Platform takes 1% of each payout
+ *  - Platform payout fee = dynamic per settings (default 1%)
  *  - goal = contribution × maxMembers, always derived — never stored
  */
 
@@ -52,15 +58,6 @@ export class CircleError extends Error {
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const CREATION_FEE_PERCENT = 0.05;
-const LATE_PENALTY_PERCENT = 0.10;
-const PLATFORM_PAYOUT_FEE_PERCENT = 0.01;
-const GRACE_PERIOD_HOURS = 48;
-const CONSECUTIVE_MISSED_LIMIT = 3;
-const BID_CLOSE_HOURS_BEFORE_PAYOUT = 24;
-
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class CircleService {
@@ -84,11 +81,32 @@ export class CircleService {
     isPrivate: boolean,
     tags: string[]
   ): Promise<Circle> {
-    if (maxMembers < 2) {
-      throw new CircleError("INVALID_INPUT", "Circle must have at least 2 members.");
+    // Load settings
+    const settings = await getCircleSettings();
+
+    if (maxMembers < settings.minCircleMembers) {
+      throw new CircleError(
+        "INVALID_INPUT",
+        `Circle must have at least ${settings.minCircleMembers} members.`
+      );
     }
-    if (contributionKobo < 50_000) {
-      throw new CircleError("INVALID_INPUT", "Minimum contribution is ₦500.");
+    if (contributionKobo < settings.minContributionKobo) {
+      throw new CircleError(
+        "INVALID_INPUT",
+        `Minimum contribution is ₦${settings.minContributionKobo / 100}.`
+      );
+    }
+    if (contributionKobo > settings.maxContributionKobo) {
+      throw new CircleError(
+        "INVALID_INPUT",
+        `Maximum contribution is ₦${settings.maxContributionKobo / 100}.`
+      );
+    }
+    if (maxMembers > settings.maxCircleMembers) {
+      throw new CircleError(
+        "INVALID_INPUT",
+        `Maximum members allowed is ${settings.maxCircleMembers}.`
+      );
     }
 
     const [, adminWallet] = await Promise.all([
@@ -97,14 +115,14 @@ export class CircleService {
     ]);
 
     const activeCount = await this.countActiveCircles(adminId);
-    if (activeCount >= MAX_ACTIVE_CIRCLES) {
+    if (activeCount >= settings.maxActiveCirclesPerUser) {
       throw new CircleError(
         "MAX_CIRCLES_REACHED",
-        `You can be in a maximum of ${MAX_ACTIVE_CIRCLES} active circles.`
+        `You can be in a maximum of ${settings.maxActiveCirclesPerUser} active circles.`
       );
     }
 
-    const creationFee = Math.round(contributionKobo * CREATION_FEE_PERCENT);
+    const creationFee = Math.round(contributionKobo * settings.creationFeePercent);
     if (adminWallet.available < creationFee) {
       throw new CircleError(
         "INSUFFICIENT_FUNDS",
@@ -237,6 +255,9 @@ export class CircleService {
   // ─── Contribute ────────────────────────────────────────────────────────────
 
   async makeContribution(circleId: string, userId: string, amountKobo: number): Promise<Contribution> {
+    // Load settings for penalty calculation
+    const settings = await getCircleSettings();
+
     return adminDb.runTransaction(async (tx) => {
       const [circleSnap, userSnap, walletSnap] = await tx.getAll(
         this.circlesCol.doc(circleId),
@@ -299,7 +320,7 @@ export class CircleService {
 
       let penaltyKobo = 0;
       if (contrib.status === "late" && !contrib.penaltyPaid) {
-        penaltyKobo = Math.round(circle.contribution * LATE_PENALTY_PERCENT);
+        penaltyKobo = Math.round(circle.contribution * settings.latePenaltyPercent);
       }
 
       const totalDeduction = amountKobo + penaltyKobo;
@@ -392,6 +413,10 @@ export class CircleService {
   private async processSinglePayout(circleDoc: admin.firestore.QueryDocumentSnapshot, settlementHours: number): Promise<void> {
     const circle = circleDoc.data() as Circle;
 
+    // Load settings for platform payout fee and bid closing hours
+    const payoutSettings = await getPayoutSettings();
+    const circleSettings = await getCircleSettings();
+
     const paidSnap = await this.contributionsCol
       .where("circleId", "==", circle.id)
       .where("cycle", "==", circle.currentCycle)
@@ -413,7 +438,7 @@ export class CircleService {
       let winningBidRef: admin.firestore.DocumentReference | null = null;
 
       if (circle.payoutOrder === "bidding") {
-        const bidResult = await this.resolveWinningBid(circle, tx);
+        const bidResult = await this.resolveWinningBid(circle, tx, circleSettings);
         if (bidResult) {
           recipientId = bidResult.userId;
           bidPremiumKobo = bidResult.amount;
@@ -428,7 +453,7 @@ export class CircleService {
       const recipientSnap = await tx.get(this.usersCol.doc(recipientId));
       const recipient = recipientSnap.data() as User;
       const basePool = circle.contribution * circle.memberIds.length;
-      const platformFee = Math.round(basePool * PLATFORM_PAYOUT_FEE_PERCENT);
+      const platformFee = Math.round(basePool * payoutSettings.platformPayoutFeePercent);
       const netPayout = basePool - platformFee + bidPremiumKobo;
 
       if (winningBidRef) {
@@ -590,8 +615,11 @@ export class CircleService {
   // ─── Apply Penalties (cron) ────────────────────────────────────────────────
 
   async applyPenalties(): Promise<void> {
+    // Load settings for grace period
+    const settings = await getCircleSettings();
+
     const graceCutoff = new Date();
-    graceCutoff.setHours(graceCutoff.getHours() - GRACE_PERIOD_HOURS);
+    graceCutoff.setHours(graceCutoff.getHours() - settings.gracePeriodHours);
 
     const snap = await this.contributionsCol
       .where("status", "==", "pending")
@@ -600,7 +628,7 @@ export class CircleService {
 
     for (const contribDoc of snap.docs) {
       try {
-        await this.applyPenaltyToContribution(contribDoc);
+        await this.applyPenaltyToContribution(contribDoc, settings);
       } catch (err) {
         console.error(`[circle-service] Penalty failed for contribution ${contribDoc.id}:`, err);
       }
@@ -608,7 +636,8 @@ export class CircleService {
   }
 
   private async applyPenaltyToContribution(
-    contribDoc: admin.firestore.QueryDocumentSnapshot
+    contribDoc: admin.firestore.QueryDocumentSnapshot,
+    settings: Awaited<ReturnType<typeof getCircleSettings>>
   ): Promise<void> {
     const contrib = { id: contribDoc.id, ...contribDoc.data() } as Contribution;
 
@@ -621,16 +650,16 @@ export class CircleService {
       const circle = circleSnap.data() as Circle;
       const user = userSnap.data() as User;
 
-      // Check for three consecutive missed payments before marking this one
+      // Check for consecutive missed payments before marking this one
       const missedSnap = await this.contributionsCol
         .where("circleId", "==", contrib.circleId)
         .where("userId", "==", contrib.userId)
         .where("status", "==", "missed")
         .orderBy("cycle", "desc")
-        .limit(CONSECUTIVE_MISSED_LIMIT)
+        .limit(settings.consecutiveMissedLimit)
         .get();
 
-      if (missedSnap.size >= CONSECUTIVE_MISSED_LIMIT - 1) {
+      if (missedSnap.size >= settings.consecutiveMissedLimit - 1) {
         // Escalate to missed and auto-remove
         tx.update(contribDoc.ref, {
           status: "missed",
@@ -652,7 +681,7 @@ export class CircleService {
         void sendNotification(contrib.userId, {
           type: "general",
           title: "Removed from Circle",
-          body: `You were removed from "${circle.name}" after ${CONSECUTIVE_MISSED_LIMIT} consecutive missed payments.`,
+          body: `You were removed from "${circle.name}" after ${settings.consecutiveMissedLimit} consecutive missed payments.`,
           link: "/circles",
         });
         return;
@@ -667,7 +696,7 @@ export class CircleService {
       // ── Trust score: record late payment ──────────────────────────────────
       await recordLatePayment(tx, contrib.circleId, circle.trustScoreBreakdown);
 
-      const penaltyKobo = Math.round(circle.contribution * LATE_PENALTY_PERCENT);
+      const penaltyKobo = Math.round(circle.contribution * settings.latePenaltyPercent);
 
       void sendLatePaymentWarning(contrib.userId, user, circle, penaltyKobo);
     });
@@ -679,6 +708,9 @@ export class CircleService {
     if (bidPremiumKobo <= 0) {
       throw new CircleError("INVALID_INPUT", "Bid amount must be positive.");
     }
+
+    // Load settings for bid deadline
+    const settings = await getCircleSettings();
 
     return adminDb.runTransaction(async (tx) => {
       const circleSnap = await tx.get(this.circlesCol.doc(circleId));
@@ -694,7 +726,7 @@ export class CircleService {
       }
 
       const deadline = new Date(circle.nextPayoutDate.toDate());
-      deadline.setHours(deadline.getHours() - BID_CLOSE_HOURS_BEFORE_PAYOUT);
+      deadline.setHours(deadline.getHours() - settings.bidCloseHoursBeforePayout);
 
       if (new Date() > deadline) {
         throw new CircleError("BID_CLOSED", "Bidding for this cycle has closed.");
@@ -892,10 +924,11 @@ export class CircleService {
 
   private async resolveWinningBid(
     circle: Circle,
-    _tx: admin.firestore.Transaction
+    _tx: admin.firestore.Transaction,
+    settings: Awaited<ReturnType<typeof getCircleSettings>>
   ): Promise<{ userId: string; amount: number; ref: admin.firestore.DocumentReference } | null> {
     const deadline = new Date(circle.nextPayoutDate.toDate());
-    deadline.setHours(deadline.getHours() - BID_CLOSE_HOURS_BEFORE_PAYOUT);
+    deadline.setHours(deadline.getHours() - settings.bidCloseHoursBeforePayout);
 
     if (new Date() < deadline) return null;
 

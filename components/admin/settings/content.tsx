@@ -52,7 +52,7 @@ import { cn } from "@/lib/utils";
 import type { PlatformSettings } from "@/lib/types/admin-settings";
 import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Constants ---
 
 const TABS = [
   { id: "general", label: "General", icon: SettingsIcon },
@@ -67,7 +67,7 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Helpers ------------------------------------------------------------------
 
 function koboToNaira(kobo: number): string {
   return (kobo / 100).toLocaleString("en-NG");
@@ -89,7 +89,7 @@ function fmtDateTime(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-// â”€â”€â”€ SettingRow component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- SettingRow component -----------------------------------------------------
 
 function SettingRow({
   label,
@@ -141,7 +141,7 @@ function SettingRow({
   );
 }
 
-// â”€â”€â”€ NairaInput component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- NairaInput component -----------------------------------------------------
 
 function NairaInput({
   valueKobo,
@@ -167,7 +167,7 @@ function NairaInput({
   return (
     <div className={cn("relative flex items-center", className)}>
       <span className="absolute left-3 text-sm font-semibold text-muted-foreground select-none">
-        â‚¦
+        ₦
       </span>
       <Input
         className="pl-7 font-mono text-right w-36"
@@ -196,7 +196,7 @@ function NairaInput({
   );
 }
 
-// â”€â”€â”€ PercentInput â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- PercentInput -------------------------------------------------------------
 
 function PercentInput({
   value,
@@ -232,7 +232,7 @@ function PercentInput({
   );
 }
 
-// â”€â”€â”€ NumberInput â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- NumberInput --------------------------------------------------------------
 
 function NumberInput({
   value,
@@ -274,7 +274,7 @@ function NumberInput({
   );
 }
 
-// â”€â”€â”€ SectionHeader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- SectionHeader ------------------------------------------------------------
 
 function SectionHeader({
   icon: Icon,
@@ -334,7 +334,7 @@ function SectionHeader({
             ) : (
               <SaveIcon className="size-3.5" />
             )}
-            {isSaving ? "Savingâ€¦" : "Save"}
+            {isSaving ? "Saving…" : "Save"}
           </Button>
         </div>
       )}
@@ -342,7 +342,7 @@ function SectionHeader({
   );
 }
 
-// â”€â”€â”€ Audit Log component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Audit Log component ------------------------------------------------------
 
 interface AuditEntry {
   id: string;
@@ -438,7 +438,7 @@ function AuditLogPanel() {
                         minute: "2-digit",
                         timeZone: "Africa/Lagos",
                       }).format(new Date(entry.createdAt))
-                    : "â€”"}
+                    : "—"}
                 </p>
               </div>
             ))
@@ -449,7 +449,7 @@ function AuditLogPanel() {
   );
 }
 
-// â”€â”€â”€ Main Content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Main Content -------------------------------------------------------------
 
 export function AdminSettingsContent() {
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
@@ -466,7 +466,7 @@ export function AdminSettingsContent() {
   const [isFetchingServerIp, setIsFetchingServerIp] = useState(false);
   const [platformIpError, setPlatformIpError] = useState<string | null>(null);
 
-  // â”€â”€ Load settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Load settings ---------------------------------------------------------
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
@@ -511,7 +511,7 @@ export function AdminSettingsContent() {
       .finally(() => setIsFetchingServerIp(false));
   }, [activeTab, serverIp, isFetchingServerIp]);
 
-  // â”€â”€ Derived change tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Derived change tracking -----------------------------------------------
 
   function hasChanges(section: TabId): boolean {
     if (!settings || !draft) return false;
@@ -527,7 +527,7 @@ export function AdminSettingsContent() {
     );
   }
 
-  // â”€â”€ Save section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Save section ---------------------------------------------------------
 
   async function saveSection(section: TabId) {
     if (!draft) return;
@@ -563,7 +563,7 @@ export function AdminSettingsContent() {
     }
   }
 
-  // â”€â”€ Reset all â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Reset all ------------------------------------------------------------
 
   async function handleReset() {
     setIsResetting(true);
@@ -587,7 +587,7 @@ export function AdminSettingsContent() {
     }
   }
 
-  // â”€â”€ Update helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Update helpers --------------------------------------------------------
 
   function updateWallet<K extends keyof PlatformSettings["wallet"]>(
     key: K,
@@ -671,12 +671,13 @@ export function AdminSettingsContent() {
   function isValidIp(value?: string) {
     if (!value) return false;
     const ip = value.trim();
-    const ipv4 = /^(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}$/;
+    const ipv4 =
+      /^(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}$/;
     const ipv6 = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
     return ipv4.test(ip) || ipv6.test(ip);
   }
 
-  // â”€â”€ Render loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Render loading --------------------------------------------------------
 
   if (isLoading || !draft) {
     return (
@@ -734,7 +735,7 @@ export function AdminSettingsContent() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        {/* â”€â”€ Page header â”€â”€ */}
+        {/* -- Page header -- */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold">Platform Settings</h1>
@@ -754,7 +755,7 @@ export function AdminSettingsContent() {
           </Button>
         </div>
 
-        {/* â”€â”€ Last updated bar â”€â”€ */}
+        {/* -- Last updated bar -- */}
         <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-2.5">
           {anySectionChanged ? (
             <>
@@ -788,7 +789,7 @@ export function AdminSettingsContent() {
           </Button>
         </div>
 
-        {/* â”€â”€ Tab bar â”€â”€ */}
+        {/* -- Tab bar -- */}
         <div className="flex gap-1 p-1 bg-muted rounded-xl overflow-x-auto">
           {TABS.map((tab) => {
             const changed = hasChanges(tab.id);
@@ -818,7 +819,7 @@ export function AdminSettingsContent() {
           })}
         </div>
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {/* GENERAL / PLATFORM TAB */}
         {activeTab === "general" && (
           <Card>
@@ -926,57 +927,7 @@ export function AdminSettingsContent() {
               </SettingRow>
 
               <SettingRow
-                label="Platform IP Address"
-                description="IP address used for integrations (e.g. Flutterwave). Click copy to copy the value."
-                changed={
-                  draft.general?.platformIpAddress !==
-                  settings?.general?.platformIpAddress
-                }
-              >
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={draft.general?.platformIpAddress ?? ""}
-                      onChange={(e) => {
-                        updateGeneral("platformIpAddress", e.target.value);
-                        setPlatformIpError(null);
-                      }}
-                      onBlur={(e) => {
-                        const value = e.target.value.trim();
-                        setPlatformIpError(
-                          value && !isValidIp(value)
-                            ? "Enter a valid IPv4 or IPv6 address."
-                            : null,
-                        );
-                      }}
-                      className="w-72"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        const val = draft.general?.platformIpAddress ?? "";
-                        if (!val) return toast.error("No IP address to copy");
-                        navigator.clipboard
-                          .writeText(val)
-                          .then(() => toast.success("IP address copied"))
-                          .catch(() => toast.error("Failed to copy"));
-                      }}
-                      className="h-8 w-8 p-0"
-                    >
-                      <CopyIcon className="size-3" />
-                    </Button>
-                  </div>
-                  {platformIpError ? (
-                    <p className="text-xs text-destructive">
-                      {platformIpError}
-                    </p>
-                  ) : null}
-                </div>
-              </SettingRow>
-
-              <SettingRow
-                label="Detected Server IP"
+                label="Server IP"
                 description="The server's public IP detected by a backend lookup. Use it to auto-fill the platform IP."
                 changed={false}
               >
@@ -985,29 +936,13 @@ export function AdminSettingsContent() {
                     <Input
                       value={
                         isFetchingServerIp
-                          ? "Detectingâ€¦"
+                          ? "Detecting…"
                           : (serverIp ?? "Unable to detect server IP")
                       }
                       readOnly
                       className="w-72"
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        if (!serverIp) {
-                          toast.error("No detected server IP available");
-                          return;
-                        }
-                        updateGeneral("platformIpAddress", serverIp);
-                        setPlatformIpError(null);
-                        toast.success("Platform IP field updated");
-                      }}
-                      disabled={!serverIp}
-                      className="h-8"
-                    >
-                      Use
-                    </Button>
+
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1033,7 +968,7 @@ export function AdminSettingsContent() {
                       }}
                       className="h-8"
                     >
-                      Refresh
+                      <RefreshCwIcon className="size-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -1106,8 +1041,7 @@ export function AdminSettingsContent() {
             </CardContent>
           </Card>
         )}
-        {/* WALLET TAB                                                          */}
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* WALLET TAB */}
         {activeTab === "wallet" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1126,7 +1060,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Minimum Deposit"
                 description="The smallest amount a user can deposit into their wallet."
-                tip="Applied during Flutterwave payment initialisation. Set to at least â‚¦500 to cover gateway minimums."
+                tip="Applied during Flutterwave payment initialisation. Set to at least ₦500 to cover gateway minimums."
                 changed={
                   draft.wallet?.minDepositKobo !==
                   settings?.wallet?.minDepositKobo
@@ -1142,7 +1076,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Minimum Withdrawal"
                 description="The smallest amount a user can withdraw to their bank account."
-                tip="Must cover the flat withdrawal fee plus at least â‚¦1 net transfer."
+                tip="Must cover the flat withdrawal fee plus at least ₦1 net transfer."
                 changed={
                   draft.wallet?.minWithdrawKobo !==
                   settings?.wallet?.minWithdrawKobo
@@ -1173,7 +1107,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Withdrawal Fee Percentage"
                 description="Percentage of the withdrawal amount charged on top of the flat fee."
-                tip="Formula: fee = (amount Ã— %) + flat fee, capped at the maximum fee."
+                tip="Formula: fee = (amount × %) + flat fee, capped at the maximum fee."
                 changed={
                   draft.wallet?.withdrawFeePercent !==
                   settings?.wallet?.withdrawFeePercent
@@ -1242,15 +1176,15 @@ export function AdminSettingsContent() {
                         className="flex items-center gap-2 text-xs"
                       >
                         <span className="w-24 text-muted-foreground font-mono">
-                          â‚¦{koboToNaira(amount)}
+                          ₦{koboToNaira(amount)}
                         </span>
-                        <span className="text-muted-foreground">â†’</span>
+                        <span className="text-muted-foreground">→</span>
                         <span className="text-red-600 dark:text-red-400 font-mono w-20">
-                          âˆ’â‚¦{koboToNaira(total)}
+                          −₦{koboToNaira(total)}
                         </span>
                         <span className="text-muted-foreground">net</span>
                         <span className="font-mono font-semibold text-foreground">
-                          â‚¦{koboToNaira(net)}
+                          ₦{koboToNaira(net)}
                         </span>
                       </div>
                     );
@@ -1261,9 +1195,8 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
-        {/* CIRCLES TAB                                                         */}
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
+        {/* CIRCLES TAB */}
         {activeTab === "circles" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1379,7 +1312,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Late Payment Penalty"
                 description="Additional fee applied when a member pays a contribution after the grace period."
-                tip="Applied on top of the regular contribution amount. e.g. â‚¦5,000 contribution + 10% = â‚¦5,500 total."
+                tip="Applied on top of the regular contribution amount. e.g. ₦5,000 contribution + 10% = ₦5,500 total."
                 changed={
                   draft.circles?.latePenaltyPercent !==
                   settings?.circles?.latePenaltyPercent
@@ -1397,7 +1330,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Grace Period"
                 description="Number of hours after a due date before a contribution is marked as 'late'."
-                tip="Status transitions: pending â†’ late (after grace period). No penalty until this window passes."
+                tip="Status transitions: pending → late (after grace period). No penalty until this window passes."
                 changed={
                   draft.circles?.gracePeriodHours !==
                   settings?.circles?.gracePeriodHours
@@ -1415,7 +1348,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Auto-Removal After Consecutive Missed Payments"
                 description="Number of consecutive missed contribution cycles before a member is automatically removed."
-                tip="Status machine: late â†’ missed (after additional days). Once this limit is hit, the member is ejected and notified."
+                tip="Status machine: late → missed (after additional days). Once this limit is hit, the member is ejected and notified."
                 changed={
                   draft.circles?.consecutiveMissedLimit !==
                   settings?.circles?.consecutiveMissedLimit
@@ -1453,9 +1386,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {/* PAYOUTS TAB                                                         */}
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {activeTab === "payouts" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1474,7 +1407,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Platform Payout Fee"
                 description="Platform fee taken from each circle payout as a percentage of the gross pool amount."
-                tip="Formula: net_payout = (contribution Ã— members) âˆ’ (pool Ã— fee%). This is the primary revenue mechanism."
+                tip="Formula: net_payout = (contribution × members) − (pool × fee%). This is the primary revenue mechanism."
                 changed={
                   draft.payouts?.platformPayoutFeePercent !==
                   settings?.payouts?.platformPayoutFeePercent
@@ -1585,12 +1518,12 @@ export function AdminSettingsContent() {
               {/* Revenue preview */}
               <div className="mt-4 rounded-xl bg-muted/40 border border-border p-4 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Fee Preview â€” Payout Scenarios
+                  Fee Preview — Payout Scenarios
                 </p>
                 {[
-                  { label: "5 Ã— â‚¦10k", pool: 5_000_000 },
-                  { label: "10 Ã— â‚¦50k", pool: 50_000_000 },
-                  { label: "20 Ã— â‚¦100k", pool: 200_000_000 },
+                  { label: "5 × ₦10k", pool: 5_000_000 },
+                  { label: "10 × ₦50k", pool: 50_000_000 },
+                  { label: "20 × ₦100k", pool: 200_000_000 },
                 ].map(({ label, pool }) => {
                   const fee = Math.round(
                     pool * (draft.payouts?.platformPayoutFeePercent / 100),
@@ -1604,11 +1537,11 @@ export function AdminSettingsContent() {
                         {label} pool
                       </span>
                       <span className="text-red-600 dark:text-red-400 font-mono w-20">
-                        âˆ’â‚¦{koboToNaira(fee)} fee
+                        −₦{koboToNaira(fee)} fee
                       </span>
                       <span className="text-muted-foreground">net</span>
                       <span className="font-mono font-semibold text-foreground">
-                        â‚¦{koboToNaira(pool - fee)}
+                        ₦{koboToNaira(pool - fee)}
                       </span>
                     </div>
                   );
@@ -1618,9 +1551,8 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
-        {/* INVESTMENTS TAB                                                     */}
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
+        {/* INVESTMENTS TAB */}
         {activeTab === "investments" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1639,7 +1571,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Platform Interest Fee"
                 description="Percentage of earned interest taken as a platform fee when a user withdraws a matured investment."
-                tip="Applied to interest only, not principal. Formula: platform_fee = interest Ã— %. User keeps the rest."
+                tip="Applied to interest only, not principal. Formula: platform_fee = interest × %. User keeps the rest."
                 changed={
                   draft.investments.platformInterestFeePercent !==
                   settings?.investments.platformInterestFeePercent
@@ -1676,23 +1608,23 @@ export function AdminSettingsContent() {
               {/* Investment fee preview */}
               <div className="mt-4 rounded-xl bg-muted/40 border border-border p-4 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Fee Preview â€” Interest Earned
+                  Fee Preview — Interest Earned
                 </p>
                 {[
                   {
-                    label: "â‚¦50k @ 18.5%",
+                    label: "₦50k @ 18.5%",
                     principal: 5_000_000,
                     yield: 18.5,
                     days: 30,
                   },
                   {
-                    label: "â‚¦100k @ 22%",
+                    label: "₦100k @ 22%",
                     principal: 10_000_000,
                     yield: 22,
                     days: 90,
                   },
                   {
-                    label: "â‚¦500k @ 26.5%",
+                    label: "₦500k @ 26.5%",
                     principal: 50_000_000,
                     yield: 26.5,
                     days: 180,
@@ -1715,13 +1647,13 @@ export function AdminSettingsContent() {
                         {label}
                       </span>
                       <span className="text-muted-foreground font-mono w-20">
-                        +â‚¦{koboToNaira(interest)}
+                        +₦{koboToNaira(interest)}
                       </span>
                       <span className="text-red-600 dark:text-red-400 font-mono w-20">
-                        âˆ’â‚¦{koboToNaira(fee)} fee
+                        −₦{koboToNaira(fee)} fee
                       </span>
                       <span className="font-mono font-semibold text-foreground">
-                        â‚¦{koboToNaira(net)} net
+                        ₦{koboToNaira(net)} net
                       </span>
                     </div>
                   );
@@ -1731,9 +1663,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {/* TRUST SCORE TAB                                                     */}
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {activeTab === "trustScore" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1751,7 +1683,7 @@ export function AdminSettingsContent() {
             <CardContent className="pt-2">
               <div className="mb-4 rounded-xl bg-muted/30 border border-border p-4 text-xs text-muted-foreground leading-relaxed">
                 <strong className="text-foreground">Formula:</strong> score =
-                100 + (on_time Ã— weight) + (late Ã— weight) + (missed Ã— weight),
+                100 + (on_time × weight) + (late × weight) + (missed × weight),
                 clamped to [0, 100]. Weights for late and missed should be
                 negative.
               </div>
@@ -1780,7 +1712,7 @@ export function AdminSettingsContent() {
 
               <SettingRow
                 label="Late Payment Weight"
-                description="Points deducted from the circle's trust score for each late contribution. Enter as a positive number â€” it is applied as a deduction."
+                description="Points deducted from the circle's trust score for each late contribution. Enter as a positive number — it is applied as a deduction."
                 changed={
                   draft.trustScore.latePaymentWeight !==
                   settings?.trustScore.latePaymentWeight
@@ -1788,7 +1720,7 @@ export function AdminSettingsContent() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-orange-600 dark:text-orange-400 font-semibold">
-                    âˆ’
+                    −
                   </span>
                   <NumberInput
                     value={Math.abs(draft.trustScore.latePaymentWeight)}
@@ -1812,7 +1744,7 @@ export function AdminSettingsContent() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-red-600 dark:text-red-400 font-semibold">
-                    âˆ’
+                    −
                   </span>
                   <NumberInput
                     value={Math.abs(draft.trustScore.missedPaymentWeight)}
@@ -1905,9 +1837,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {/* NOTIFICATIONS TAB                                                   */}
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {activeTab === "notifications" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -2006,7 +1938,7 @@ export function AdminSettingsContent() {
                     <div className="size-2 rounded-full bg-emerald-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium">
-                        SMS â€” {draft.notifications.smsProviderName}
+                        SMS — {draft.notifications.smsProviderName}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
                         Configured via TERMII_API_KEY env var
@@ -2030,7 +1962,7 @@ export function AdminSettingsContent() {
                     <div className="size-2 rounded-full bg-emerald-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium">
-                        Email â€” {draft.notifications.emailProviderName}
+                        Email — {draft.notifications.emailProviderName}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
                         Configured via NODEMAILER_* env vars
@@ -2066,9 +1998,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {/* MAINTENANCE TAB                                                     */}
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* ------------------------------------------------------------------- */}
         {activeTab === "maintenance" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -2188,18 +2120,18 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* â”€â”€ Audit log â”€â”€ */}
+        {/* -- Audit log -- */}
         <AuditLogPanel />
       </div>
 
-      {/* â”€â”€ Reset confirmation dialog â”€â”€ */}
+      {/* -- Reset confirmation dialog -- */}
       <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reset All Settings to Defaults?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will restore every platform setting â€” fees, limits,
-              penalties, trust score weights, and notification flags â€” to the
+              This will restore every platform setting — fees, limits,
+              penalties, trust score weights, and notification flags — to the
               factory defaults. Any custom configuration will be permanently
               overwritten. This action is logged.
             </AlertDialogDescription>
@@ -2214,7 +2146,7 @@ export function AdminSettingsContent() {
               {isResetting ? (
                 <>
                   <RefreshCwIcon className="size-3.5 mr-1.5 animate-spin" />
-                  Resettingâ€¦
+                  Resetting…
                 </>
               ) : (
                 "Yes, Reset All"
@@ -2226,4 +2158,3 @@ export function AdminSettingsContent() {
     </div>
   );
 }
-
