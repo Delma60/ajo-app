@@ -9,10 +9,11 @@ interface AdminEventPageProps {
   params: { id: string };
 }
 
-export default function AdminEventPage({ params }: AdminEventPageProps) {
+export default async function AdminEventPage({ params }: AdminEventPageProps) {
+  const { id } = await params
   return (
     <div className="container max-w-6xl py-8">
-      <EventDetailContent eventId={params.id} />
+      <EventDetailContent eventId={id} />
     </div>
   );
 }

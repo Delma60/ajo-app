@@ -1,3 +1,5 @@
+import { Timestamp } from "firebase-admin/firestore";
+
 export type SupportTicketStatus =
   | "open"
   | "in_progress"
@@ -24,9 +26,9 @@ export interface SupportTicket {
   status: SupportTicketStatus;
   assignedTo?: string;
   screenshotUrl?: string;
-  lastMessageAt: string;
-  createdAt: string;
-  updatedAt: string;
+  lastMessageAt: Date;
+  createdAt: Date | Timestamp;
+  updatedAt: Date;
 }
 
 export interface SupportMessage {

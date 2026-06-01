@@ -16,7 +16,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <AdminMobileHeader onMenuOpen={() => setMobileOpen(true)} />
 
         {/* Page content */}
-        <main className="flex-1 overflow-hidden flex flex-col">{children}</main>
+        <main className="flex-1 overflow-auto flex flex-col">{children}</main>
       </div>
     </div>
   );

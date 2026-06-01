@@ -1,7 +1,7 @@
 "use client";
 
 import { EventClaim } from "@/lib/types/event";
-import { formatNaira } from "@/lib/utils";
+import { formatNaira, parseTimestamp } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import {
   Table,
@@ -73,9 +73,12 @@ export function ClaimsTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(claim.createdAt.toDate(), {
-                    addSuffix: true,
-                  })}
+                  {formatDistanceToNow(
+                    parseTimestamp(claim.createdAt) ?? new Date(),
+                    {
+                      addSuffix: true,
+                    },
+                  )}
                 </TableCell>
               </TableRow>
             ))}

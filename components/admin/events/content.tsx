@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Event } from "@/lib/types/event";
 import { formatDistanceToNow } from "date-fns";
+import { parseTimestamp } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -129,9 +130,12 @@ export function AdminEventsContent() {
                   {event.rewardType.replace(/_/g, " ")}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(event.createdAt.toDate(), {
-                    addSuffix: true,
-                  })}
+                  {formatDistanceToNow(
+                    parseTimestamp(event.createdAt) ?? new Date(),
+                    {
+                      addSuffix: true,
+                    },
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <Link href={`/admin/events/${event.id}`}>

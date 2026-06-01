@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { SupportService } from "@/lib/services/support-service";
@@ -21,15 +21,15 @@ async function verifyAdmin() {
 }
 
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await verifyAdmin();
     if (!admin) {
       return NextResponse.json({ success: false, data: null, error: "Unauthorized" }, { status: 401 });
     }
-
+    const params = await context.params;
     const body = await request.json();
     const parseResult = addSupportMessageSchema.safeParse(body);
     if (!parseResult.success) {

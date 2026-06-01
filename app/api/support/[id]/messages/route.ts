@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth } from "@/lib/firebase/admin";
 import { SupportService } from "@/lib/services/support-service";
@@ -7,8 +7,8 @@ import { addSupportMessageSchema } from "@/lib/validators/support";
 const SESSION_COOKIE = "__session";
 
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = cookies();
@@ -18,6 +18,7 @@ export async function POST(
     }
 
     const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
+    const params = await context.params;
     const body = await request.json();
     const parseResult = addSupportMessageSchema.safeParse(body);
     if (!parseResult.success) {

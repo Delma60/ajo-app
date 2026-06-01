@@ -34,3 +34,28 @@ export function fmtDate(date: Date): string {
     timeZone: "Africa/Lagos",
   }).format(date);
 }
+
+export function parseTimestamp(value: unknown): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    return new Date(value);
+  }
+
+  const anyValue = value as any;
+
+  if (typeof anyValue.toDate === "function") {
+    return anyValue.toDate();
+  }
+
+  if (
+    typeof anyValue.seconds === "number" &&
+    typeof anyValue.nanoseconds === "number"
+  ) {
+    return new Date(anyValue.seconds * 1000 + Math.round(anyValue.nanoseconds / 1e6));
+  }
+
+  return new Date(String(value));
+}

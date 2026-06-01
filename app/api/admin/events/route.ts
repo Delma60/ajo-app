@@ -41,10 +41,27 @@ export async function GET(request: NextRequest) {
     } else {
       snapshot = await adminDb.collection("events").get();
     }
-    const events = snapshot.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    })) as Event[];
+    const events = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        title: data.title,
+        description: data.description,
+        status: data.status,
+        triggerType: data.triggerType,
+        conditions: data.conditions || {},
+        rewardType: data.rewardType,
+        rewardAmountKobo: data.rewardAmountKobo,
+        badgeId: data.badgeId,
+        maxClaimsTotal: data.maxClaimsTotal ?? 0,
+        maxClaimsPerUser: data.maxClaimsPerUser ?? 1,
+        startDate: data.startDate?.toDate?.()?.toISOString() ?? null,
+        endDate: data.endDate?.toDate?.()?.toISOString() ?? null,
+        createdBy: data.createdBy,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
+      } as Event;
+    });
 
     // Basic pagination
     const start = (page - 1) * limit;

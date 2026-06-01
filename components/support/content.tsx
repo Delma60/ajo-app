@@ -1,3 +1,5 @@
+"use client";
+
 import { SupportTicketForm } from "@/components/support/ticket-form";
 import { SupportTicketList } from "@/components/support/ticket-list";
 import {

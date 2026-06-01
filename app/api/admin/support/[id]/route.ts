@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { SupportService } from "@/lib/services/support-service";
@@ -21,8 +21,8 @@ async function verifyAdmin() {
 }
 
 export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await verifyAdmin();
@@ -30,6 +30,7 @@ export async function GET(
       return NextResponse.json({ success: false, data: null, error: "Unauthorized" }, { status: 401 });
     }
 
+    const params = await context.params;
     const service = new SupportService();
     const ticket = await service.getTicket(params.id, admin.uid);
 
@@ -45,15 +46,15 @@ export async function GET(
 }
 
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await verifyAdmin();
     if (!admin) {
       return NextResponse.json({ success: false, data: null, error: "Unauthorized" }, { status: 401 });
     }
-
+    const params = await context.params;
     const body = await request.json();
     const parseResult = updateSupportTicketSchema.safeParse(body);
     if (!parseResult.success) {

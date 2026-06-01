@@ -95,7 +95,7 @@ export class SupportService {
       await sendNotification(user.id, {
         type: "general",
         title: "Support ticket created",
-        body: `We received your request: "${input.subject}". Our team will respond soon.",
+        body: `We received your request: "${input.subject}". Our team will respond soon.`,
         link: `/support/${ticketRef.id}`,
       });
 
@@ -114,7 +114,7 @@ export class SupportService {
       lastMessageAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    } as SupportTicket;
+    } as unknown as  SupportTicket;
   }
 
   async addMessage(input: {
@@ -343,7 +343,7 @@ export class SupportService {
     });
   }
 
-  private normalizeTicket(id: string, ticket: SupportTicket): SupportTicket {
+  private normalizeTicket(id: string, ticket:any) {
     return {
       ...ticket,
       id,
