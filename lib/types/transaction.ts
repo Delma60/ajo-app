@@ -11,6 +11,7 @@ export interface Transaction {
     | "payout"
     | "penalty"
     | "referral_bonus"
+    | "event_reward"
     | "creation_fee";
   direction: "credit" | "debit";
   amount: number; // kobo

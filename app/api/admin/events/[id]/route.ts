@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  Timestamp,
-} from "firebase/firestore";
-import { adminDb } from "@/lib/firebase/admin";
+import { admin, adminDb } from "@/lib/firebase/admin";
 import { Event } from "@/lib/types/event";
 import { getSessionUser } from "@/lib/firebase/server-auth";
 
@@ -16,7 +9,7 @@ import { getSessionUser } from "@/lib/firebase/server-auth";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await getSessionUser(request);
@@ -34,9 +27,10 @@ export async function GET(
       );
     }
 
-    const eventDoc = await getDoc(doc(adminDb, "events", params.id));
+    const { id } = await params;
+    const eventDoc = await adminDb.collection("events").doc(id).get();
 
-    if (!eventDoc.exists()) {
+    if (!eventDoc.exists) {
       return NextResponse.json(
         { success: false, error: "Event not found" },
         { status: 404 },
@@ -71,7 +65,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await getSessionUser(request);
@@ -92,7 +86,7 @@ export async function PATCH(
     const body = await request.json();
 
     const updateData: Partial<Event> = {
-      updatedAt: Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now(),
     };
 
     // Only allow updating certain fields
@@ -101,9 +95,10 @@ export async function PATCH(
     if (body.status) updateData.status = body.status;
     if (body.conditions) updateData.conditions = body.conditions;
 
-    await updateDoc(doc(adminDb, "events", params.id), updateData);
+    const { id } = await params;
+    await adminDb.collection("events").doc(id).update(updateData);
 
-    const updatedDoc = await getDoc(doc(adminDb, "events", params.id));
+    const updatedDoc = await adminDb.collection("events").doc(id).get();
     const updated = {
       id: updatedDoc.id,
       ...updatedDoc.data(),
@@ -132,7 +127,7 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await getSessionUser(request);
@@ -150,7 +145,8 @@ export async function DELETE(
       );
     }
 
-    await deleteDoc(doc(adminDb, "events", params.id));
+    const { id } = await params;
+    await adminDb.collection("events").doc(id).delete();
 
     return NextResponse.json({
       success: true,

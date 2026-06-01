@@ -1,4 +1,7 @@
-import { Timestamp } from "firebase/firestore";
+import type { Timestamp as ClientTimestamp } from "firebase/firestore";
+import type { Timestamp as AdminTimestamp } from "firebase-admin/firestore";
+
+export type FirestoreTimestamp = ClientTimestamp | AdminTimestamp;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Enums
@@ -33,7 +36,7 @@ export interface Badge {
   iconEmoji?: string; // e.g. "🏆"
   iconUrl?: string;
   rarity: BadgeRarity;
-  createdAt: Timestamp;
+  createdAt: FirestoreTimestamp;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -52,11 +55,11 @@ export interface Event {
   badgeId?: string;
   maxClaimsTotal: number; // 0 = unlimited
   maxClaimsPerUser: number; // typically 1
-  startDate: Timestamp;
-  endDate: Timestamp;
+  startDate: FirestoreTimestamp;
+  endDate: FirestoreTimestamp;
   createdBy: string; // admin userId
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -73,9 +76,9 @@ export interface EventClaim {
   rewardAmountKobo?: number;
   badgeId?: string;
   status: ClaimStatus;
-  awardedAt?: Timestamp;
+  awardedAt?: FirestoreTimestamp;
   transactionId?: string; // linked wallet transaction if applicable
-  createdAt: Timestamp;
+  createdAt: FirestoreTimestamp;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -85,7 +88,7 @@ export interface EventClaim {
 export interface UserBadge {
   badgeId: string;
   eventId: string;
-  earnedAt: Timestamp;
+  earnedAt: FirestoreTimestamp;
   triggerType: TriggerType;
 }
 

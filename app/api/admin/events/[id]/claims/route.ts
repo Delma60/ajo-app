@@ -1,10 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { EventClaim } from "@/lib/types/event";
 import { getSessionUser } from "@/lib/firebase/server-auth";
@@ -15,7 +9,7 @@ import { getSessionUser } from "@/lib/firebase/server-auth";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await getSessionUser(request);
@@ -37,12 +31,13 @@ export async function GET(
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
 
-    const eventId = params.id;
+    const { id: eventId } = await params;
 
-    const claimsRef = collection(adminDb, "event_claims");
-    const q = query(claimsRef, where("eventId", "==", eventId));
+    const snapshot = await adminDb
+      .collection("event_claims")
+      .where("eventId", "==", eventId)
+      .get();
 
-    const snapshot = await getDocs(q);
     const claims = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),

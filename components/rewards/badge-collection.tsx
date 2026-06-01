@@ -1,7 +1,8 @@
 "use client";
 
-import { useMyBadges } from "@/lib/hooks/use-events";
 import { BadgeItem } from "./badge-item";
+import { useMyBadges } from "@/lib/hooks/use-events";
+import type { UserBadge, Badge } from "@/lib/types/event";
 
 export function BadgeCollection() {
   const { data: badges, isLoading } = useMyBadges();
@@ -28,7 +29,7 @@ export function BadgeCollection() {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {badges.map((badge) => (
+      {badges.map((badge: UserBadge & Badge) => (
         <BadgeItem key={badge.badgeId} badge={badge} />
       ))}
     </div>

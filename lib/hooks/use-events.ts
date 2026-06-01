@@ -38,7 +38,7 @@ export function useActiveEvents() {
 export function useMyBadges() {
   const { appUser } = useAuthStore();
 
-  return useQuery({
+  return useQuery<(UserBadge & Badge)[]>({
     queryKey: ["myBadges", appUser?.id],
     queryFn: async () => {
       if (!appUser?.id) return [];
@@ -46,7 +46,8 @@ export function useMyBadges() {
       try {
         const response = await fetch("/api/events/my-badges");
         if (!response.ok) throw new Error("Failed to fetch badges");
-        return response.json();
+        const json = await response.json();
+        return (json?.data ?? []) as (UserBadge & Badge)[];
       } catch (error) {
         console.error("Error fetching badges:", error);
         return [];

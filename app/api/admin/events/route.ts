@@ -3,7 +3,7 @@ import { adminDb, admin, adminAuth } from "@/lib/firebase/admin";
 import { Event } from "@/lib/types/event";
 import { SESSION_COOKIE } from "@/lib/constants";
 
-async function getSessionUser(request: NextRequest) {
+async function getAdminUser(request: NextRequest) {
   const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
   if (!sessionCookie) return null;
   try {
@@ -22,19 +22,11 @@ async function getSessionUser(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser(request);
-    if (!user) {
+    const admin = await getAdminUser(request);
+    if (!admin) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 },
-      );
-    }
-
-    // Check if user is admin
-    if ((user as any)?.role !== "admin") {
-      return NextResponse.json(
-        { success: false, error: "Forbidden" },
-        { status: 403 },
       );
     }
 
@@ -88,18 +80,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser(request);
-    if (!user) {
+    const admin = await getAdminUser(request);
+    if (!admin) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 },
-      );
-    }
-
-    if ((user as any)?.role !== "admin") {
-      return NextResponse.json(
-        { success: false, error: "Forbidden" },
-        { status: 403 },
       );
     }
 
@@ -142,7 +127,7 @@ export async function POST(request: NextRequest) {
       maxClaimsPerUser: maxClaimsPerUser || 1,
       startDate: admin.firestore.Timestamp.fromDate(new Date(startDate)),
       endDate: admin.firestore.Timestamp.fromDate(new Date(endDate)),
-      createdBy: (user as any).uid,
+      createdBy: (admin as any).uid,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now(),
     };

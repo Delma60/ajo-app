@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Shield,
   Bell,
+  Mail,
   TrendingUp,
   Activity,
   Sparkles,
@@ -97,6 +98,11 @@ const NAV_GROUPS = [
         icon: Gavel,
         label: "Disputes",
         href: "/admin/disputes",
+      },
+      {
+        icon: Mail,
+        label: "Support tickets",
+        href: "/admin/support",
       },
       {
         icon: Bell,

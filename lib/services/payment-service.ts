@@ -307,6 +307,11 @@ export class PaymentService {
     // Pre-fetch settings before entering transaction
     const payoutSettings = await getPayoutSettings();
 
+    // Declare these outside the transaction so their values are available
+    // after the transaction completes (we set them from inside the tx).
+    let referrerId: string | null = null;
+    let shouldAwardBonus = false;
+
     await adminDb.runTransaction(async (tx) => {
 
       // ── PHASE 1: ALL READS ──────────────────────────────────────────────────
@@ -336,8 +341,6 @@ export class PaymentService {
       }
 
       // Referral bonus reads — all before any write
-      let referrerId: string | null = null;
-      let shouldAwardBonus = false;
 
       if (amountKobo >= payoutSettings.referralMinDepositKobo) {
         const refereeSnap = await tx.get(this.usersCol.doc(userId));

@@ -37,6 +37,10 @@ import {
   type DisputeConfirmEmailParams,
   type DisputeResolvedEmailParams,
 } from "@/lib/email/templates";
+import {
+  buildSupportTicketConfirmationEmail,
+  type SupportTicketConfirmationEmailParams,
+} from "@/lib/email/support-templates";
 
 // ─── 1. Welcome ───────────────────────────────────────────────────────────────
 
@@ -193,7 +197,21 @@ export async function sendDisputeRaisedEmails(params: {
     console.error("[sendDisputeRaisedEmails]", err);
   }
 }
-
+export async function sendSupportTicketConfirmationEmail(
+  email: string,
+  params: SupportTicketConfirmationEmailParams
+): Promise<void> {
+  try {
+    const generalSettings = await getGeneralSettings();
+    const { subject, html, text } = buildSupportTicketConfirmationEmail(params, {
+      appUrl: generalSettings.siteUrl,
+      supportEmail: generalSettings.supportEmail,
+    });
+    void sendEmail({ to: email, subject, html, text });
+  } catch (err) {
+    console.error("[sendSupportTicketConfirmationEmail]", err);
+  }
+}
 // ─── 9. Dispute Resolved ──────────────────────────────────────────────────────
 
 export async function sendDisputeResolvedEmail(

@@ -9,7 +9,7 @@ import { EventClaim } from "@/lib/types/event";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { searchParams } = new URL(request.url);
@@ -22,7 +22,7 @@ export async function GET(
       );
     }
 
-    const eventId = params.id;
+    const { id: eventId } = await params;
 
     const claimsRef = collection(db, "event_claims");
     const q = query(
