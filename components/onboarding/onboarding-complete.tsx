@@ -53,7 +53,23 @@ export function OnboardingComplete() {
       onboardingComplete: true,
       updatedAt: serverTimestamp(),
     })
-      .then(() => fetch("/api/auth/session/refresh", { method: "POST" }))
+      .then(async () => {
+        try {
+          await fetch("/api/auth/session/refresh", { method: "POST" });
+        } catch (err) {
+          console.error(err);
+        }
+        // Notify server to evaluate onboarding_complete triggers for this user
+        try {
+          await fetch("/api/events/trigger", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ triggerType: "onboarding_complete" }),
+          });
+        } catch (err) {
+          console.error("Failed to call events trigger API:", err);
+        }
+      })
       .catch(console.error);
   }, [user]);
 

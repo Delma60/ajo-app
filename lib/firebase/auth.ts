@@ -12,9 +12,7 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 import type { User as AppUser } from "@/lib/types/user";
-import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { SESSION_COOKIE } from "../constants";
-import { NextRequest } from "next/server";
 
 
 function generateReferralCode(uid: string): string {
@@ -176,3 +174,14 @@ export async function resetPassword(email: string): Promise<void> {
 // ─── Auth state observer ──────────────────────────────────────────────────────
 
 export { onAuthStateChanged, auth };
+
+// Server helper: verify session cookie from NextRequest and return decoded token
+export async function getSessionUser(request: NextRequest) {
+  const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!sessionCookie) return null;
+  try {
+    return await adminAuth.verifySessionCookie(sessionCookie, true);
+  } catch {
+    return null;
+  }
+}

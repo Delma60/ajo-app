@@ -26,6 +26,7 @@ import {
   debitWallet,
   calculateWithdrawalFee,
 } from "@/lib/services/wallet-service";
+import * as eventTrigger from "@/lib/services/event-trigger";
 import {
   getPayoutSettings,
   getWalletSettings,
@@ -426,6 +427,37 @@ export class PaymentService {
         body: `₦${(amountKobo / 100).toLocaleString("en-NG")} has been added to your wallet.`,
         link: "/wallet",
       });
+      // Fire event triggers: wallet funded threshold and total saved
+      try {
+        void eventTrigger.triggerWalletFundedThreshold(uid, amountKobo);
+      } catch (err) {
+        console.error("Failed to trigger wallet funded threshold:", err);
+      }
+
+      try {
+        const walletSnap = await this.walletsCol.doc(uid).get();
+        const totalSaved = walletSnap.exists ? (walletSnap.data()?.totalSaved as number | undefined) : undefined;
+        if (typeof totalSaved === "number") {
+          void eventTrigger.triggerWalletTotalSavedThreshold(uid, totalSaved);
+        }
+      } catch (err) {
+        console.error("Failed to trigger wallet total saved threshold:", err);
+      }
+    }
+    
+    // If a referral bonus was awarded in the transaction, trigger referral milestone
+    try {
+      if (shouldAwardBonus && referrerId) {
+        const bonusSnap = await this.txCol
+          .where("userId", "==", referrerId)
+          .where("type", "==", "referral_bonus")
+          .where("status", "==", "success")
+          .get();
+        const totalReferrals = bonusSnap.size;
+        void eventTrigger.triggerReferralMilestone(referrerId, totalReferrals);
+      }
+    } catch (err) {
+      console.error("Failed to trigger referral milestone:", err);
     }
   }
 

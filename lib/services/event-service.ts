@@ -1,16 +1,4 @@
-import {
-  db,
-  adminDb,
-  Timestamp,
-  query,
-  collection,
-  where,
-  getDocs,
-  getDoc,
-  doc,
-  runTransaction,
-  setDoc,
-} from "@/lib/firebase/admin";
+import { admin, adminDb } from "@/lib/firebase/admin";
 import {
   Event,
   EventClaim,
@@ -19,7 +7,7 @@ import {
   Badge,
 } from "@/lib/types/event";
 import { creditWallet } from "@/lib/services/wallet-service";
-import { notificationService } from "@/lib/services/notification-service";
+import { sendNotification } from "@/lib/services/notification-service";
 
 /**
  * Main entry point: evaluate all active events for a trigger and issue rewards
@@ -31,21 +19,16 @@ export async function evaluateAndAward(
 ): Promise<void> {
   try {
     // Query all active events matching this trigger type and within date range
-    const now = Timestamp.now();
-    const eventsRef = collection(adminDb, "events");
-    const q = query(
-      eventsRef,
-      where("triggerType", "==", triggerType),
-      where("status", "==", "active"),
-      where("startDate", "<=", now),
-      where("endDate", ">=", now),
-    );
+    const now = admin.firestore.Timestamp.now();
+    const eventsRef = adminDb.collection("events");
+    const snapshot = await eventsRef
+      .where("triggerType", "==", triggerType)
+      .where("status", "==", "active")
+      .where("startDate", "<=", now)
+      .where("endDate", ">=", now)
+      .get();
 
-    const snapshot = await getDocs(q);
-    const events = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Event[];
+    const events = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Event[];
 
     // For each matching event, check eligibility and issue reward if eligible
     for (const event of events) {
@@ -83,29 +66,21 @@ export async function checkEligibility(
 ): Promise<boolean> {
   try {
     // 1. Check if user already has a claim for this event
-    const claimsRef = collection(adminDb, "event_claims");
-    const userClaimsQ = query(
-      claimsRef,
-      where("eventId", "==", event.id),
-      where("userId", "==", userId),
-    );
-    const userClaimsSnap = await getDocs(userClaimsQ);
+    const claimsRef = adminDb.collection("event_claims");
+    const userClaimsSnap = await claimsRef
+      .where("eventId", "==", event.id)
+      .where("userId", "==", userId)
+      .get();
 
-    if (userClaimsSnap.size >= event.maxClaimsPerUser) {
-      return false;
-    }
+    if (userClaimsSnap.size >= event.maxClaimsPerUser) return false;
 
     // 2. Check if event has reached total claims limit (0 = unlimited)
     if (event.maxClaimsTotal > 0) {
-      const totalClaimsQ = query(
-        claimsRef,
-        where("eventId", "==", event.id),
-        where("status", "==", "awarded"),
-      );
-      const totalClaimsSnap = await getDocs(totalClaimsQ);
-      if (totalClaimsSnap.size >= event.maxClaimsTotal) {
-        return false;
-      }
+      const totalClaimsSnap = await claimsRef
+        .where("eventId", "==", event.id)
+        .where("status", "==", "awarded")
+        .get();
+      if (totalClaimsSnap.size >= event.maxClaimsTotal) return false;
     }
 
     // 3. Evaluate conditions against triggerData
@@ -175,7 +150,7 @@ export async function issueReward(
   event: Event,
   triggerData: Record<string, any>,
 ): Promise<void> {
-  return runTransaction(adminDb, async (transaction) => {
+  return adminDb.runTransaction(async (transaction) => {
     // Re-check eligibility inside transaction to prevent race conditions
     const isEligible = await checkEligibility(userId, event, triggerData);
     if (!isEligible) {
@@ -183,8 +158,9 @@ export async function issueReward(
     }
 
     // Create claim document
-    const claimsRef = collection(adminDb, "event_claims");
-    const claimDocRef = doc(claimsRef);
+    const claimsRef = adminDb.collection("event_claims");
+    const claimDocRef = claimsRef.doc();
+    const now = admin.firestore.Timestamp.now() as any;
     const claim: EventClaim = {
       id: claimDocRef.id,
       eventId: event.id,
@@ -195,16 +171,16 @@ export async function issueReward(
       rewardAmountKobo: event.rewardAmountKobo,
       badgeId: event.badgeId,
       status: "pending",
-      createdAt: Timestamp.now(),
+      createdAt: now,
     };
-
-    transaction.set(claimDocRef, claim);
+    transaction.set(claimDocRef, claim as any);
 
     // Issue wallet credit if applicable
     let transactionId: string | undefined;
     if (event.rewardType === "wallet_credit" || event.rewardType === "both") {
       if (event.rewardAmountKobo && event.rewardAmountKobo > 0) {
         transactionId = await creditWallet(
+          transaction,
           userId,
           event.rewardAmountKobo,
           "event_reward",
@@ -216,32 +192,30 @@ export async function issueReward(
     // Award badge if applicable
     if (event.rewardType === "badge" || event.rewardType === "both") {
       if (event.badgeId) {
-        const userBadgeRef = doc(
-          adminDb,
-          "users",
-          userId,
-          "earned_badges",
-          event.badgeId,
-        );
+        const userBadgeRef = adminDb
+          .collection("users")
+          .doc(userId)
+          .collection("earned_badges")
+          .doc(event.badgeId);
         const userBadge: UserBadge = {
           badgeId: event.badgeId,
           eventId: event.id,
-          earnedAt: Timestamp.now(),
+          earnedAt: admin.firestore.Timestamp.now() as any,
           triggerType: event.triggerType,
         };
-        transaction.set(userBadgeRef, userBadge);
+        transaction.set(userBadgeRef, userBadge as any);
       }
     }
 
     // Update claim status and transaction ID
     transaction.update(claimDocRef, {
       status: "awarded",
-      awardedAt: Timestamp.now(),
+      awardedAt: admin.firestore.Timestamp.now() as any,
       transactionId: transactionId || null,
     });
 
-    // Send notification
-    await notificationService.sendNotification(userId, {
+    // Send notification (outside transaction)
+    void sendNotification(userId, {
       type: "general",
       title: "🎉 Reward Earned!",
       body: `You earned a reward from: ${event.title}`,
@@ -254,18 +228,13 @@ export async function issueReward(
  * List all awards/claims for a specific user
  */
 export async function listUserClaims(userId: string): Promise<EventClaim[]> {
-  const claimsRef = collection(adminDb, "event_claims");
-  const q = query(
-    claimsRef,
-    where("userId", "==", userId),
-    where("status", "==", "awarded"),
-  );
+  const claimsRef = adminDb.collection("event_claims");
+  const snapshot = await claimsRef
+    .where("userId", "==", userId)
+    .where("status", "==", "awarded")
+    .get();
 
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as EventClaim[];
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as EventClaim[];
 }
 
 /**
@@ -274,8 +243,8 @@ export async function listUserClaims(userId: string): Promise<EventClaim[]> {
 export async function listUserBadges(
   userId: string,
 ): Promise<(UserBadge & Badge)[]> {
-  const badgesRef = collection(adminDb, "users", userId, "earned_badges");
-  const snapshot = await getDocs(badgesRef);
+  const badgesRef = adminDb.collection("users").doc(userId).collection("earned_badges");
+  const snapshot = await badgesRef.get();
 
   const results: (UserBadge & Badge)[] = [];
 
@@ -284,14 +253,9 @@ export async function listUserBadges(
 
     // Fetch the badge definition
     if (userBadge.badgeId) {
-      const badgeDef = await getDoc(
-        doc(adminDb, "badges", userBadge.badgeId),
-      );
-      if (badgeDef.exists()) {
-        results.push({
-          ...userBadge,
-          ...(badgeDef.data() as Badge),
-        });
+      const badgeDef = await adminDb.collection("badges").doc(userBadge.badgeId).get();
+      if (badgeDef.exists) {
+        results.push({ ...(userBadge as any), ...(badgeDef.data() as Badge) });
       }
     }
   }
@@ -307,20 +271,10 @@ export async function listUserBadges(
 export async function getClaimWithEvent(
   claimId: string,
 ): Promise<(EventClaim & { event: Event }) | null> {
-  const claimDoc = await getDoc(doc(adminDb, "event_claims", claimId));
-  if (!claimDoc.exists()) {
-    return null;
-  }
-
+  const claimDoc = await adminDb.collection("event_claims").doc(claimId).get();
+  if (!claimDoc.exists) return null;
   const claim = claimDoc.data() as EventClaim;
-  const eventDoc = await getDoc(doc(adminDb, "events", claim.eventId));
-
-  if (!eventDoc.exists()) {
-    return null;
-  }
-
-  return {
-    ...claim,
-    event: eventDoc.data() as Event,
-  };
+  const eventDoc = await adminDb.collection("events").doc(claim.eventId).get();
+  if (!eventDoc.exists) return null;
+  return { ...claim, event: eventDoc.data() as Event };
 }

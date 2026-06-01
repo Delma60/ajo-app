@@ -11,14 +11,36 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import {
+  doc,
+  onSnapshot,
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { BalanceCard } from "@/components/dashboard/balance-card";
-import { StatCard, StatCardSkeleton, type StatCardData } from "@/components/dashboard/stat-card";
-import { RecentTransactions, type DisplayTransaction } from "@/components/dashboard/recent-transactions";
+import {
+  StatCard,
+  StatCardSkeleton,
+  type StatCardData,
+} from "@/components/dashboard/stat-card";
+import {
+  RecentTransactions,
+  type DisplayTransaction,
+} from "@/components/dashboard/recent-transactions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardAction,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
@@ -29,17 +51,19 @@ import type { Circle } from "@/lib/types/circle";
 // ─── Circle summary card ──────────────────────────────────────────────────────
 
 function CircleSummaryCard({ circle }: { circle: Circle & { goal: number } }) {
-  const progress = circle.goal > 0 ? Math.round((circle.saved / circle.goal) * 100) : 0;
+  const progress =
+    circle.goal > 0 ? Math.round((circle.saved / circle.goal) * 100) : 0;
 
   const progressColor =
     progress >= 80
       ? "bg-emerald-500"
       : progress >= 50
-      ? "bg-amber-400"
-      : "bg-blue-500";
+        ? "bg-amber-400"
+        : "bg-blue-500";
 
   const statusColors: Record<string, string> = {
-    active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    active:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     paused: "bg-amber-100 text-amber-700",
     completed: "bg-muted text-muted-foreground",
     cancelled: "bg-red-100 text-red-700",
@@ -48,7 +72,10 @@ function CircleSummaryCard({ circle }: { circle: Circle & { goal: number } }) {
   return (
     // TODO:: the circle.id is undefined
     <Link href={`/circles/${circle.id}`} className="block group">
-      <Card size="sm" className="hover:ring-primary/30 transition-all hover:ring-2">
+      <Card
+        size="sm"
+        className="hover:ring-primary/30 transition-all hover:ring-2"
+      >
         <CardContent>
           {/* {JSON.stringify(circle)} */}
           <div className="flex items-start justify-between gap-2 mb-2">
@@ -60,7 +87,10 @@ function CircleSummaryCard({ circle }: { circle: Circle & { goal: number } }) {
                 {formatNaira(circle.contribution)} / cycle
               </p>
             </div>
-            <Badge className={`text-[10px] h-5 shrink-0 ${statusColors[circle.status] ?? ""}`} variant="outline">
+            <Badge
+              className={`text-[10px] h-5 shrink-0 ${statusColors[circle.status] ?? ""}`}
+              variant="outline"
+            >
               {circle.status}
             </Badge>
           </div>
@@ -78,8 +108,12 @@ function CircleSummaryCard({ circle }: { circle: Circle & { goal: number } }) {
             </div>
           </div>
           <div className="flex items-center justify-between mt-2 text-[11px] text-muted-foreground">
-            <span>{circle.memberIds?.length ?? 0}/{circle.maxMembers} members</span>
-            <span>Cycle {circle.currentCycle}/{circle.totalCycles}</span>
+            <span>
+              {circle.memberIds?.length ?? 0}/{circle.maxMembers} members
+            </span>
+            <span>
+              Cycle {circle.currentCycle}/{circle.totalCycles}
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -119,7 +153,9 @@ export function DashboardContent() {
   const [circlesLoading, setCirclesLoading] = useState(true);
   const [txLoading, setTxLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(true);
-  const [activeEventsCount, setActiveEventsCount] = useState<number | null>(null);
+  const [activeEventsCount, setActiveEventsCount] = useState<number | null>(
+    null,
+  );
 
   // Real-time wallet listener
   useEffect(() => {
@@ -130,7 +166,7 @@ export function DashboardContent() {
         if (snap.exists()) setWallet(snap.data() as Wallet);
         setWalletLoading(false);
       },
-      () => setWalletLoading(false)
+      () => setWalletLoading(false),
     );
     return () => unsub();
   }, [firebaseUser]);
@@ -143,10 +179,7 @@ export function DashboardContent() {
     }
     const idsToFetch = appUser.circleIds.slice(0, 6);
     const unsub = onSnapshot(
-      query(
-        collection(db, "circles"),
-        where("__name__", "in", idsToFetch)
-      ),
+      query(collection(db, "circles"), where("__name__", "in", idsToFetch)),
       (snap) => {
         const data = snap.docs.map((d) => {
           const c = d.data() as Circle;
@@ -158,7 +191,7 @@ export function DashboardContent() {
         setCircles(data);
         setCirclesLoading(false);
       },
-      () => setCirclesLoading(false)
+      () => setCirclesLoading(false),
     );
     return () => unsub();
   }, [firebaseUser, appUser?.circleIds]);
@@ -173,8 +206,8 @@ export function DashboardContent() {
             collection(db, "transactions"),
             where("userId", "==", firebaseUser.uid),
             orderBy("createdAt", "desc"),
-            limit(5)
-          )
+            limit(5),
+          ),
         );
         const data: DisplayTransaction[] = snap.docs.map((d) => {
           const raw = d.data();
@@ -206,7 +239,9 @@ export function DashboardContent() {
         const response = await fetch("/api/events");
         if (!response.ok) throw new Error("Failed to load events");
         const payload = await response.json();
-        setActiveEventsCount(Array.isArray(payload.data) ? payload.data.length : 0);
+        setActiveEventsCount(
+          Array.isArray(payload.data) ? payload.data.length : 0,
+        );
       } catch {
         setActiveEventsCount(0);
       } finally {
@@ -261,7 +296,6 @@ export function DashboardContent() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto pb-20 md:pb-6">
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-5 space-y-6">
-
         {/* Greeting */}
         <div>
           <h1 className="text-xl font-semibold text-foreground">
@@ -278,15 +312,24 @@ export function DashboardContent() {
         {/* Stats grid */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {walletLoading || circlesLoading
-            ? Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <StatCardSkeleton key={i} />
+              ))
             : stats.map((s) => <StatCard key={s.label} data={s} />)}
         </div>
 
         {/* My Circles */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-foreground">My Circles</h2>
-            <Button variant="ghost" size="sm" asChild className="text-xs text-muted-foreground gap-1 h-7">
+            <h2 className="text-sm font-semibold text-foreground">
+              My Circles
+            </h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="text-xs text-muted-foreground gap-1 h-7"
+            >
               <Link href="/circles">
                 View all <ArrowRight className="size-3" />
               </Link>
@@ -295,48 +338,51 @@ export function DashboardContent() {
 
           {circlesLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {Array.from({ length: 2 }).map((_, i) => <CircleSummarySkeleton key={i} />)}
+              {Array.from({ length: 2 }).map((_, i) => (
+                <CircleSummarySkeleton key={i} />
+              ))}
             </div>
           ) : circles.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-10 text-center">
               <div className="flex size-12 items-center justify-center rounded-full bg-muted mb-3">
                 <Users className="size-5 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium">You&apos;re not in any circles yet</p>
+              <p className="text-sm font-medium">
+                You&apos;re not in any circles yet
+              </p>
               <p className="text-xs text-muted-foreground mt-1 max-w-xs">
                 Create one or browse public circles to start saving together.
               </p>
               <div className="flex gap-2 mt-4">
                 <Button size="sm" asChild>
                   <Link href="/circles/create">
-
-          {/* Rewards banner */}
-          <Card className="border-emerald-200 bg-emerald-50">
-            <CardContent className="flex flex-col gap-3 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-emerald-900">
-                  Rewards & Events
-                </p>
-                <p className="text-sm text-emerald-700/90">
-                  {eventsLoading
-                    ? "Checking active reward events..."
-                    : activeEventsCount === null
-                    ? "Explore rewards and badges"
-                    : activeEventsCount > 0
-                    ? `${activeEventsCount} active reward event${activeEventsCount === 1 ? "" : "s"}`
-                    : "No active reward events currently"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="rounded-full bg-emerald-100 text-emerald-700">
-                  {eventsLoading ? "..." : activeEventsCount ?? "0"}
-                </Badge>
-                <Button size="sm" asChild>
-                  <Link href="/rewards">View rewards</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                    {/* Rewards banner */}
+                    <Card className="border-emerald-200 bg-emerald-50">
+                      <CardContent className="flex flex-col gap-3 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-900">
+                            Rewards & Events
+                          </p>
+                          <p className="text-sm text-emerald-700/90">
+                            {eventsLoading
+                              ? "Checking active reward events..."
+                              : activeEventsCount === null
+                                ? "Explore rewards and badges"
+                                : activeEventsCount > 0
+                                  ? `${activeEventsCount} active reward event${activeEventsCount === 1 ? "" : "s"}`
+                                  : "No active reward events currently"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className="rounded-full bg-emerald-100 text-emerald-700">
+                            {eventsLoading ? "..." : (activeEventsCount ?? "0")}
+                          </Badge>
+                          <Button size="sm" asChild>
+                            <Link href="/rewards">View rewards</Link>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                     <Plus className="size-3.5" />
                     Create Circle
                   </Link>

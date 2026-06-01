@@ -26,6 +26,7 @@ import {
  */
 
 import { adminDb, admin } from "@/lib/firebase/admin";
+import * as eventTrigger from "@/lib/services/event-trigger";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 import { MAX_ACTIVE_CIRCLES } from "@/lib/constants";
@@ -186,7 +187,7 @@ export class CircleService {
   // ─── Join ──────────────────────────────────────────────────────────────────
 
   async joinCircle(circleId: string, userId: string, inviteCode?: string): Promise<Circle> {
-    return adminDb.runTransaction(async (tx) => {
+    const result = await adminDb.runTransaction(async (tx) => {
       const [circleSnap, userSnap] = await tx.getAll(
         this.circlesCol.doc(circleId),
         this.usersCol.doc(userId)
@@ -250,6 +251,31 @@ export class CircleService {
 
       return { ...circle, memberIds: updatedMemberIds, goal: circle.contribution * circle.maxMembers } as Circle;
     });
+
+    // Post-transaction: fire triggers (do not block main flow)
+    try {
+      const updated = result;
+      // If circle just filled to max members, notify admin trigger
+      if (updated.memberIds.length === updated.maxMembers) {
+        void eventTrigger.triggerCircleFilled(updated.adminId, circleId, updated.name, updated.maxMembers);
+      }
+
+      // If this was the user's first circle (now has 1), trigger first_circle_joined
+      try {
+        const userSnap = await adminDb.collection("users").doc(userId).get();
+        const udata = userSnap.exists ? (userSnap.data() as any) : null;
+        const circleIds = (udata?.circleIds as string[] | undefined) ?? [];
+        if (circleIds.length === 1) {
+          void eventTrigger.triggerFirstCircleJoined(userId, circleId, updated.name);
+        }
+      } catch (err) {
+        console.error("Failed to post-process joinCircle triggers:", err);
+      }
+    } catch (err) {
+      console.error("Error firing joinCircle triggers:", err);
+    }
+
+    return result;
   }
 
   // ─── Contribute ────────────────────────────────────────────────────────────
@@ -258,7 +284,7 @@ export class CircleService {
     // Load settings for penalty calculation
     const settings = await getCircleSettings();
 
-    return adminDb.runTransaction(async (tx) => {
+    const contribResult = await adminDb.runTransaction(async (tx) => {
       const [circleSnap, userSnap, walletSnap] = await tx.getAll(
         this.circlesCol.doc(circleId),
         this.usersCol.doc(userId),
@@ -369,6 +395,50 @@ export class CircleService {
 
       return { ...contrib, status: "paid", paidAt: Timestamp.now(), transactionId: contribTxId } as Contribution;
     });
+
+    // Post-transaction: evaluate events (first contribution, streaks)
+    try {
+      // First ever contribution?
+      try {
+        const paidSnap = await adminDb
+          .collection("contributions")
+          .where("userId", "==", userId)
+          .where("status", "==", "paid")
+          .get();
+        if (paidSnap.size === 1) {
+          void eventTrigger.triggerFirstContribution(userId);
+        }
+      } catch (err) {
+        console.error("Failed to check first contribution:", err);
+      }
+
+      // Compute recent consecutive on-time payments (simple heuristic)
+      try {
+        const recent = await adminDb
+          .collection("contributions")
+          .where("userId", "==", userId)
+          .where("status", "==", "paid")
+          .orderBy("paidAt", "desc")
+          .limit(20)
+          .get();
+        let consecutive = 0;
+        for (const d of recent.docs) {
+          const data = d.data() as any;
+          // stop counting when a late payment (penaltyAmount) is encountered
+          if (data.penaltyAmount) break;
+          consecutive++;
+        }
+        if (consecutive > 0) {
+          void eventTrigger.triggerContributionStreak(userId, circleId, consecutive);
+        }
+      } catch (err) {
+        console.error("Failed to compute contribution streak:", err);
+      }
+    } catch (err) {
+      console.error("Error firing contribution triggers:", err);
+    }
+
+    return contribResult;
   }
 
   // ─── Process Payouts (cron) ────────────────────────────────────────────────

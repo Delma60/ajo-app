@@ -18,6 +18,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { debitWallet, creditWallet } from "@/lib/services/wallet-service";
 import { sendNotification } from "@/lib/services/notification-service";
 import { getInvestmentSettings } from "@/lib/services/settings-service";
+import * as eventTrigger from "@/lib/services/event-trigger";
 import type {
   Investment,
   InvestmentPackage,
@@ -112,7 +113,7 @@ export class InvestmentService {
       startDate.toMillis() + pkg.durationDays * 24 * 60 * 60 * 1000;
     const maturityDate = Timestamp.fromMillis(maturityMs);
 
-    return adminDb.runTransaction(async (tx) => {
+    const inv = await adminDb.runTransaction(async (tx) => {
       const txId = await debitWallet(
         tx,
         userId,
@@ -145,6 +146,15 @@ export class InvestmentService {
 
       return { id: invRef.id, ...inv } as Investment;
     });
+
+    // Post-transaction: fire investment-made trigger
+    try {
+      void eventTrigger.triggerInvestmentMade(userId, inv.id, pkg.name, principalKobo);
+    } catch (err) {
+      console.error("Failed to trigger investment_made:", err);
+    }
+
+    return inv;
   }
 
   // ─── Withdraw (after maturity) ──────────────────────────────────────────────

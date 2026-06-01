@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { Event } from "@/lib/types/event";
-import { getSessionUser } from "@/lib/firebase/auth";
+import { getSessionUser } from "@/lib/firebase/server-auth";
 
 /**
  * GET /api/admin/events/[id]
