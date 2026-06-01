@@ -10,7 +10,7 @@ export const metadata = {
 
 export default function CreateEventPage() {
   return (
-    <div className="container max-w-2xl py-8 space-y-6">
+    <div className="p-6 mx-auto max-w-5xl py-8 space-y-6">
       <Link href="/admin/events">
         <Button variant="outline" size="sm">
           <ArrowLeft className="size-4" />

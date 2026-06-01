@@ -80,8 +80,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const admin = await getAdminUser(request);
-    if (!admin) {
+    const adminUser = await getAdminUser(request);
+    if (!adminUser) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 },
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
       maxClaimsPerUser: maxClaimsPerUser || 1,
       startDate: admin.firestore.Timestamp.fromDate(new Date(startDate)),
       endDate: admin.firestore.Timestamp.fromDate(new Date(endDate)),
-      createdBy: (admin as any).uid,
+      createdBy: adminUser.uid,
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now(),
     };
