@@ -19,7 +19,18 @@
 import { fmtDate, fmtNaira } from "../utils";
 import { baseLayout } from "./base-layout";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://ajosave.app";
+// ─── Settings parameters passed from senders.ts ─────────────────────────────
+
+export interface EmailSettingsContext {
+  appUrl: string;
+  supportEmail: string;
+}
+
+// Default fallback if settings are unavailable
+const DEFAULT_SETTINGS: EmailSettingsContext = {
+  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://ajosave.app",
+  supportEmail: "support@ajosave.app",
+};
 
 // ─── Shared type ──────────────────────────────────────────────────────────────
 
@@ -36,7 +47,11 @@ export interface WelcomeEmailParams {
   email: string;
 }
 
-export function buildWelcomeEmail({ name }: WelcomeEmailParams): EmailTemplate {
+export function buildWelcomeEmail(
+  { name }: WelcomeEmailParams,
+  context: EmailSettingsContext = DEFAULT_SETTINGS
+): EmailTemplate {
+  const { appUrl, supportEmail } = context;
   const subject = "Welcome to AjoSave 🎉 — Your account is ready";
   const firstName = name.split(" ")[0];
 
@@ -76,7 +91,7 @@ export function buildWelcomeEmail({ name }: WelcomeEmailParams): EmailTemplate {
         </table>
 
         <div style="text-align: center; margin: 28px 0;">
-          <a href="${APP_URL}/onboarding" class="btn-primary">Complete your setup</a>
+          <a href="${appUrl}/onboarding" class="btn-primary">Complete your setup</a>
         </div>
 
         <div class="alert-success">
@@ -96,7 +111,7 @@ export function buildWelcomeEmail({ name }: WelcomeEmailParams): EmailTemplate {
     `,
   });
 
-  const text = `Welcome to AjoSave, ${firstName}!\n\nYour account is ready. Complete your setup at: ${APP_URL}/onboarding\n\nStep 1: Add your phone number\nStep 2: Fund your wallet (min ₦500)\nStep 3: Join or create a savings circle\n\nQuestions? Reply to this email or contact support@ajosave.app`;
+  const text = `Welcome to AjoSave, ${firstName}!\n\nYour account is ready. Complete your setup at: ${appUrl}/onboarding\n\nStep 1: Add your phone number\nStep 2: Fund your wallet (min ₦500)\nStep 3: Join or create a savings circle\n\nQuestions? Reply to this email or contact ${supportEmail}`;
 
   return { subject, html, text };
 }
