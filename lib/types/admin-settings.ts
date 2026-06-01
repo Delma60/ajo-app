@@ -28,6 +28,20 @@ export interface PayoutSettings {
   referralBonusKobo: number;       // ₦500 per referral
   referralMinDepositKobo: number;  // ₦1,000 qualifying deposit
   referralMonthlyLimit: number;    // 50 referrals/month cap
+  settlementPeriodHours: number;   // payout settlement hold period in hours
+}
+
+export interface GeneralSettings {
+  siteName: string;
+  siteDescription: string;
+  siteUrl: string;
+  logoUrl?: string;
+  supportEmail: string;
+  supportPhone?: string;
+  timezone: string;
+  currency: string; // e.g. 'NGN'
+  defaultLocale: string; // e.g. 'en-NG'
+  platformIpAddress?: string; // optional IP address for integrations (e.g. Flutterwave)
 }
 
 export interface InvestmentSettings {
@@ -55,6 +69,7 @@ export interface MaintenanceSettings {
 }
 
 export interface PlatformSettings {
+  general: GeneralSettings;
   wallet: WalletSettings;
   circles: CircleSettings;
   payouts: PayoutSettings;
@@ -69,6 +84,18 @@ export interface PlatformSettings {
 // ─── Default values (mirrors lib/constants.ts) ────────────────────────────────
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
+  general: {
+    siteName: "AjoSave",
+    siteDescription: "Rotational savings platform for communities.",
+    siteUrl: "http://localhost:3000",
+    logoUrl: "",
+    supportEmail: "support@ajosave.example",
+    supportPhone: "",
+    timezone: "Africa/Lagos",
+    currency: "NGN",
+    defaultLocale: "en-NG",
+    platformIpAddress: "",
+  },
   wallet: {
     minDepositKobo: 50_000,
     minWithdrawKobo: 100_000,
@@ -95,6 +122,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
     referralBonusKobo: 50_000,
     referralMinDepositKobo: 100_000,
     referralMonthlyLimit: 50,
+    settlementPeriodHours: 24,
   },
   investments: {
     platformInterestFeePercent: 1,

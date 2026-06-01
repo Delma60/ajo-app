@@ -97,6 +97,7 @@ export async function PATCH(request: NextRequest) {
     const { section, updates } = body;
 
     const validSections = [
+      "general",
       "wallet",
       "circles",
       "payouts",

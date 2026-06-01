@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import {
   WalletIcon,
+  SettingsIcon,
   CircleDollarSignIcon,
   CoinsIcon,
   TrendingUpIcon,
@@ -19,6 +20,7 @@ import {
   HistoryIcon,
   UserIcon,
   AlertCircleIcon,
+  CopyIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,9 +52,10 @@ import { cn } from "@/lib/utils";
 import type { PlatformSettings } from "@/lib/types/admin-settings";
 import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TABS = [
+  { id: "general", label: "General", icon: SettingsIcon },
   { id: "wallet", label: "Wallet", icon: WalletIcon },
   { id: "circles", label: "Circles", icon: CircleDollarSignIcon },
   { id: "payouts", label: "Payouts", icon: CoinsIcon },
@@ -64,7 +67,7 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function koboToNaira(kobo: number): string {
   return (kobo / 100).toLocaleString("en-NG");
@@ -86,7 +89,7 @@ function fmtDateTime(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-// ─── SettingRow component ─────────────────────────────────────────────────────
+// â”€â”€â”€ SettingRow component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SettingRow({
   label,
@@ -121,7 +124,9 @@ function SettingRow({
               <TooltipTrigger asChild>
                 <InfoIcon className="size-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs">{tip}</TooltipContent>
+              <TooltipContent className="max-w-xs text-xs">
+                {tip}
+              </TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -136,7 +141,7 @@ function SettingRow({
   );
 }
 
-// ─── NairaInput component ─────────────────────────────────────────────────────
+// â”€â”€â”€ NairaInput component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function NairaInput({
   valueKobo,
@@ -162,7 +167,7 @@ function NairaInput({
   return (
     <div className={cn("relative flex items-center", className)}>
       <span className="absolute left-3 text-sm font-semibold text-muted-foreground select-none">
-        ₦
+        â‚¦
       </span>
       <Input
         className="pl-7 font-mono text-right w-36"
@@ -178,7 +183,10 @@ function NairaInput({
             return;
           }
           const kobo = Math.round(parsed * 100);
-          const clamped = Math.max(min, max !== undefined ? Math.min(max, kobo) : kobo);
+          const clamped = Math.max(
+            min,
+            max !== undefined ? Math.min(max, kobo) : kobo,
+          );
           onChange(clamped);
           setRaw(koboToNaira(clamped));
         }}
@@ -188,7 +196,7 @@ function NairaInput({
   );
 }
 
-// ─── PercentInput ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ PercentInput â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PercentInput({
   value,
@@ -224,7 +232,7 @@ function PercentInput({
   );
 }
 
-// ─── NumberInput ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ NumberInput â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function NumberInput({
   value,
@@ -248,7 +256,12 @@ function NumberInput({
         value={value}
         onChange={(e) => {
           const v = parseInt(e.target.value);
-          if (!isNaN(v)) onChange(max !== undefined ? Math.min(max, Math.max(min, v)) : Math.max(min, v));
+          if (!isNaN(v))
+            onChange(
+              max !== undefined
+                ? Math.min(max, Math.max(min, v))
+                : Math.max(min, v),
+            );
         }}
         className={cn("font-mono text-right", unit ? "pr-14 w-32" : "w-24")}
       />
@@ -261,7 +274,7 @@ function NumberInput({
   );
 }
 
-// ─── SectionHeader ────────────────────────────────────────────────────────────
+// â”€â”€â”€ SectionHeader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SectionHeader({
   icon: Icon,
@@ -285,7 +298,12 @@ function SectionHeader({
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-center gap-3">
-        <div className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", color)}>
+        <div
+          className={cn(
+            "flex size-10 shrink-0 items-center justify-center rounded-xl",
+            color,
+          )}
+        >
           <Icon className="size-5" />
         </div>
         <div>
@@ -316,7 +334,7 @@ function SectionHeader({
             ) : (
               <SaveIcon className="size-3.5" />
             )}
-            {isSaving ? "Saving…" : "Save"}
+            {isSaving ? "Savingâ€¦" : "Save"}
           </Button>
         </div>
       )}
@@ -324,7 +342,7 @@ function SectionHeader({
   );
 }
 
-// ─── Audit Log component ──────────────────────────────────────────────────────
+// â”€â”€â”€ Audit Log component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface AuditEntry {
   id: string;
@@ -343,7 +361,9 @@ function AuditLogPanel() {
     if (!isOpen) return;
     fetch("/api/admin/settings/audit")
       .then((r) => r.json())
-      .then((j) => { if (j.success) setLogs(j.data); })
+      .then((j) => {
+        if (j.success) setLogs(j.data);
+      })
       .catch(() => {})
       .finally(() => setIsLoading(false));
   }, [isOpen]);
@@ -386,7 +406,10 @@ function AuditLogPanel() {
             </div>
           ) : (
             logs.map((entry) => (
-              <div key={entry.id} className="flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
+              <div
+                key={entry.id}
+                className="flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors"
+              >
                 <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted mt-0.5">
                   <UserIcon className="size-3.5 text-muted-foreground" />
                 </div>
@@ -394,14 +417,16 @@ function AuditLogPanel() {
                   <p className="text-xs font-semibold text-foreground">
                     {entry.adminName}
                     <span className="font-normal text-muted-foreground">
-                      {" "}updated{" "}
-                      <span className="capitalize">{entry.section}</span> settings
+                      {" "}
+                      updated{" "}
+                      <span className="capitalize">{entry.section}</span>{" "}
+                      settings
                     </span>
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
                     {Object.entries(entry.changes)
                       .map(([k, v]) => `${k}: ${v}`)
-                      .join(" · ")}
+                      .join(" Â· ")}
                   </p>
                 </div>
                 <p className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">
@@ -413,7 +438,7 @@ function AuditLogPanel() {
                         minute: "2-digit",
                         timeZone: "Africa/Lagos",
                       }).format(new Date(entry.createdAt))
-                    : "—"}
+                    : "â€”"}
                 </p>
               </div>
             ))
@@ -424,7 +449,7 @@ function AuditLogPanel() {
   );
 }
 
-// ─── Main Content ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function AdminSettingsContent() {
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
@@ -436,8 +461,12 @@ export function AdminSettingsContent() {
   const [isResetting, setIsResetting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [lastUpdatedBy, setLastUpdatedBy] = useState<string | null>(null);
+  const [serverIp, setServerIp] = useState<string | null>(null);
+  const [serverIpError, setServerIpError] = useState<string | null>(null);
+  const [isFetchingServerIp, setIsFetchingServerIp] = useState(false);
+  const [platformIpError, setPlatformIpError] = useState<string | null>(null);
 
-  // ── Load settings ─────────────────────────────────────────────────────────
+  // â”€â”€ Load settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true);
@@ -456,9 +485,33 @@ export function AdminSettingsContent() {
     }
   }, []);
 
-  useEffect(() => { loadSettings(); }, [loadSettings]);
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
-  // ── Derived change tracking ───────────────────────────────────────────────
+  useEffect(() => {
+    if (activeTab !== "general") return;
+    if (serverIp || isFetchingServerIp) return;
+
+    setIsFetchingServerIp(true);
+    setServerIpError(null);
+
+    fetch("/api/admin/server-ip")
+      .then((res) => res.json())
+      .then((json) => {
+        if (!json.success)
+          throw new Error(json.error || "Failed to fetch server IP");
+        setServerIp(json.data.ip);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch server IP", err);
+        setServerIp(null);
+        setServerIpError("Unable to detect server IP. Try again later.");
+      })
+      .finally(() => setIsFetchingServerIp(false));
+  }, [activeTab, serverIp, isFetchingServerIp]);
+
+  // â”€â”€ Derived change tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function hasChanges(section: TabId): boolean {
     if (!settings || !draft) return false;
@@ -469,13 +522,24 @@ export function AdminSettingsContent() {
 
   function discardSection(section: TabId) {
     if (!settings) return;
-    setDraft((prev) => prev ? { ...prev, [section]: { ...settings[section] } } : prev);
+    setDraft((prev) =>
+      prev ? { ...prev, [section]: { ...settings[section] } } : prev,
+    );
   }
 
-  // ── Save section ─────────────────────────────────────────────────────────
+  // â”€â”€ Save section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function saveSection(section: TabId) {
     if (!draft) return;
+    if (section === "general") {
+      const ipValue = draft.general?.platformIpAddress?.trim();
+      if (ipValue && !isValidIp(ipValue)) {
+        setPlatformIpError("Enter a valid IPv4 or IPv6 address.");
+        toast.error("Invalid platform IP address");
+        return;
+      }
+    }
+
     setSavingSection(section);
     try {
       const res = await fetch("/api/admin/settings", {
@@ -485,9 +549,13 @@ export function AdminSettingsContent() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      setSettings((prev) => prev ? { ...prev, [section]: draft[section] } : prev);
+      setSettings((prev) =>
+        prev ? { ...prev, [section]: draft[section] } : prev,
+      );
       setLastUpdated(new Date().toISOString());
-      toast.success(`${TABS.find((t) => t.id === section)?.label} settings saved`);
+      toast.success(
+        `${TABS.find((t) => t.id === section)?.label} settings saved`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -495,7 +563,7 @@ export function AdminSettingsContent() {
     }
   }
 
-  // ── Reset all ────────────────────────────────────────────────────────────
+  // â”€â”€ Reset all â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function handleReset() {
     setIsResetting(true);
@@ -519,27 +587,33 @@ export function AdminSettingsContent() {
     }
   }
 
-  // ── Update helpers ────────────────────────────────────────────────────────
+  // â”€â”€ Update helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   function updateWallet<K extends keyof PlatformSettings["wallet"]>(
     key: K,
     value: PlatformSettings["wallet"][K],
   ) {
-    setDraft((prev) => prev ? { ...prev, wallet: { ...prev.wallet, [key]: value } } : prev);
+    setDraft((prev) =>
+      prev ? { ...prev, wallet: { ...prev.wallet, [key]: value } } : prev,
+    );
   }
 
   function updateCircles<K extends keyof PlatformSettings["circles"]>(
     key: K,
     value: PlatformSettings["circles"][K],
   ) {
-    setDraft((prev) => prev ? { ...prev, circles: { ...prev.circles, [key]: value } } : prev);
+    setDraft((prev) =>
+      prev ? { ...prev, circles: { ...prev.circles, [key]: value } } : prev,
+    );
   }
 
   function updatePayouts<K extends keyof PlatformSettings["payouts"]>(
     key: K,
     value: PlatformSettings["payouts"][K],
   ) {
-    setDraft((prev) => prev ? { ...prev, payouts: { ...prev.payouts, [key]: value } } : prev);
+    setDraft((prev) =>
+      prev ? { ...prev, payouts: { ...prev.payouts, [key]: value } } : prev,
+    );
   }
 
   function updateInvestments<K extends keyof PlatformSettings["investments"]>(
@@ -547,7 +621,9 @@ export function AdminSettingsContent() {
     value: PlatformSettings["investments"][K],
   ) {
     setDraft((prev) =>
-      prev ? { ...prev, investments: { ...prev.investments, [key]: value } } : prev,
+      prev
+        ? { ...prev, investments: { ...prev.investments, [key]: value } }
+        : prev,
     );
   }
 
@@ -556,16 +632,19 @@ export function AdminSettingsContent() {
     value: PlatformSettings["trustScore"][K],
   ) {
     setDraft((prev) =>
-      prev ? { ...prev, trustScore: { ...prev.trustScore, [key]: value } } : prev,
+      prev
+        ? { ...prev, trustScore: { ...prev.trustScore, [key]: value } }
+        : prev,
     );
   }
 
-  function updateNotifications<K extends keyof PlatformSettings["notifications"]>(
-    key: K,
-    value: PlatformSettings["notifications"][K],
-  ) {
+  function updateNotifications<
+    K extends keyof PlatformSettings["notifications"],
+  >(key: K, value: PlatformSettings["notifications"][K]) {
     setDraft((prev) =>
-      prev ? { ...prev, notifications: { ...prev.notifications, [key]: value } } : prev,
+      prev
+        ? { ...prev, notifications: { ...prev.notifications, [key]: value } }
+        : prev,
     );
   }
 
@@ -574,11 +653,22 @@ export function AdminSettingsContent() {
     value: PlatformSettings["maintenance"][K],
   ) {
     setDraft((prev) =>
-      prev ? { ...prev, maintenance: { ...prev.maintenance, [key]: value } } : prev,
+      prev
+        ? { ...prev, maintenance: { ...prev.maintenance, [key]: value } }
+        : prev,
     );
   }
 
-  // ── Render loading ────────────────────────────────────────────────────────
+  function updateGeneral<K extends keyof PlatformSettings["general"]>(
+    key: K,
+    value: PlatformSettings["general"][K],
+  ) {
+    setDraft((prev) =>
+      prev ? { ...prev, general: { ...prev.general, [key]: value } } : prev,
+    );
+  }
+
+  // â”€â”€ Render loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   if (isLoading || !draft) {
     return (
@@ -611,7 +701,10 @@ export function AdminSettingsContent() {
                 </CardHeader>
                 <CardContent className="pt-5 space-y-4">
                   {Array.from({ length: 4 }).map((_, j) => (
-                    <div key={j} className="flex justify-between items-center py-2 border-b border-border last:border-0">
+                    <div
+                      key={j}
+                      className="flex justify-between items-center py-2 border-b border-border last:border-0"
+                    >
                       <div className="space-y-1.5">
                         <Skeleton className="h-4 w-36" />
                         <Skeleton className="h-3 w-56" />
@@ -632,14 +725,14 @@ export function AdminSettingsContent() {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
-
-        {/* ── Page header ── */}
+      <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-6">
+        {/* â”€â”€ Page header â”€â”€ */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold">Platform Settings</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Configure fees, limits, penalties, trust scores, and system behaviour.
+              Configure fees, limits, penalties, trust scores, and system
+              behaviour.
             </p>
           </div>
           <Button
@@ -653,7 +746,7 @@ export function AdminSettingsContent() {
           </Button>
         </div>
 
-        {/* ── Last updated bar ── */}
+        {/* â”€â”€ Last updated bar â”€â”€ */}
         <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-2.5">
           {anySectionChanged ? (
             <>
@@ -687,7 +780,7 @@ export function AdminSettingsContent() {
           </Button>
         </div>
 
-        {/* ── Tab bar ── */}
+        {/* â”€â”€ Tab bar â”€â”€ */}
         <div className="flex gap-1 p-1 bg-muted rounded-xl overflow-x-auto">
           {TABS.map((tab) => {
             const changed = hasChanges(tab.id);
@@ -708,17 +801,305 @@ export function AdminSettingsContent() {
                 {changed && (
                   <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500 border border-background" />
                 )}
-                {tab.id === "maintenance" && draft.maintenance.maintenanceMode && (
-                  <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500 border border-background animate-pulse" />
-                )}
+                {tab.id === "maintenance" &&
+                  draft.maintenance?.maintenanceMode && (
+                    <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500 border border-background animate-pulse" />
+                  )}
               </button>
             );
           })}
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        {/* GENERAL / PLATFORM TAB */}
+        {activeTab === "general" && (
+          <Card>
+            <CardHeader className="border-b pb-4">
+              <SectionHeader
+                icon={SettingsIcon}
+                title="Platform"
+                description="Site name, branding, contact and locale settings."
+                color="bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400"
+                hasChanges={hasChanges("general")}
+                isSaving={savingSection === "general"}
+                onSave={() => saveSection("general")}
+                onDiscard={() => discardSection("general")}
+              />
+            </CardHeader>
+            <CardContent className="pt-2">
+              <SettingRow
+                label="Site Name"
+                description="Displayed in emails, headings, and the admin console."
+                changed={
+                  draft.general?.siteName !== settings?.general?.siteName
+                }
+              >
+                <Input
+                  value={draft.general?.siteName}
+                  onChange={(e) => updateGeneral("siteName", e.target.value)}
+                  className="w-64"
+                />
+              </SettingRow>
+
+              <SettingRow
+                label="Site Description"
+                description="Short description used in meta tags and emails."
+                changed={
+                  draft.general?.siteDescription !==
+                  settings?.general?.siteDescription
+                }
+              >
+                <Textarea
+                  value={draft.general?.siteDescription}
+                  onChange={(e) =>
+                    updateGeneral("siteDescription", e.target.value)
+                  }
+                  rows={2}
+                  className="w-96"
+                />
+              </SettingRow>
+
+              <SettingRow
+                label="Site URL"
+                description="Public URL for the platform (used in emails and links)."
+                changed={draft.general?.siteUrl !== settings?.general?.siteUrl}
+              >
+                <Input
+                  value={draft.general?.siteUrl}
+                  onChange={(e) => updateGeneral("siteUrl", e.target.value)}
+                  className="w-72"
+                />
+              </SettingRow>
+
+              <SettingRow
+                label="Logo URL"
+                description="Public URL to the platform logo used in emails and headers."
+                changed={draft.general?.logoUrl !== settings?.general?.logoUrl}
+              >
+                <Input
+                  value={draft.general?.logoUrl ?? ""}
+                  onChange={(e) => updateGeneral("logoUrl", e.target.value)}
+                  className="w-96"
+                />
+              </SettingRow>
+
+              <SettingRow
+                label="Support Email"
+                description="Email used for support and transactional replies."
+                changed={
+                  draft.general?.supportEmail !==
+                  settings?.general?.supportEmail
+                }
+              >
+                <Input
+                  value={draft.general?.supportEmail}
+                  onChange={(e) =>
+                    updateGeneral("supportEmail", e.target.value)
+                  }
+                  className="w-72"
+                />
+              </SettingRow>
+
+              <SettingRow
+                label="Support Phone"
+                description="Optional phone number displayed in support contacts."
+                changed={
+                  draft.general?.supportPhone !==
+                  settings?.general?.supportPhone
+                }
+              >
+                <Input
+                  value={draft.general?.supportPhone ?? ""}
+                  onChange={(e) =>
+                    updateGeneral("supportPhone", e.target.value)
+                  }
+                  className="w-72"
+                />
+              </SettingRow>
+
+              <SettingRow
+                label="Platform IP Address"
+                description="IP address used for integrations (e.g. Flutterwave). Click copy to copy the value."
+                changed={
+                  draft.general?.platformIpAddress !==
+                  settings?.general?.platformIpAddress
+                }
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={draft.general?.platformIpAddress ?? ""}
+                      onChange={(e) => {
+                        updateGeneral("platformIpAddress", e.target.value);
+                        setPlatformIpError(null);
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim();
+                        setPlatformIpError(
+                          value && !isValidIp(value)
+                            ? "Enter a valid IPv4 or IPv6 address."
+                            : null,
+                        );
+                      }}
+                      className="w-72"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const val = draft.general?.platformIpAddress ?? "";
+                        if (!val) return toast.error("No IP address to copy");
+                        navigator.clipboard
+                          .writeText(val)
+                          .then(() => toast.success("IP address copied"))
+                          .catch(() => toast.error("Failed to copy"));
+                      }}
+                      className="h-8 w-8 p-0"
+                    >
+                      <CopyIcon className="size-3" />
+                    </Button>
+                  </div>
+                  {platformIpError ? (
+                    <p className="text-xs text-destructive">
+                      {platformIpError}
+                    </p>
+                  ) : null}
+                </div>
+              </SettingRow>
+
+              <SettingRow
+                label="Detected Server IP"
+                description="The server's public IP detected by a backend lookup. Use it to auto-fill the platform IP."
+                changed={false}
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={
+                        isFetchingServerIp
+                          ? "Detectingâ€¦"
+                          : (serverIp ?? "Unable to detect server IP")
+                      }
+                      readOnly
+                      className="w-72"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (!serverIp) {
+                          toast.error("No detected server IP available");
+                          return;
+                        }
+                        updateGeneral("platformIpAddress", serverIp);
+                        setPlatformIpError(null);
+                        toast.success("Platform IP field updated");
+                      }}
+                      disabled={!serverIp}
+                      className="h-8"
+                    >
+                      Use
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setServerIp(null);
+                        setServerIpError(null);
+                        setIsFetchingServerIp(true);
+                        fetch("/api/admin/server-ip")
+                          .then((res) => res.json())
+                          .then((json) => {
+                            if (!json.success)
+                              throw new Error(json.error || "Fetch failed");
+                            setServerIp(json.data.ip);
+                          })
+                          .catch((err) => {
+                            console.error(err);
+                            setServerIp(null);
+                            setServerIpError(
+                              "Unable to detect server IP. Try again later.",
+                            );
+                          })
+                          .finally(() => setIsFetchingServerIp(false));
+                      }}
+                      className="h-8"
+                    >
+                      Refresh
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (!serverIp) {
+                          toast.error("No IP address to copy");
+                          return;
+                        }
+                        navigator.clipboard
+                          .writeText(serverIp)
+                          .then(() => toast.success("Server IP copied"))
+                          .catch(() => toast.error("Failed to copy"));
+                      }}
+                      className="h-8 w-8 p-0"
+                    >
+                      <CopyIcon className="size-3" />
+                    </Button>
+                  </div>
+                  {serverIpError ? (
+                    <p className="text-xs text-destructive">{serverIpError}</p>
+                  ) : null}
+                </div>
+              </SettingRow>
+
+              <SettingRow
+                label="Timezone"
+                description="Timezone used for scheduling and cron jobs."
+                changed={
+                  draft.general?.timezone !== settings?.general?.timezone
+                }
+              >
+                <Input
+                  value={draft.general?.timezone}
+                  onChange={(e) => updateGeneral("timezone", e.target.value)}
+                  className="w-56"
+                />
+              </SettingRow>
+
+              <SettingRow
+                label="Currency"
+                description="Platform currency code used for display and formatting."
+                changed={
+                  draft.general?.currency !== settings?.general?.currency
+                }
+              >
+                <Input
+                  value={draft.general?.currency}
+                  onChange={(e) => updateGeneral("currency", e.target.value)}
+                  className="w-28"
+                />
+              </SettingRow>
+
+              <SettingRow
+                label="Default Locale"
+                description="Locale used for formatting dates and numbers."
+                changed={
+                  draft.general?.defaultLocale !==
+                  settings?.general?.defaultLocale
+                }
+              >
+                <Input
+                  value={draft.general?.defaultLocale}
+                  onChange={(e) =>
+                    updateGeneral("defaultLocale", e.target.value)
+                  }
+                  className="w-40"
+                />
+              </SettingRow>
+            </CardContent>
+          </Card>
+        )}
         {/* WALLET TAB                                                          */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === "wallet" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -737,11 +1118,14 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Minimum Deposit"
                 description="The smallest amount a user can deposit into their wallet."
-                tip="Applied during Flutterwave payment initialisation. Set to at least ₦500 to cover gateway minimums."
-                changed={draft.wallet.minDepositKobo !== settings?.wallet.minDepositKobo}
+                tip="Applied during Flutterwave payment initialisation. Set to at least â‚¦500 to cover gateway minimums."
+                changed={
+                  draft.wallet?.minDepositKobo !==
+                  settings?.wallet?.minDepositKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.wallet.minDepositKobo}
+                  valueKobo={draft.wallet?.minDepositKobo}
                   onChange={(v) => updateWallet("minDepositKobo", v)}
                   min={10000}
                 />
@@ -750,11 +1134,14 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Minimum Withdrawal"
                 description="The smallest amount a user can withdraw to their bank account."
-                tip="Must cover the flat withdrawal fee plus at least ₦1 net transfer."
-                changed={draft.wallet.minWithdrawKobo !== settings?.wallet.minWithdrawKobo}
+                tip="Must cover the flat withdrawal fee plus at least â‚¦1 net transfer."
+                changed={
+                  draft.wallet?.minWithdrawKobo !==
+                  settings?.wallet?.minWithdrawKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.wallet.minWithdrawKobo}
+                  valueKobo={draft.wallet?.minWithdrawKobo}
                   onChange={(v) => updateWallet("minWithdrawKobo", v)}
                   min={10000}
                 />
@@ -763,10 +1150,13 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Withdrawal Flat Fee"
                 description="Fixed fee applied to every withdrawal, regardless of amount."
-                changed={draft.wallet.withdrawFeeFlatKobo !== settings?.wallet.withdrawFeeFlatKobo}
+                changed={
+                  draft.wallet?.withdrawFeeFlatKobo !==
+                  settings?.wallet?.withdrawFeeFlatKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.wallet.withdrawFeeFlatKobo}
+                  valueKobo={draft.wallet?.withdrawFeeFlatKobo}
                   onChange={(v) => updateWallet("withdrawFeeFlatKobo", v)}
                   min={0}
                 />
@@ -775,11 +1165,14 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Withdrawal Fee Percentage"
                 description="Percentage of the withdrawal amount charged on top of the flat fee."
-                tip="Formula: fee = (amount × %) + flat fee, capped at the maximum fee."
-                changed={draft.wallet.withdrawFeePercent !== settings?.wallet.withdrawFeePercent}
+                tip="Formula: fee = (amount Ã— %) + flat fee, capped at the maximum fee."
+                changed={
+                  draft.wallet?.withdrawFeePercent !==
+                  settings?.wallet?.withdrawFeePercent
+                }
               >
                 <PercentInput
-                  value={draft.wallet.withdrawFeePercent}
+                  value={draft.wallet?.withdrawFeePercent}
                   onChange={(v) => updateWallet("withdrawFeePercent", v)}
                   min={0}
                   max={10}
@@ -791,10 +1184,13 @@ export function AdminSettingsContent() {
                 label="Withdrawal Fee Cap"
                 description="Maximum total withdrawal fee charged to any single transaction."
                 tip="Prevents large withdrawals from being penalised disproportionately."
-                changed={draft.wallet.withdrawFeeCapKobo !== settings?.wallet.withdrawFeeCapKobo}
+                changed={
+                  draft.wallet?.withdrawFeeCapKobo !==
+                  settings?.wallet?.withdrawFeeCapKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.wallet.withdrawFeeCapKobo}
+                  valueKobo={draft.wallet?.withdrawFeeCapKobo}
                   onChange={(v) => updateWallet("withdrawFeeCapKobo", v)}
                   min={0}
                 />
@@ -802,12 +1198,15 @@ export function AdminSettingsContent() {
 
               <SettingRow
                 label="Maximum Wallet Balance"
-                description="Safety ceiling for any single wallet. Set to 0 for unlimited."
+                description="Safety ceiling for any single wallet?. Set to 0 for unlimited."
                 tip="Useful for regulatory compliance or fraud prevention. 0 = no limit."
-                changed={draft.wallet.maxWalletBalanceKobo !== settings?.wallet.maxWalletBalanceKobo}
+                changed={
+                  draft.wallet?.maxWalletBalanceKobo !==
+                  settings?.wallet?.maxWalletBalanceKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.wallet.maxWalletBalanceKobo}
+                  valueKobo={draft.wallet?.maxWalletBalanceKobo}
                   onChange={(v) => updateWallet("maxWalletBalanceKobo", v)}
                   min={0}
                   placeholder="0 = unlimited"
@@ -819,34 +1218,44 @@ export function AdminSettingsContent() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   Fee Preview
                 </p>
-                {[50_000, 100_000, 500_000, 1_000_000, 5_000_000].map((amount) => {
-                  const pctFee = Math.round(amount * (draft.wallet.withdrawFeePercent / 100));
-                  const total = Math.min(pctFee + draft.wallet.withdrawFeeFlatKobo, draft.wallet.withdrawFeeCapKobo);
-                  const net = amount - total;
-                  return (
-                    <div key={amount} className="flex items-center gap-2 text-xs">
-                      <span className="w-24 text-muted-foreground font-mono">
-                        ₦{koboToNaira(amount)}
-                      </span>
-                      <span className="text-muted-foreground">→</span>
-                      <span className="text-red-600 dark:text-red-400 font-mono w-20">
-                        −₦{koboToNaira(total)}
-                      </span>
-                      <span className="text-muted-foreground">net</span>
-                      <span className="font-mono font-semibold text-foreground">
-                        ₦{koboToNaira(net)}
-                      </span>
-                    </div>
-                  );
-                })}
+                {[50_000, 100_000, 500_000, 1_000_000, 5_000_000].map(
+                  (amount) => {
+                    const pctFee = Math.round(
+                      amount * (draft.wallet?.withdrawFeePercent / 100),
+                    );
+                    const total = Math.min(
+                      pctFee + draft.wallet?.withdrawFeeFlatKobo,
+                      draft.wallet?.withdrawFeeCapKobo,
+                    );
+                    const net = amount - total;
+                    return (
+                      <div
+                        key={amount}
+                        className="flex items-center gap-2 text-xs"
+                      >
+                        <span className="w-24 text-muted-foreground font-mono">
+                          â‚¦{koboToNaira(amount)}
+                        </span>
+                        <span className="text-muted-foreground">â†’</span>
+                        <span className="text-red-600 dark:text-red-400 font-mono w-20">
+                          âˆ’â‚¦{koboToNaira(total)}
+                        </span>
+                        <span className="text-muted-foreground">net</span>
+                        <span className="font-mono font-semibold text-foreground">
+                          â‚¦{koboToNaira(net)}
+                        </span>
+                      </div>
+                    );
+                  },
+                )}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {/* CIRCLES TAB                                                         */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === "circles" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -866,10 +1275,13 @@ export function AdminSettingsContent() {
                 label="Max Active Circles Per User"
                 description="Maximum number of active circles a single user can be a member of simultaneously."
                 tip="Applies across both created and joined circles. Prevents gaming via mass circle membership."
-                changed={draft.circles.maxActiveCirclesPerUser !== settings?.circles.maxActiveCirclesPerUser}
+                changed={
+                  draft.circles?.maxActiveCirclesPerUser !==
+                  settings?.circles?.maxActiveCirclesPerUser
+                }
               >
                 <NumberInput
-                  value={draft.circles.maxActiveCirclesPerUser}
+                  value={draft.circles?.maxActiveCirclesPerUser}
                   onChange={(v) => updateCircles("maxActiveCirclesPerUser", v)}
                   min={1}
                   max={100}
@@ -879,10 +1291,13 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Minimum Contribution Amount"
                 description="The floor contribution any circle can be configured with."
-                changed={draft.circles.minContributionKobo !== settings?.circles.minContributionKobo}
+                changed={
+                  draft.circles?.minContributionKobo !==
+                  settings?.circles?.minContributionKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.circles.minContributionKobo}
+                  valueKobo={draft.circles?.minContributionKobo}
                   onChange={(v) => updateCircles("minContributionKobo", v)}
                   min={1000}
                 />
@@ -891,10 +1306,13 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Maximum Contribution Amount"
                 description="The ceiling contribution any circle can be configured with."
-                changed={draft.circles.maxContributionKobo !== settings?.circles.maxContributionKobo}
+                changed={
+                  draft.circles?.maxContributionKobo !==
+                  settings?.circles?.maxContributionKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.circles.maxContributionKobo}
+                  valueKobo={draft.circles?.maxContributionKobo}
                   onChange={(v) => updateCircles("maxContributionKobo", v)}
                   min={100000}
                 />
@@ -903,10 +1321,13 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Minimum Circle Members"
                 description="The smallest number of members a circle must have (excluding admin)."
-                changed={draft.circles.minCircleMembers !== settings?.circles.minCircleMembers}
+                changed={
+                  draft.circles?.minCircleMembers !==
+                  settings?.circles?.minCircleMembers
+                }
               >
                 <NumberInput
-                  value={draft.circles.minCircleMembers}
+                  value={draft.circles?.minCircleMembers}
                   onChange={(v) => updateCircles("minCircleMembers", v)}
                   min={2}
                   max={10}
@@ -916,10 +1337,13 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Maximum Circle Members"
                 description="The largest number of members allowed in any circle."
-                changed={draft.circles.maxCircleMembers !== settings?.circles.maxCircleMembers}
+                changed={
+                  draft.circles?.maxCircleMembers !==
+                  settings?.circles?.maxCircleMembers
+                }
               >
                 <NumberInput
-                  value={draft.circles.maxCircleMembers}
+                  value={draft.circles?.maxCircleMembers}
                   onChange={(v) => updateCircles("maxCircleMembers", v)}
                   min={3}
                   max={500}
@@ -930,10 +1354,13 @@ export function AdminSettingsContent() {
                 label="Circle Creation Fee"
                 description="Platform fee charged when creating a new circle, as a % of the contribution amount."
                 tip="Deducted from the admin's wallet at circle creation. Covers platform costs and reduces spam."
-                changed={draft.circles.creationFeePercent !== settings?.circles.creationFeePercent}
+                changed={
+                  draft.circles?.creationFeePercent !==
+                  settings?.circles?.creationFeePercent
+                }
               >
                 <PercentInput
-                  value={draft.circles.creationFeePercent}
+                  value={draft.circles?.creationFeePercent}
                   onChange={(v) => updateCircles("creationFeePercent", v)}
                   min={0}
                   max={25}
@@ -944,11 +1371,14 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Late Payment Penalty"
                 description="Additional fee applied when a member pays a contribution after the grace period."
-                tip="Applied on top of the regular contribution amount. e.g. ₦5,000 contribution + 10% = ₦5,500 total."
-                changed={draft.circles.latePenaltyPercent !== settings?.circles.latePenaltyPercent}
+                tip="Applied on top of the regular contribution amount. e.g. â‚¦5,000 contribution + 10% = â‚¦5,500 total."
+                changed={
+                  draft.circles?.latePenaltyPercent !==
+                  settings?.circles?.latePenaltyPercent
+                }
               >
                 <PercentInput
-                  value={draft.circles.latePenaltyPercent}
+                  value={draft.circles?.latePenaltyPercent}
                   onChange={(v) => updateCircles("latePenaltyPercent", v)}
                   min={0}
                   max={50}
@@ -959,11 +1389,14 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Grace Period"
                 description="Number of hours after a due date before a contribution is marked as 'late'."
-                tip="Status transitions: pending → late (after grace period). No penalty until this window passes."
-                changed={draft.circles.gracePeriodHours !== settings?.circles.gracePeriodHours}
+                tip="Status transitions: pending â†’ late (after grace period). No penalty until this window passes."
+                changed={
+                  draft.circles?.gracePeriodHours !==
+                  settings?.circles?.gracePeriodHours
+                }
               >
                 <NumberInput
-                  value={draft.circles.gracePeriodHours}
+                  value={draft.circles?.gracePeriodHours}
                   onChange={(v) => updateCircles("gracePeriodHours", v)}
                   min={1}
                   max={168}
@@ -974,11 +1407,14 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Auto-Removal After Consecutive Missed Payments"
                 description="Number of consecutive missed contribution cycles before a member is automatically removed."
-                tip="Status machine: late → missed (after additional days). Once this limit is hit, the member is ejected and notified."
-                changed={draft.circles.consecutiveMissedLimit !== settings?.circles.consecutiveMissedLimit}
+                tip="Status machine: late â†’ missed (after additional days). Once this limit is hit, the member is ejected and notified."
+                changed={
+                  draft.circles?.consecutiveMissedLimit !==
+                  settings?.circles?.consecutiveMissedLimit
+                }
               >
                 <NumberInput
-                  value={draft.circles.consecutiveMissedLimit}
+                  value={draft.circles?.consecutiveMissedLimit}
                   onChange={(v) => updateCircles("consecutiveMissedLimit", v)}
                   min={1}
                   max={10}
@@ -990,11 +1426,16 @@ export function AdminSettingsContent() {
                 label="Bid Window Closes Before Payout"
                 description="Hours before the next payout date when bidding closes for bidding-order circles."
                 tip="Prevents last-minute bids that disrupt payout processing. Winner is resolved at close."
-                changed={draft.circles.bidCloseHoursBeforePayout !== settings?.circles.bidCloseHoursBeforePayout}
+                changed={
+                  draft.circles?.bidCloseHoursBeforePayout !==
+                  settings?.circles?.bidCloseHoursBeforePayout
+                }
               >
                 <NumberInput
-                  value={draft.circles.bidCloseHoursBeforePayout}
-                  onChange={(v) => updateCircles("bidCloseHoursBeforePayout", v)}
+                  value={draft.circles?.bidCloseHoursBeforePayout}
+                  onChange={(v) =>
+                    updateCircles("bidCloseHoursBeforePayout", v)
+                  }
                   min={1}
                   max={72}
                   unit="hours"
@@ -1004,9 +1445,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {/* PAYOUTS TAB                                                         */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === "payouts" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1025,11 +1466,14 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Platform Payout Fee"
                 description="Platform fee taken from each circle payout as a percentage of the gross pool amount."
-                tip="Formula: net_payout = (contribution × members) − (pool × fee%). This is the primary revenue mechanism."
-                changed={draft.payouts.platformPayoutFeePercent !== settings?.payouts.platformPayoutFeePercent}
+                tip="Formula: net_payout = (contribution Ã— members) âˆ’ (pool Ã— fee%). This is the primary revenue mechanism."
+                changed={
+                  draft.payouts?.platformPayoutFeePercent !==
+                  settings?.payouts?.platformPayoutFeePercent
+                }
               >
                 <PercentInput
-                  value={draft.payouts.platformPayoutFeePercent}
+                  value={draft.payouts?.platformPayoutFeePercent}
                   onChange={(v) => updatePayouts("platformPayoutFeePercent", v)}
                   min={0}
                   max={10}
@@ -1041,10 +1485,13 @@ export function AdminSettingsContent() {
                 label="KYC Required Above (Payout)"
                 description="Payout amount above which KYC verification is required before processing."
                 tip="Regulatory compliance threshold. Payouts above this are blocked until the user completes identity verification."
-                changed={draft.payouts.kycRequiredAboveKobo !== settings?.payouts.kycRequiredAboveKobo}
+                changed={
+                  draft.payouts?.kycRequiredAboveKobo !==
+                  settings?.payouts?.kycRequiredAboveKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.payouts.kycRequiredAboveKobo}
+                  valueKobo={draft.payouts?.kycRequiredAboveKobo}
                   onChange={(v) => updatePayouts("kycRequiredAboveKobo", v)}
                   min={0}
                 />
@@ -1059,10 +1506,13 @@ export function AdminSettingsContent() {
                 label="Referral Bonus Amount"
                 description="Amount credited to the referrer's wallet when a referee qualifies."
                 tip="A user qualifies as a referee when they make their first deposit of at least the minimum qualifying amount."
-                changed={draft.payouts.referralBonusKobo !== settings?.payouts.referralBonusKobo}
+                changed={
+                  draft.payouts?.referralBonusKobo !==
+                  settings?.payouts?.referralBonusKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.payouts.referralBonusKobo}
+                  valueKobo={draft.payouts?.referralBonusKobo}
                   onChange={(v) => updatePayouts("referralBonusKobo", v)}
                   min={0}
                 />
@@ -1071,10 +1521,13 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Referral Qualifying Deposit"
                 description="The minimum first deposit amount a referee must make for the referrer to earn the bonus."
-                changed={draft.payouts.referralMinDepositKobo !== settings?.payouts.referralMinDepositKobo}
+                changed={
+                  draft.payouts?.referralMinDepositKobo !==
+                  settings?.payouts?.referralMinDepositKobo
+                }
               >
                 <NairaInput
-                  valueKobo={draft.payouts.referralMinDepositKobo}
+                  valueKobo={draft.payouts?.referralMinDepositKobo}
                   onChange={(v) => updatePayouts("referralMinDepositKobo", v)}
                   min={10000}
                 />
@@ -1084,10 +1537,13 @@ export function AdminSettingsContent() {
                 label="Referral Monthly Cap Per Referrer"
                 description="Maximum number of referral bonuses a single user can earn within a calendar month."
                 tip="Fraud prevention. Prevents mass fake-account referral farming."
-                changed={draft.payouts.referralMonthlyLimit !== settings?.payouts.referralMonthlyLimit}
+                changed={
+                  draft.payouts?.referralMonthlyLimit !==
+                  settings?.payouts?.referralMonthlyLimit
+                }
               >
                 <NumberInput
-                  value={draft.payouts.referralMonthlyLimit}
+                  value={draft.payouts?.referralMonthlyLimit}
                   onChange={(v) => updatePayouts("referralMonthlyLimit", v)}
                   min={1}
                   max={500}
@@ -1095,26 +1551,56 @@ export function AdminSettingsContent() {
                 />
               </SettingRow>
 
+              <Separator className="my-2" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide py-2">
+                Settlement Policy
+              </p>
+
+              <SettingRow
+                label="Payout Settlement Period"
+                description="Number of hours the system withholds payouts from a member's available wallet balance before settling."
+                tip="During this period, the payout is held in 'pending' status. After the period expires, it's credited to available balance. Allows time for transaction verification and fraud prevention."
+                changed={
+                  draft.payouts?.settlementPeriodHours !==
+                  settings?.payouts?.settlementPeriodHours
+                }
+              >
+                <NumberInput
+                  value={draft.payouts?.settlementPeriodHours}
+                  onChange={(v) => updatePayouts("settlementPeriodHours", v)}
+                  min={0}
+                  max={720}
+                  unit="hours"
+                />
+              </SettingRow>
+
               {/* Revenue preview */}
               <div className="mt-4 rounded-xl bg-muted/40 border border-border p-4 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Fee Preview — Payout Scenarios
+                  Fee Preview â€” Payout Scenarios
                 </p>
                 {[
-                  { label: "5 × ₦10k", pool: 5_000_000 },
-                  { label: "10 × ₦50k", pool: 50_000_000 },
-                  { label: "20 × ₦100k", pool: 200_000_000 },
+                  { label: "5 Ã— â‚¦10k", pool: 5_000_000 },
+                  { label: "10 Ã— â‚¦50k", pool: 50_000_000 },
+                  { label: "20 Ã— â‚¦100k", pool: 200_000_000 },
                 ].map(({ label, pool }) => {
-                  const fee = Math.round(pool * (draft.payouts.platformPayoutFeePercent / 100));
+                  const fee = Math.round(
+                    pool * (draft.payouts?.platformPayoutFeePercent / 100),
+                  );
                   return (
-                    <div key={label} className="flex items-center gap-2 text-xs">
-                      <span className="w-28 text-muted-foreground">{label} pool</span>
+                    <div
+                      key={label}
+                      className="flex items-center gap-2 text-xs"
+                    >
+                      <span className="w-28 text-muted-foreground">
+                        {label} pool
+                      </span>
                       <span className="text-red-600 dark:text-red-400 font-mono w-20">
-                        −₦{koboToNaira(fee)} fee
+                        âˆ’â‚¦{koboToNaira(fee)} fee
                       </span>
                       <span className="text-muted-foreground">net</span>
                       <span className="font-mono font-semibold text-foreground">
-                        ₦{koboToNaira(pool - fee)}
+                        â‚¦{koboToNaira(pool - fee)}
                       </span>
                     </div>
                   );
@@ -1124,9 +1610,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {/* INVESTMENTS TAB                                                     */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === "investments" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1145,7 +1631,7 @@ export function AdminSettingsContent() {
               <SettingRow
                 label="Platform Interest Fee"
                 description="Percentage of earned interest taken as a platform fee when a user withdraws a matured investment."
-                tip="Applied to interest only, not principal. Formula: platform_fee = interest × %. User keeps the rest."
+                tip="Applied to interest only, not principal. Formula: platform_fee = interest Ã— %. User keeps the rest."
                 changed={
                   draft.investments.platformInterestFeePercent !==
                   settings?.investments.platformInterestFeePercent
@@ -1153,7 +1639,9 @@ export function AdminSettingsContent() {
               >
                 <PercentInput
                   value={draft.investments.platformInterestFeePercent}
-                  onChange={(v) => updateInvestments("platformInterestFeePercent", v)}
+                  onChange={(v) =>
+                    updateInvestments("platformInterestFeePercent", v)
+                  }
                   min={0}
                   max={20}
                   step={0.1}
@@ -1171,34 +1659,61 @@ export function AdminSettingsContent() {
               >
                 <Switch
                   checked={draft.investments.earlyWithdrawalEnabled}
-                  onCheckedChange={(v) => updateInvestments("earlyWithdrawalEnabled", v)}
+                  onCheckedChange={(v) =>
+                    updateInvestments("earlyWithdrawalEnabled", v)
+                  }
                 />
               </SettingRow>
 
               {/* Investment fee preview */}
               <div className="mt-4 rounded-xl bg-muted/40 border border-border p-4 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Fee Preview — Interest Earned
+                  Fee Preview â€” Interest Earned
                 </p>
                 {[
-                  { label: "₦50k @ 18.5%", principal: 5_000_000, yield: 18.5, days: 30 },
-                  { label: "₦100k @ 22%", principal: 10_000_000, yield: 22, days: 90 },
-                  { label: "₦500k @ 26.5%", principal: 50_000_000, yield: 26.5, days: 180 },
+                  {
+                    label: "â‚¦50k @ 18.5%",
+                    principal: 5_000_000,
+                    yield: 18.5,
+                    days: 30,
+                  },
+                  {
+                    label: "â‚¦100k @ 22%",
+                    principal: 10_000_000,
+                    yield: 22,
+                    days: 90,
+                  },
+                  {
+                    label: "â‚¦500k @ 26.5%",
+                    principal: 50_000_000,
+                    yield: 26.5,
+                    days: 180,
+                  },
                 ].map(({ label, principal, yield: y, days }) => {
-                  const interest = Math.round((principal * (y / 100) * days) / 365);
-                  const fee = Math.round(interest * (draft.investments.platformInterestFeePercent / 100));
+                  const interest = Math.round(
+                    (principal * (y / 100) * days) / 365,
+                  );
+                  const fee = Math.round(
+                    interest *
+                      (draft.investments.platformInterestFeePercent / 100),
+                  );
                   const net = interest - fee;
                   return (
-                    <div key={label} className="flex items-center gap-2 text-xs">
-                      <span className="w-28 text-muted-foreground">{label}</span>
+                    <div
+                      key={label}
+                      className="flex items-center gap-2 text-xs"
+                    >
+                      <span className="w-28 text-muted-foreground">
+                        {label}
+                      </span>
                       <span className="text-muted-foreground font-mono w-20">
-                        +₦{koboToNaira(interest)}
+                        +â‚¦{koboToNaira(interest)}
                       </span>
                       <span className="text-red-600 dark:text-red-400 font-mono w-20">
-                        −₦{koboToNaira(fee)} fee
+                        âˆ’â‚¦{koboToNaira(fee)} fee
                       </span>
                       <span className="font-mono font-semibold text-foreground">
-                        ₦{koboToNaira(net)} net
+                        â‚¦{koboToNaira(net)} net
                       </span>
                     </div>
                   );
@@ -1208,9 +1723,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {/* TRUST SCORE TAB                                                     */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === "trustScore" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1227,10 +1742,10 @@ export function AdminSettingsContent() {
             </CardHeader>
             <CardContent className="pt-2">
               <div className="mb-4 rounded-xl bg-muted/30 border border-border p-4 text-xs text-muted-foreground leading-relaxed">
-                <strong className="text-foreground">Formula:</strong>{" "}
-                score = 100 + (on_time × weight) + (late × weight) + (missed × weight),
-                clamped to [0, 100].
-                Weights for late and missed should be negative.
+                <strong className="text-foreground">Formula:</strong> score =
+                100 + (on_time Ã— weight) + (late Ã— weight) + (missed Ã— weight),
+                clamped to [0, 100]. Weights for late and missed should be
+                negative.
               </div>
 
               <SettingRow
@@ -1242,7 +1757,9 @@ export function AdminSettingsContent() {
                 }
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">+</span>
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                    +
+                  </span>
                   <NumberInput
                     value={draft.trustScore.onTimePaymentWeight}
                     onChange={(v) => updateTrustScore("onTimePaymentWeight", v)}
@@ -1255,16 +1772,21 @@ export function AdminSettingsContent() {
 
               <SettingRow
                 label="Late Payment Weight"
-                description="Points deducted from the circle's trust score for each late contribution. Enter as a positive number — it is applied as a deduction."
+                description="Points deducted from the circle's trust score for each late contribution. Enter as a positive number â€” it is applied as a deduction."
                 changed={
-                  draft.trustScore.latePaymentWeight !== settings?.trustScore.latePaymentWeight
+                  draft.trustScore.latePaymentWeight !==
+                  settings?.trustScore.latePaymentWeight
                 }
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-orange-600 dark:text-orange-400 font-semibold">−</span>
+                  <span className="text-xs text-orange-600 dark:text-orange-400 font-semibold">
+                    âˆ’
+                  </span>
                   <NumberInput
                     value={Math.abs(draft.trustScore.latePaymentWeight)}
-                    onChange={(v) => updateTrustScore("latePaymentWeight", -Math.abs(v))}
+                    onChange={(v) =>
+                      updateTrustScore("latePaymentWeight", -Math.abs(v))
+                    }
                     min={0}
                     max={50}
                     unit="pts"
@@ -1276,14 +1798,19 @@ export function AdminSettingsContent() {
                 label="Missed Payment Weight"
                 description="Points deducted for each missed (never paid) contribution. Enter as a positive number."
                 changed={
-                  draft.trustScore.missedPaymentWeight !== settings?.trustScore.missedPaymentWeight
+                  draft.trustScore.missedPaymentWeight !==
+                  settings?.trustScore.missedPaymentWeight
                 }
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-red-600 dark:text-red-400 font-semibold">−</span>
+                  <span className="text-xs text-red-600 dark:text-red-400 font-semibold">
+                    âˆ’
+                  </span>
                   <NumberInput
                     value={Math.abs(draft.trustScore.missedPaymentWeight)}
-                    onChange={(v) => updateTrustScore("missedPaymentWeight", -Math.abs(v))}
+                    onChange={(v) =>
+                      updateTrustScore("missedPaymentWeight", -Math.abs(v))
+                    }
                     min={0}
                     max={100}
                     unit="pts"
@@ -1297,9 +1824,24 @@ export function AdminSettingsContent() {
                   Score Simulation
                 </p>
                 {[
-                  { label: "Perfect circle (10 on-time)", on: 10, late: 0, missed: 0 },
-                  { label: "1 late, rest on-time (10)", on: 9, late: 1, missed: 0 },
-                  { label: "2 missed, rest on-time (8)", on: 8, late: 0, missed: 2 },
+                  {
+                    label: "Perfect circle (10 on-time)",
+                    on: 10,
+                    late: 0,
+                    missed: 0,
+                  },
+                  {
+                    label: "1 late, rest on-time (10)",
+                    on: 9,
+                    late: 1,
+                    missed: 0,
+                  },
+                  {
+                    label: "2 missed, rest on-time (8)",
+                    on: 8,
+                    late: 0,
+                    missed: 2,
+                  },
                   { label: "Struggling (5/3/2)", on: 5, late: 3, missed: 2 },
                 ].map(({ label, on, late, missed }) => {
                   const score = Math.max(
@@ -1319,18 +1861,32 @@ export function AdminSettingsContent() {
                         ? "text-amber-600 dark:text-amber-400"
                         : "text-red-600 dark:text-red-400";
                   return (
-                    <div key={label} className="flex items-center gap-3 text-xs">
-                      <span className="flex-1 text-muted-foreground">{label}</span>
+                    <div
+                      key={label}
+                      className="flex items-center gap-3 text-xs"
+                    >
+                      <span className="flex-1 text-muted-foreground">
+                        {label}
+                      </span>
                       <div className="w-32 h-1.5 rounded-full bg-muted overflow-hidden">
                         <div
                           className={cn(
                             "h-full rounded-full",
-                            score >= 80 ? "bg-emerald-500" : score >= 55 ? "bg-amber-400" : "bg-red-500",
+                            score >= 80
+                              ? "bg-emerald-500"
+                              : score >= 55
+                                ? "bg-amber-400"
+                                : "bg-red-500",
                           )}
                           style={{ width: `${score}%` }}
                         />
                       </div>
-                      <span className={cn("font-mono font-bold w-12 text-right", color)}>
+                      <span
+                        className={cn(
+                          "font-mono font-bold w-12 text-right",
+                          color,
+                        )}
+                      >
                         {score}/100
                       </span>
                     </div>
@@ -1341,9 +1897,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {/* NOTIFICATIONS TAB                                                   */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === "notifications" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1362,9 +1918,10 @@ export function AdminSettingsContent() {
               <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/30 p-4 flex items-start gap-3">
                 <InfoIcon className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
-                  Disabling a channel globally overrides all per-user preferences. SMS is the primary
-                  channel for time-sensitive alerts. Email is the fallback and receipt channel.
-                  Changes take effect immediately for all new notifications.
+                  Disabling a channel globally overrides all per-user
+                  preferences. SMS is the primary channel for time-sensitive
+                  alerts. Email is the fallback and receipt channel. Changes
+                  take effect immediately for all new notifications.
                 </p>
               </div>
 
@@ -1372,12 +1929,17 @@ export function AdminSettingsContent() {
                 label="SMS Notifications"
                 description={`Enable Termii SMS delivery for contribution reminders, late warnings, and payout alerts. Provider: ${draft.notifications.smsProviderName}.`}
                 tip="When disabled, users will only receive in-app and email notifications for time-sensitive events."
-                changed={draft.notifications.smsEnabled !== settings?.notifications.smsEnabled}
+                changed={
+                  draft.notifications.smsEnabled !==
+                  settings?.notifications.smsEnabled
+                }
               >
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={draft.notifications.smsEnabled}
-                    onCheckedChange={(v) => updateNotifications("smsEnabled", v)}
+                    onCheckedChange={(v) =>
+                      updateNotifications("smsEnabled", v)
+                    }
                   />
                   <Badge
                     variant="secondary"
@@ -1397,12 +1959,17 @@ export function AdminSettingsContent() {
                 label="Email Notifications"
                 description={`Enable Nodemailer SMTP email delivery for receipts, payout notices, and dispute updates. Provider: ${draft.notifications.emailProviderName}.`}
                 tip="Transactional emails (receipts, payout confirmations, dispute resolutions) should remain enabled."
-                changed={draft.notifications.emailEnabled !== settings?.notifications.emailEnabled}
+                changed={
+                  draft.notifications.emailEnabled !==
+                  settings?.notifications.emailEnabled
+                }
               >
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={draft.notifications.emailEnabled}
-                    onCheckedChange={(v) => updateNotifications("emailEnabled", v)}
+                    onCheckedChange={(v) =>
+                      updateNotifications("emailEnabled", v)
+                    }
                   />
                   <Badge
                     variant="secondary"
@@ -1430,8 +1997,12 @@ export function AdminSettingsContent() {
                   <div className="flex items-center gap-3 px-4 py-3">
                     <div className="size-2 rounded-full bg-emerald-500 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium">SMS — {draft.notifications.smsProviderName}</p>
-                      <p className="text-[10px] text-muted-foreground">Configured via TERMII_API_KEY env var</p>
+                      <p className="text-xs font-medium">
+                        SMS â€” {draft.notifications.smsProviderName}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Configured via TERMII_API_KEY env var
+                      </p>
                     </div>
                     <Button
                       variant="outline"
@@ -1439,7 +2010,10 @@ export function AdminSettingsContent() {
                       className="h-7 text-xs gap-1.5"
                       asChild
                     >
-                      <a href="/admin/settings" onClick={(e) => e.preventDefault()}>
+                      <a
+                        href="/admin/settings"
+                        onClick={(e) => e.preventDefault()}
+                      >
                         Test SMS
                       </a>
                     </Button>
@@ -1447,8 +2021,12 @@ export function AdminSettingsContent() {
                   <div className="flex items-center gap-3 px-4 py-3">
                     <div className="size-2 rounded-full bg-emerald-500 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium">Email — {draft.notifications.emailProviderName}</p>
-                      <p className="text-[10px] text-muted-foreground">Configured via NODEMAILER_* env vars</p>
+                      <p className="text-xs font-medium">
+                        Email â€” {draft.notifications.emailProviderName}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Configured via NODEMAILER_* env vars
+                      </p>
                     </div>
                     <Button
                       variant="outline"
@@ -1456,10 +2034,16 @@ export function AdminSettingsContent() {
                       className="h-7 text-xs gap-1.5"
                       onClick={async () => {
                         try {
-                          const res = await fetch("/api/admin/email-health", { method: "POST" });
+                          const res = await fetch("/api/admin/email-health", {
+                            method: "POST",
+                          });
                           const j = await res.json();
-                          if (j.success?.data?.sent) toast.success(`Test email sent to ${j.data?.to}`);
-                          else toast.error("Email test failed. Check SMTP config.");
+                          if (j.success?.data?.sent)
+                            toast.success(`Test email sent to ${j.data?.to}`);
+                          else
+                            toast.error(
+                              "Email test failed. Check SMTP config.",
+                            );
                         } catch {
                           toast.error("Failed to reach email health endpoint.");
                         }
@@ -1474,9 +2058,9 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {/* MAINTENANCE TAB                                                     */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === "maintenance" && (
           <Card>
             <CardHeader className="border-b pb-4">
@@ -1500,8 +2084,8 @@ export function AdminSettingsContent() {
                       Maintenance mode is currently ACTIVE
                     </p>
                     <p className="text-xs text-red-600 dark:text-red-400/80 mt-0.5">
-                      All non-admin users are seeing the maintenance message below.
-                      Save changes to disable.
+                      All non-admin users are seeing the maintenance message
+                      below. Save changes to disable.
                     </p>
                   </div>
                 </div>
@@ -1512,13 +2096,16 @@ export function AdminSettingsContent() {
                 description="When enabled, all regular users will see the maintenance message and cannot access the app. Admin users retain full access."
                 tip="Use this during deployments, database migrations, or emergency fixes. Toggle off and save to restore access."
                 changed={
-                  draft.maintenance.maintenanceMode !== settings?.maintenance.maintenanceMode
+                  draft.maintenance.maintenanceMode !==
+                  settings?.maintenance.maintenanceMode
                 }
               >
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={draft.maintenance.maintenanceMode}
-                    onCheckedChange={(v) => updateMaintenance("maintenanceMode", v)}
+                    onCheckedChange={(v) =>
+                      updateMaintenance("maintenanceMode", v)
+                    }
                   />
                   <Badge
                     className={cn(
@@ -1538,12 +2125,15 @@ export function AdminSettingsContent() {
                 description="When maintenance mode is on, this allows admin-role users to continue using the platform normally."
                 tip="Keep this enabled unless you need to take down everything including the admin panel."
                 changed={
-                  draft.maintenance.allowedAdminAccess !== settings?.maintenance.allowedAdminAccess
+                  draft.maintenance.allowedAdminAccess !==
+                  settings?.maintenance.allowedAdminAccess
                 }
               >
                 <Switch
                   checked={draft.maintenance.allowedAdminAccess}
-                  onCheckedChange={(v) => updateMaintenance("allowedAdminAccess", v)}
+                  onCheckedChange={(v) =>
+                    updateMaintenance("allowedAdminAccess", v)
+                  }
                 />
               </SettingRow>
 
@@ -1590,20 +2180,20 @@ export function AdminSettingsContent() {
           </Card>
         )}
 
-        {/* ── Audit log ── */}
+        {/* â”€â”€ Audit log â”€â”€ */}
         <AuditLogPanel />
-
       </div>
 
-      {/* ── Reset confirmation dialog ── */}
+      {/* â”€â”€ Reset confirmation dialog â”€â”€ */}
       <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reset All Settings to Defaults?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will restore every platform setting — fees, limits, penalties, trust
-              score weights, and notification flags — to the factory defaults. Any custom
-              configuration will be permanently overwritten. This action is logged.
+              This will restore every platform setting â€” fees, limits,
+              penalties, trust score weights, and notification flags â€” to the
+              factory defaults. Any custom configuration will be permanently
+              overwritten. This action is logged.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1616,7 +2206,7 @@ export function AdminSettingsContent() {
               {isResetting ? (
                 <>
                   <RefreshCwIcon className="size-3.5 mr-1.5 animate-spin" />
-                  Resetting…
+                  Resettingâ€¦
                 </>
               ) : (
                 "Yes, Reset All"
@@ -1628,3 +2218,4 @@ export function AdminSettingsContent() {
     </div>
   );
 }
+

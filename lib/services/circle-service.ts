@@ -1,3 +1,4 @@
+import { debitWallet, creditWallet, addPending, confirmPending } from "@/lib/services/wallet-service";
 /**
  * Circle Service
  * Business logic for circle lifecycle: create, join, contribute, payout,
@@ -20,6 +21,7 @@
 
 import { adminDb, admin } from "@/lib/firebase/admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 import { MAX_ACTIVE_CIRCLES } from "@/lib/constants";
 import { sendNotification } from "@/lib/services/notification-service";
 import * as smsService from "@/lib/services/sms-service";
@@ -29,7 +31,7 @@ import {
   sendLatePaymentWarning,
   sendContributionReceipt,
 } from "@/lib/services/circle-notification-helpers";
-import { debitWallet, creditWallet } from "@/lib/services/wallet-service";
+// wallet helpers (debit, credit, pending) — single import above
 import {
   recordOnTimePayment,
   recordLatePayment,
@@ -352,7 +354,20 @@ export class CircleService {
 
   async processPayouts(): Promise<void> {
     const now = Timestamp.now();
-
+    // Load platform settings once to get settlement period
+    let settlementHours = DEFAULT_PLATFORM_SETTINGS.payouts.settlementPeriodHours;
+    try {
+      const settingsSnap = await adminDb
+        .collection("admin_config")
+        .doc("platform_settings")
+        .get();
+      if (settingsSnap.exists) {
+        settlementHours =
+          (settingsSnap.data()?.payouts?.settlementPeriodHours as number) ?? settlementHours;
+      }
+    } catch (err) {
+      console.warn("Failed to read platform settings, using defaults", err);
+    }
     const snap = await this.circlesCol
       .where("status", "==", "active")
       .where("nextPayoutDate", "<=", now)
@@ -360,14 +375,21 @@ export class CircleService {
 
     for (const circleDoc of snap.docs) {
       try {
-        await this.processSinglePayout(circleDoc);
+        await this.processSinglePayout(circleDoc, settlementHours);
       } catch (err) {
         console.error(`[circle-service] Payout failed for circle ${circleDoc.id}:`, err);
       }
     }
+
+    // After processing payouts, attempt to settle any pending payout transactions
+    try {
+      await this.settlePendingPayouts(settlementHours);
+    } catch (err) {
+      console.error("[circle-service] Failed to settle pending payouts:", err);
+    }
   }
 
-  private async processSinglePayout(circleDoc: admin.firestore.QueryDocumentSnapshot): Promise<void> {
+  private async processSinglePayout(circleDoc: admin.firestore.QueryDocumentSnapshot, settlementHours: number): Promise<void> {
     const circle = circleDoc.data() as Circle;
 
     const paidSnap = await this.contributionsCol
@@ -438,11 +460,34 @@ export class CircleService {
         }
       }
 
-      await creditWallet(
-        tx, recipientId, netPayout, "payout",
-        `Payout from "${circle.name}" — Cycle ${circle.currentCycle}`,
-        { circleId: circle.id }
-      );
+      // Respect settlement period: either credit to available balance immediately
+      // or place into wallet.pending and create a pending transaction to be
+      // settled later by the cron job.
+      if (settlementHours > 0) {
+        await addPending(tx, recipientId, netPayout);
+        const pendingTxRef = adminDb.collection("transactions").doc();
+        const pendingTx: Omit<any, "id"> = {
+          userId: recipientId,
+          circleId: circle.id,
+          type: "payout",
+          direction: "credit",
+          amount: netPayout,
+          fee: 0,
+          netAmount: netPayout,
+          status: "pending",
+          reference: pendingTxRef.id,
+          description: `Pending payout from "${circle.name}" — Cycle ${circle.currentCycle}`,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        tx.set(pendingTxRef, pendingTx);
+      } else {
+        await creditWallet(
+          tx, recipientId, netPayout, "payout",
+          `Payout from "${circle.name}" — Cycle ${circle.currentCycle}`,
+          { circleId: circle.id }
+        );
+      }
 
       const nextCycle = circle.currentCycle + 1;
       const isComplete = nextCycle > circle.totalCycles;
@@ -461,6 +506,64 @@ export class CircleService {
 
       void sendPayoutNotification(recipientId, recipient, circle.name, circle.id, netPayout);
     });
+  }
+
+  // Settles pending payouts older than `settlementHours` by moving them from
+  // wallet.pending -> wallet.available and marking their transaction success.
+  private async settlePendingPayouts(settlementHours: number): Promise<void> {
+    if (!settlementHours || settlementHours <= 0) return;
+
+    const cutoff = new Date(Date.now() - settlementHours * 60 * 60 * 1000);
+    const cutoffTs = Timestamp.fromDate(cutoff);
+
+    const snap = await this.transactionsCol
+      .where("type", "==", "payout")
+      .where("status", "==", "pending")
+      .where("createdAt", "<=", cutoffTs)
+      .get();
+
+    for (const txDoc of snap.docs) {
+      try {
+        await adminDb.runTransaction(async (tx) => {
+          const data = txDoc.data() as any;
+          const userId = data.userId as string;
+          const amount = data.amount as number;
+          if (!userId || !amount) return;
+
+          // Move pending -> available
+          await confirmPending(tx, userId, amount);
+
+          // Mark transaction as success
+          tx.update(txDoc.ref, {
+            status: "success",
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+
+          // Notify user about settled payout (fetch circle and user data inside tx)
+          const userSnap = await tx.get(this.usersCol.doc(userId));
+          const circleSnap = data.circleId ? await tx.get(this.circlesCol.doc(data.circleId)) : null;
+          const user = userSnap.exists ? (userSnap.data() as User) : null;
+          const circle = circleSnap && circleSnap.exists ? (circleSnap.data() as Circle) : null;
+          if (user) {
+            void sendPayoutNotification(
+              userId,
+              user,
+              circle ? circle.name : (data.circleId as string) || "",
+              (data.circleId as string) || "",
+              amount,
+              {
+                grossPayoutKobo: amount,
+                platformFeeKobo: 0,
+                transactionReference: txDoc.id,
+                payoutDate: new Date(),
+              }
+            );
+          }
+        });
+      } catch (err) {
+        console.error(`[circle-service] Failed to settle pending tx ${txDoc.id}:`, err);
+      }
+    }
   }
 
   // ─── Send Reminders (cron) ─────────────────────────────────────────────────
