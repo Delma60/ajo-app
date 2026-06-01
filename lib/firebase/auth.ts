@@ -12,6 +12,9 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 import type { User as AppUser } from "@/lib/types/user";
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { SESSION_COOKIE } from "../constants";
+import { NextRequest } from "next/server";
 
 
 function generateReferralCode(uid: string): string {

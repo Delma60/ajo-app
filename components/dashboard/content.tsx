@@ -118,6 +118,8 @@ export function DashboardContent() {
   const [walletLoading, setWalletLoading] = useState(true);
   const [circlesLoading, setCirclesLoading] = useState(true);
   const [txLoading, setTxLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [activeEventsCount, setActiveEventsCount] = useState<number | null>(null);
 
   // Real-time wallet listener
   useEffect(() => {
@@ -194,6 +196,25 @@ export function DashboardContent() {
       }
     };
     fetchTx();
+  }, [firebaseUser]);
+
+  // Fetch public events for banner
+  useEffect(() => {
+    if (!firebaseUser) return;
+    const fetchEvents = async () => {
+      try {
+        const response = await fetch("/api/events");
+        if (!response.ok) throw new Error("Failed to load events");
+        const payload = await response.json();
+        setActiveEventsCount(Array.isArray(payload.data) ? payload.data.length : 0);
+      } catch {
+        setActiveEventsCount(0);
+      } finally {
+        setEventsLoading(false);
+      }
+    };
+
+    fetchEvents();
   }, [firebaseUser]);
 
   const firstName = appUser?.name?.split(" ")[0] ?? "there";
@@ -288,6 +309,34 @@ export function DashboardContent() {
               <div className="flex gap-2 mt-4">
                 <Button size="sm" asChild>
                   <Link href="/circles/create">
+
+          {/* Rewards banner */}
+          <Card className="border-emerald-200 bg-emerald-50">
+            <CardContent className="flex flex-col gap-3 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">
+                  Rewards & Events
+                </p>
+                <p className="text-sm text-emerald-700/90">
+                  {eventsLoading
+                    ? "Checking active reward events..."
+                    : activeEventsCount === null
+                    ? "Explore rewards and badges"
+                    : activeEventsCount > 0
+                    ? `${activeEventsCount} active reward event${activeEventsCount === 1 ? "" : "s"}`
+                    : "No active reward events currently"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className="rounded-full bg-emerald-100 text-emerald-700">
+                  {eventsLoading ? "..." : activeEventsCount ?? "0"}
+                </Badge>
+                <Button size="sm" asChild>
+                  <Link href="/rewards">View rewards</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
                     <Plus className="size-3.5" />
                     Create Circle
                   </Link>

@@ -1,6 +1,6 @@
 # AjoSave — Rotational Savings Platform
 
-A fullstack Next.js 15 application for community-based rotational savings (Ajo/Esusu). Members join circles, contribute on a schedule, and receive pooled payouts on their turn.
+A fullstack Next.js 16 application for community-based rotational savings (Ajo/Esusu). Members join circles, contribute on a schedule, and receive pooled payouts on their turn.
 
 ---
 
@@ -8,7 +8,7 @@ A fullstack Next.js 15 application for community-based rotational savings (Ajo/E
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 15 (App Router, TypeScript) |
+| Framework | Next.js 16 (App Router, TypeScript) |
 | Auth & Database | Firebase (Auth, Firestore, Storage) |
 | UI Components | Shadcn/ui + Tailwind CSS 4 |
 | Global State | Zustand |
@@ -17,7 +17,7 @@ A fullstack Next.js 15 application for community-based rotational savings (Ajo/E
 | Animations | Framer Motion |
 | Payments | Flutterwave |
 | Email | Nodemailer |
-| SMS | Termii (recommended) or Twilio |
+| SMS | Termii |
 | Charts | Recharts |
 | Icons | Lucide React |
 | Toasts | Sonner |
@@ -60,7 +60,11 @@ FLUTTERWAVE_SECRET_KEY=
 FLUTTERWAVE_ENCRYPTION_KEY=
 
 # ── Nodemailer ────────────────────────────────────────────────────────────────────
-Nodemailer_API_KEY=
+NODEMAILER_HOST=
+NODEMAILER_PORT=
+NODEMAILER_USER=
+NODEMAILER_PASS=
+NODEMAILER_FROM=
 
 # ── Termii (SMS) ──────────────────────────────────────────────────────────────
 TERMII_API_KEY=
@@ -161,6 +165,7 @@ service cloud.firestore {
 
 ```
 app/
+│   ├── page.tsx                      # public landing page
 │   ├── (auth)/
 │   │   ├── login/page.tsx
 │   │   └── register/page.tsx
@@ -188,6 +193,18 @@ app/
 │   │       ├── transactions/page.tsx
 │   │       └── disputes/page.tsx       # flagged circles and member disputes
 │   ├── api/
+│   │   ├── admin/
+│   │   │   ├── analytics/
+│   │   │   ├── circles/
+│   │   │   ├── disputes/
+│   │   │   ├── email-health/
+│   │   │   ├── investments/
+│   │   │   ├── notifications/
+│   │   │   ├── server-ip/
+│   │   │   ├── settings/
+│   │   │   ├── stats/
+│   │   │   ├── transactions/
+│   │   │   └── users/
 │   │   ├── auth/session/route.ts       # set/clear session cookie
 │   │   ├── circles/
 │   │   │   ├── route.ts                # GET list, POST create

@@ -18,6 +18,7 @@ import {
   Bell,
   TrendingUp,
   Activity,
+  Sparkles,
   Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -75,6 +76,11 @@ const NAV_GROUPS = [
         icon: ArrowLeftRight,
         label: "Transactions",
         href: "/admin/transactions",
+      },
+      {
+        icon: Sparkles,
+        label: "Events",
+        href: "/admin/events",
       },
       {
         icon: TrendingUp,
