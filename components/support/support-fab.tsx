@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import * as React from "react"
-import { Headphones } from "lucide-react"
+import Link from "next/link";
+import * as React from "react";
+import { Headphones } from "lucide-react";
 
 export default function SupportFab() {
   return (
@@ -14,5 +14,5 @@ export default function SupportFab() {
       <Headphones className="mr-2" />
       <span className="hidden sm:inline-block font-medium">Support</span>
     </Link>
-  )
+  );
 }
