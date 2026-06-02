@@ -10,7 +10,9 @@ interface GoogleAuthButtonProps {
   label?: string;
 }
 
-export function GoogleAuthButton({ label = "Continue with Google" }: GoogleAuthButtonProps) {
+export function GoogleAuthButton({
+  label = "Continue with Google",
+}: GoogleAuthButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -19,6 +21,26 @@ export function GoogleAuthButton({ label = "Continue with Google" }: GoogleAuthB
     try {
       await signInWithGoogle();
       toast.success("Signed in successfully");
+      // Prefer admin landing when signing in as admin
+      try {
+        const metaCookie =
+          typeof document !== "undefined"
+            ? document.cookie
+                .split("; ")
+                .find((c) => c.trim().startsWith("__user_meta="))
+            : null;
+        if (metaCookie) {
+          const raw = metaCookie.split("=").slice(1).join("=");
+          const parsed = JSON.parse(decodeURIComponent(raw));
+          if (parsed?.role === "admin") {
+            router.push("/admin");
+            router.refresh();
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
       router.push("/dashboard");
       router.refresh();
     } catch (err: unknown) {

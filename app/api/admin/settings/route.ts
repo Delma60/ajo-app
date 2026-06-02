@@ -122,15 +122,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Deep merge: flatten section fields into dot-notation Firestore paths
+    // Deep merge: create nested section object with updates
     const firestoreUpdate: Record<string, unknown> = {
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: admin.uid,
       updatedByName: admin.name,
+      [section]: {},
     };
 
     for (const [key, value] of Object.entries(updates)) {
-      firestoreUpdate[`${section}.${key}`] = value;
+      (firestoreUpdate[section] as Record<string, unknown>)[key] = value;
     }
 
     const settingsRef = adminDb
@@ -174,57 +175,6 @@ export async function PATCH(request: NextRequest) {
     console.error("[PATCH /api/admin/settings]", err);
     return NextResponse.json(
       { success: false, data: null, error: "Failed to save settings" },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * POST /api/admin/settings/reset
- * Resets all settings to defaults.
- */
-export async function POST(request: NextRequest) {
-  const admin = await getAdminUser(request);
-  if (!admin) {
-    return NextResponse.json(
-      { success: false, data: null, error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
-
-  try {
-    const body = await request.json();
-    if (body?.action !== "reset") {
-      return NextResponse.json(
-        { success: false, data: null, error: "Invalid action" },
-        { status: 400 }
-      );
-    }
-
-    const settingsRef = adminDb
-      .collection(SETTINGS_COLLECTION)
-      .doc(SETTINGS_DOC);
-
-    await settingsRef.set({
-      ...DEFAULT_PLATFORM_SETTINGS,
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: admin.uid,
-      updatedByName: admin.name,
-      isReset: true,
-    });
-
-    // Invalidate server-side cache so new settings are picked up immediately
-    invalidateCache();
-
-    return NextResponse.json({
-      success: true,
-      data: { ...DEFAULT_PLATFORM_SETTINGS },
-      error: null,
-    });
-  } catch (err) {
-    console.error("[POST /api/admin/settings reset]", err);
-    return NextResponse.json(
-      { success: false, data: null, error: "Failed to reset settings" },
       { status: 500 }
     );
   }

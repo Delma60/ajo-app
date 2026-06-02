@@ -37,6 +37,26 @@ export function LoginForm() {
     try {
       await signInWithEmail(values.email, values.password);
       toast.success("Welcome back!");
+      // Determine role from readable meta cookie and prefer admin landing
+      try {
+        const metaCookie =
+          typeof document !== "undefined"
+            ? document.cookie
+                .split("; ")
+                .find((c) => c.trim().startsWith("__user_meta="))
+            : null;
+        if (metaCookie) {
+          const raw = metaCookie.split("=").slice(1).join("=");
+          const parsed = JSON.parse(decodeURIComponent(raw));
+          if (!searchParams.get("redirect") && parsed?.role === "admin") {
+            router.push("/admin");
+            router.refresh();
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore and fallback to default redirect
+      }
       router.push(redirectTo);
       router.refresh();
     } catch (err: unknown) {
@@ -63,7 +83,9 @@ export function LoginForm() {
       await resetPassword(email);
       toast.success("Password reset email sent. Check your inbox.");
     } catch {
-      toast.error("Could not send reset email. Check the address and try again.");
+      toast.error(
+        "Could not send reset email. Check the address and try again.",
+      );
     } finally {
       setIsForgotLoading(false);
     }
@@ -133,7 +155,9 @@ export function LoginForm() {
             </button>
           </div>
           {errors.password && (
-            <p className="text-xs text-destructive">{errors.password.message}</p>
+            <p className="text-xs text-destructive">
+              {errors.password.message}
+            </p>
           )}
         </div>
 

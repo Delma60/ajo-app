@@ -120,6 +120,11 @@ export async function proxy(request: NextRequest) {
   // ── Redirect authenticated users away from login/register ──────────────────
   if (AUTH_ONLY_ROUTES.some((r) => pathname.startsWith(r))) {
     if (sessionUser) {
+      // Admins should not be sent to user dashboards
+      if (sessionUser.role === "admin") {
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
+
       // If they're authenticated but haven't finished onboarding,
       // send them to onboarding rather than dashboard
       if (sessionUser.onboardingComplete === false) {
@@ -138,6 +143,11 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
+    // Prevent admin users from accessing user-only routes
+    if (sessionUser.role === "admin") {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
+
     // Authenticated but onboarding not complete → force to onboarding
     // Exception: /onboarding itself must be reachable
     if (
@@ -154,6 +164,11 @@ export async function proxy(request: NextRequest) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", "/onboarding");
       return NextResponse.redirect(loginUrl);
+    }
+
+    // Admins shouldn't access onboarding — send them to admin
+    if (sessionUser.role === "admin") {
+      return NextResponse.redirect(new URL("/admin", request.url));
     }
 
     // If they've already finished onboarding, don't let them back in

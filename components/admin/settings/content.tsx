@@ -574,7 +574,7 @@ export function AdminSettingsContent() {
   async function handleReset() {
     setIsResetting(true);
     try {
-      const res = await fetch("/api/admin/settings", {
+      const res = await fetch("/api/admin/settings/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reset" }),
