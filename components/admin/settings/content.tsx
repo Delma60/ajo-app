@@ -549,16 +549,16 @@ export function AdminSettingsContent() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      
+
       // Update local state first
       setSettings((prev) =>
         prev ? { ...prev, [section]: draft[section] } : prev,
       );
       setLastUpdated(new Date().toISOString());
-      
+
       // Refetch from server to ensure cache is invalidated and we have fresh data
       await loadSettings();
-      
+
       toast.success(
         `${TABS.find((t) => t.id === section)?.label} settings saved`,
       );
@@ -581,15 +581,15 @@ export function AdminSettingsContent() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      
+
       // Reset local state first
       setSettings(json.data);
       setDraft(json.data);
       setLastUpdated(new Date().toISOString());
-      
+
       // Refetch from server to ensure cache is invalidated and we have fresh data
       await loadSettings();
-      
+
       toast.success("All settings reset to defaults");
       setShowResetDialog(false);
     } catch (err) {
