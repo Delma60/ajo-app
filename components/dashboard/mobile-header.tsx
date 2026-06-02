@@ -6,7 +6,11 @@ import { useState } from "react";
 import { Bell, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { signOut } from "@/lib/firebase/auth";
 import { useNativeBridge } from "@/hooks/use-native-bridge";

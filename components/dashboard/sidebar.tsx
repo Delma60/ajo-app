@@ -76,14 +76,14 @@ export function DashboardSidebar({ unreadCount = 0 }: SidebarProps) {
     <aside
       className={cn(
         "hidden md:flex flex-col h-screen sticky top-0 bg-sidebar border-r border-sidebar-border transition-[width] duration-200 ease-in-out shrink-0",
-        collapsed ? "w-[3.5rem]" : "w-[15rem]"
+        collapsed ? "w-[3.5rem]" : "w-[15rem]",
       )}
     >
       {/* Logo */}
       <div
         className={cn(
           "flex items-center h-14 px-3 border-b border-sidebar-border shrink-0",
-          collapsed ? "justify-center" : "justify-between"
+          collapsed ? "justify-center" : "justify-between",
         )}
       >
         {!collapsed && (
@@ -147,7 +147,7 @@ export function DashboardSidebar({ unreadCount = 0 }: SidebarProps) {
                 collapsed ? "justify-center px-2" : "",
                 isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
               )}
             >
               <item.icon className="size-4 shrink-0" />

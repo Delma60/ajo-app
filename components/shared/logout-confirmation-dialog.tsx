@@ -28,8 +28,7 @@ export function LogoutConfirmationDialog({
   onConfirm,
   isLoading = false,
   title = "Sign out?",
-  description =
-    "You will be signed out of your account on this device. You can sign back in anytime.",
+  description = "You will be signed out of your account on this device. You can sign back in anytime.",
   confirmLabel = "Sign out",
   cancelLabel = "Cancel",
 }: LogoutConfirmationDialogProps) {
@@ -50,8 +49,8 @@ export function LogoutConfirmationDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirm} loading={isLoading}>
-            {confirmLabel}
+          <AlertDialogAction onClick={handleConfirm} disabled={isLoading}>
+            {isLoading ? `${confirmLabel.replace(/\.$/, "")}…` : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
