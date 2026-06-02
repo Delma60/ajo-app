@@ -3,7 +3,6 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   onAuthStateChanged,
@@ -105,59 +104,6 @@ export async function signInWithEmail(
 }
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────────
-
-export async function signInWithGoogle(): Promise<User> {
-  const provider = new GoogleAuthProvider();
-  provider.addScope("email");
-  provider.addScope("profile");
-
-  const credential = await signInWithPopup(auth, provider);
-  const { user } = credential;
-
-
-  // Upsert user doc (may be first Google sign-in)
-  const userDoc = await getDoc(doc(db, "users", user.uid));
-  if (!userDoc.exists()) {
-    const newUser: Omit<AppUser, "id"> = {
-      name: user.displayName ?? "",
-      email: user.email ?? "",
-      phone: "",
-      avatarUrl: user.photoURL ?? undefined,
-      referralCode: generateReferralCode(user.uid),
-      referralBonusAmount: 0,
-      // isVerified: false, // KYC removed
-      // kycStatus: "unverified", // KYC removed
-      role: "user",
-      status: "active",
-      circleIds: [],
-      bankAccounts: [],
-      onboardingComplete: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-    await setDoc(doc(db, "users", user.uid), { id: user.uid, ...newUser });
-    await setDoc(doc(db, "wallets", user.uid), {
-      userId: user.uid,
-      available: 0,
-      pending: 0,
-      totalSaved: 0,
-      totalReceived: 0,
-      referralEarnings: 0,
-      currency: "NGN",
-      updatedAt: serverTimestamp(),
-    });
-
-    fetch("/api/auth/welcome", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: user.displayName ?? "", email: user.email ?? "" }),
-    }).catch(console.error);
-  }
-
-  const idToken = await user.getIdToken();
-  await createSession(idToken);
-  return user;
-}
 
 /**
  * Sign in with Google using redirect flow (for Expo WebView and native browsers).
