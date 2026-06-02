@@ -17,7 +17,8 @@ export const registerSchema = z
       .string()
       .min(1, "Full name is required")
       .min(2, "Name must be at least 2 characters")
-      .max(60, "Name must be under 60 characters"),
+      .max(60, "Name must be under 60 characters")
+      .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ]+(?: [A-Za-zÀ-ÖØ-öø-ÿ]+)+$/, "Enter your full first and last name"),
     email: z
       .string()
       .min(1, "Email is required")

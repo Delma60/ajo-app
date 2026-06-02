@@ -159,6 +159,9 @@ export async function PATCH(request: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
+    // Invalidate server-side cache so new settings are picked up immediately
+    invalidateCache();
+
     return NextResponse.json({
       success: true,
       data: {
@@ -209,6 +212,9 @@ export async function POST(request: NextRequest) {
       updatedByName: admin.name,
       isReset: true,
     });
+
+    // Invalidate server-side cache so new settings are picked up immediately
+    invalidateCache();
 
     return NextResponse.json({
       success: true,
