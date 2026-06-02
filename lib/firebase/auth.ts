@@ -3,8 +3,7 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   onAuthStateChanged,
   sendPasswordResetEmail,
   updateProfile,
@@ -13,6 +12,9 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 import type { User as AppUser } from "@/lib/types/user";
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { SESSION_COOKIE } from "../constants";
+import { NextRequest } from "next/server";
 
 
 function generateReferralCode(uid: string): string {
@@ -105,85 +107,59 @@ export async function signInWithEmail(
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────────
 
-/**
- * Sign in with Google using redirect flow (for Expo WebView and native browsers).
- * This opens the OAuth flow in the native browser, then redirects back to the app.
- * Call handleGoogleRedirectResult() after this to complete the sign-in.
- */
-export async function signInWithGoogleRedirect(): Promise<void> {
+export async function signInWithGoogle(): Promise<User> {
   const provider = new GoogleAuthProvider();
   provider.addScope("email");
   provider.addScope("profile");
-  await signInWithRedirect(auth, provider);
-}
 
-// Replace your handleGoogleRedirectResult function in lib/firebase/auth.ts with this:
+  const credential = await signInWithPopup(auth, provider);
+  const { user } = credential;
 
-export async function handleGoogleRedirectResult(): Promise<AppUser | null> {
-  try {
-    const credential = await getRedirectResult(auth);
-    if (!credential) {
-      return null;
-    }
 
-    const { user } = credential;
-    let appUser: AppUser;
+  // Upsert user doc (may be first Google sign-in)
+  const userDoc = await getDoc(doc(db, "users", user.uid));
+  if (!userDoc.exists()) {
+    const newUser: Omit<AppUser, "id"> = {
+      name: user.displayName ?? "",
+      email: user.email ?? "",
+      phone: "",
+      avatarUrl: user.photoURL ?? undefined,
+      referralCode: generateReferralCode(user.uid),
+      referralBonusAmount: 0,
+      // isVerified: false, // KYC removed
+      // kycStatus: "unverified", // KYC removed
+      role: "user",
+      status: "active",
+      circleIds: [],
+      bankAccounts: [],
+      onboardingComplete: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    await setDoc(doc(db, "users", user.uid), { id: user.uid, ...newUser });
+    await setDoc(doc(db, "wallets", user.uid), {
+      userId: user.uid,
+      available: 0,
+      pending: 0,
+      totalSaved: 0,
+      totalReceived: 0,
+      referralEarnings: 0,
+      currency: "NGN",
+      updatedAt: serverTimestamp(),
+    });
 
-    // Upsert user doc (may be first Google sign-in)
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    
-    if (!userDoc.exists()) {
-      const newUser: Omit<AppUser, "id"> = {
-        name: user.displayName ?? "",
-        email: user.email ?? "",
-        phone: "",
-        avatarUrl: user.photoURL ?? undefined,
-        referralCode: generateReferralCode(user.uid),
-        referralBonusAmount: 0,
-        role: "user",
-        status: "active",
-        circleIds: [],
-        bankAccounts: [],
-        onboardingComplete: false,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      
-      await setDoc(doc(db, "users", user.uid), { id: user.uid, ...newUser });
-      await setDoc(doc(db, "wallets", user.uid), {
-        userId: user.uid,
-        available: 0,
-        pending: 0,
-        totalSaved: 0,
-        totalReceived: 0,
-        referralEarnings: 0,
-        currency: "NGN",
-        updatedAt: serverTimestamp(),
-      });
-
-      fetch("/api/auth/welcome", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: user.displayName ?? "", email: user.email ?? "" }),
-      }).catch(console.error);
-      
-      // Assign the newly created user
-      appUser = { id: user.uid, ...newUser } as AppUser;
-    } else {
-      // Assign the existing user
-      appUser = userDoc.data() as AppUser;
-    }
-
-    const idToken = await user.getIdToken();
-    await createSession(idToken);
-    
-    // Return the user data to the component
-    return appUser;
-  } catch (error) {
-    console.error("[handleGoogleRedirectResult]", error);
-    return null;
+    fetch("/api/auth/welcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: user.displayName ?? "", email: user.email ?? "" }),
+    }).catch(console.error);
   }
+
+  const idToken = await user.getIdToken();
+  await createSession(idToken);
+  return user;
 }
+
 // ─── Sign out ─────────────────────────────────────────────────────────────────
 
 export async function signOut(): Promise<void> {

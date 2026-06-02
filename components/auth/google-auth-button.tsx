@@ -1,16 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  signInWithGoogleRedirect,
-  handleGoogleRedirectResult,
-} from "@/lib/firebase/auth";
+import { signInWithGoogle } from "@/lib/firebase/auth";
 
 interface GoogleAuthButtonProps {
   label?: string;
+}
+
+declare global {
+  interface Window {
+    ReactNativeWebView?: {
+      postMessage: (message: string) => void;
+    };
+  }
 }
 
 export function GoogleAuthButton({
@@ -19,52 +24,56 @@ export function GoogleAuthButton({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Prevent React 18 Strict Mode double-firing
-  const hasCheckedRef = useRef(false);
-
-  useEffect(() => {
-    async function checkRedirectResult() {
-      if (hasCheckedRef.current) return;
-      hasCheckedRef.current = true;
-
-      try {
-        // Now returns the actual user data directly
-        const appUser = await handleGoogleRedirectResult();
-
-        if (appUser) {
-          toast.success("Signed in successfully");
-
-          // Determine redirect destination accurately
-          if (appUser.role === "admin") {
-            router.push("/admin");
-          } else if (!appUser.onboardingComplete) {
-            router.push("/onboarding");
-          } else {
-            router.push("/dashboard");
-          }
-
-          router.refresh();
-        }
-      } catch (err) {
-        console.error("Failed to check redirect result:", err);
-        toast.error("An error occurred during verification.");
-      }
-    }
-
-    checkRedirectResult();
-  }, [router]);
-
   async function handleGoogleAuth() {
     setIsLoading(true);
+
+    const isWebView =
+      typeof window !== "undefined" && window.ReactNativeWebView;
+
+    if (isWebView) {
+      // 2. We are in Expo. Send a message to the React Native layer
+      // telling it to open the native browser for authentication.
+      window?.ReactNativeWebView?.postMessage(
+        JSON.stringify({ type: "INITIATE_GOOGLE_LOGIN" }),
+      );
+
+      // We don't set loading to false here because we are waiting
+      // for the native app to complete the flow and reload the WebView.
+      return;
+    }
     try {
-      await signInWithGoogleRedirect();
-      // Notice: We intentionally DO NOT set isLoading(false) here.
-      // This prevents the button from flashing back to normal before the redirect executes.
+      await signInWithGoogle();
+      toast.success("Signed in successfully");
+      // Prefer admin landing when signing in as admin
+      try {
+        const metaCookie =
+          typeof document !== "undefined"
+            ? document.cookie
+                .split("; ")
+                .find((c) => c.trim().startsWith("__user_meta="))
+            : null;
+        if (metaCookie) {
+          const raw = metaCookie.split("=").slice(1).join("=");
+          const parsed = JSON.parse(decodeURIComponent(raw));
+          if (parsed?.role === "admin") {
+            router.push("/admin");
+            router.refresh();
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      router.push("/dashboard");
+      router.refresh();
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Google sign-in failed";
-      toast.error(message);
-      setIsLoading(false); // Only reset on failure
+      if (!message.includes("popup-closed")) {
+        toast.error(message);
+      }
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -76,6 +85,7 @@ export function GoogleAuthButton({
       onClick={handleGoogleAuth}
       disabled={isLoading}
     >
+      {/* Google SVG icon */}
       <svg
         aria-hidden="true"
         className="size-4 shrink-0"
