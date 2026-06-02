@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     for (const claimDoc of snapshot.docs) {
       const claim = claimDoc.data() as EventClaim;
       const eventDoc = await adminDb.collection("events").doc(claim.eventId).get();
-      const event = eventDoc.exists() ? (eventDoc.data() as Event) : undefined;
+      const event = eventDoc.exists ? (eventDoc.data() as Event) : undefined;
 
       results.push({
         ...claim,

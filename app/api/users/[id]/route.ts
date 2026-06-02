@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { admin, adminDb } from "@/lib/firebase/admin";
 import { getSessionUser } from "@/lib/firebase/server-auth";
 import { userProfileSchema } from "@/lib/validators/user";
-import { serverTimestamp } from "firebase-admin/firestore";
 
 export async function GET(
   request: NextRequest,
@@ -56,7 +55,7 @@ export async function PATCH(
   await adminDb.collection("users").doc(id).update({
     name: parsed.data.name,
     phone: parsed.data.phone,
-    updatedAt: serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
   return NextResponse.json({ success: true, data: null, error: null });
