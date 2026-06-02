@@ -91,6 +91,26 @@ export async function getCircleSettings() {
 }
 
 /**
+ * Serialize settings for client-side use.
+ * Converts Firestore Timestamp objects to ISO strings to enable serialization.
+ *
+ * @param {PlatformSettings} settings
+ * @returns {any} Serialized settings safe to pass to client components
+ */
+export function serializeSettings(settings: PlatformSettings): any {
+  return JSON.parse(
+    JSON.stringify(settings, (key, value) => {
+      // Check if this is a Firestore Timestamp object
+      if (value && typeof value === "object" && "_seconds" in value && "_nanoseconds" in value) {
+        const timestamp = new Date(value._seconds * 1000 + value._nanoseconds / 1000000);
+        return timestamp.toISOString();
+      }
+      return value;
+    })
+  );
+}
+
+/**
  * Get wallet-specific settings.
  */
 export async function getWalletSettings() {

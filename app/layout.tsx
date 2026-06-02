@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/providers/auth";
 import { QueryProvider } from "@/lib/providers/tanstack-query";
 import { SettingsProvider } from "@/lib/providers/settings";
-import { getSettings } from "@/lib/services/settings-service";
+import { getSettings, serializeSettings } from "@/lib/services/settings-service";
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
@@ -50,6 +50,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const settings = await getSettings();
+  const serializedSettings = serializeSettings(settings);
 
   return (
     <html
@@ -59,7 +60,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <QueryProvider>
           <AuthProvider>
-            <SettingsProvider settings={settings}>
+            <SettingsProvider settings={serializedSettings}>
               <TooltipProvider>{children}</TooltipProvider>
             </SettingsProvider>
           </AuthProvider>
