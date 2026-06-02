@@ -48,7 +48,9 @@ export function HomeFooter() {
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 mb-4">
               <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-700">
-                <span className="text-white font-bold text-sm font-mono">{siteName.charAt(0) || "A"}</span>
+                <span className="text-white font-bold text-sm font-mono">
+                  {siteName.charAt(0) || "A"}
+                </span>
               </div>
               <span className="text-white font-semibold text-base tracking-tight">
                 {siteName}

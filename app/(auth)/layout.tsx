@@ -13,7 +13,8 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s — ${siteName}`,
       default: siteName,
     },
-    description: settings.general.siteDescription ?? "Community savings, reimagined.",
+    description:
+      settings.general.siteDescription ?? "Community savings, reimagined.",
   };
 }
 
@@ -48,8 +49,8 @@ function BrandPanel({ siteName }: { siteName: string }) {
       {/* Copy */}
       <div className="relative z-10 space-y-6">
         <blockquote className="text-2xl font-semibold leading-snug">
-          &ldquo;Saving together is the oldest wealth strategy in Nigeria — we&apos;ve
-          just made it safer and smarter.&rdquo;
+          &ldquo;Saving together is the oldest wealth strategy in Nigeria —
+          we&apos;ve just made it safer and smarter.&rdquo;
         </blockquote>
 
         {/* Stats row */}
@@ -95,7 +96,9 @@ export default async function AuthLayout({
           <span className="flex size-9 items-center justify-center rounded-xl bg-[#047857] text-white font-bold text-lg">
             {siteName.charAt(0) || "A"}
           </span>
-          <span className="text-xl font-semibold tracking-tight">{siteName}</span>
+          <span className="text-xl font-semibold tracking-tight">
+            {siteName}
+          </span>
         </Link>
 
         <div className="w-full max-w-sm">

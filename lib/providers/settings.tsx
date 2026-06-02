@@ -10,7 +10,10 @@ interface SettingsProviderProps {
 
 const SettingsContext = createContext<PlatformSettings | null>(null);
 
-export function SettingsProvider({ children, settings }: SettingsProviderProps) {
+export function SettingsProvider({
+  children,
+  settings,
+}: SettingsProviderProps) {
   return (
     <SettingsContext.Provider value={settings}>
       {children}
