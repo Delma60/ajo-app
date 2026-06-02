@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function RewardsPage() {
   return (
-    <div className="container max-w-4xl py-8">
+    <div className="container p-6 max-w-4xl py-8">
       <RewardsContent />
     </div>
   );
