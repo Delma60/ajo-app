@@ -117,22 +117,21 @@ export async function signInWithGoogleRedirect(): Promise<void> {
   await signInWithRedirect(auth, provider);
 }
 
-/**
- * Handle the result of the Google redirect flow.
- * Call this on page load (after OAuth redirect) to complete the sign-in.
- * @returns true if user was signed in, false if no redirect result
- */
-export async function handleGoogleRedirectResult(): Promise<boolean> {
+// Replace your handleGoogleRedirectResult function in lib/firebase/auth.ts with this:
+
+export async function handleGoogleRedirectResult(): Promise<AppUser | null> {
   try {
     const credential = await getRedirectResult(auth);
     if (!credential) {
-      return false;
+      return null;
     }
 
     const { user } = credential;
+    let appUser: AppUser;
 
     // Upsert user doc (may be first Google sign-in)
     const userDoc = await getDoc(doc(db, "users", user.uid));
+    
     if (!userDoc.exists()) {
       const newUser: Omit<AppUser, "id"> = {
         name: user.displayName ?? "",
@@ -149,6 +148,7 @@ export async function handleGoogleRedirectResult(): Promise<boolean> {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
+      
       await setDoc(doc(db, "users", user.uid), { id: user.uid, ...newUser });
       await setDoc(doc(db, "wallets", user.uid), {
         userId: user.uid,
@@ -166,17 +166,24 @@ export async function handleGoogleRedirectResult(): Promise<boolean> {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: user.displayName ?? "", email: user.email ?? "" }),
       }).catch(console.error);
+      
+      // Assign the newly created user
+      appUser = { id: user.uid, ...newUser } as AppUser;
+    } else {
+      // Assign the existing user
+      appUser = userDoc.data() as AppUser;
     }
 
     const idToken = await user.getIdToken();
     await createSession(idToken);
-    return true;
+    
+    // Return the user data to the component
+    return appUser;
   } catch (error) {
     console.error("[handleGoogleRedirectResult]", error);
-    return false;
+    return null;
   }
 }
-
 // ─── Sign out ─────────────────────────────────────────────────────────────────
 
 export async function signOut(): Promise<void> {

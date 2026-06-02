@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,38 +19,35 @@ export function GoogleAuthButton({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Check for OAuth redirect result on component mount
+  // Prevent React 18 Strict Mode double-firing
+  const hasCheckedRef = useRef(false);
+
   useEffect(() => {
     async function checkRedirectResult() {
+      if (hasCheckedRef.current) return;
+      hasCheckedRef.current = true;
+
       try {
-        const wasSignedIn = await handleGoogleRedirectResult();
-        if (wasSignedIn) {
+        // Now returns the actual user data directly
+        const appUser = await handleGoogleRedirectResult();
+
+        if (appUser) {
           toast.success("Signed in successfully");
-          // Determine redirect destination
-          try {
-            const metaCookie =
-              typeof document !== "undefined"
-                ? document.cookie
-                    .split("; ")
-                    .find((c) => c.trim().startsWith("__user_meta="))
-                : null;
-            if (metaCookie) {
-              const raw = metaCookie.split("=").slice(1).join("=");
-              const parsed = JSON.parse(decodeURIComponent(raw));
-              if (parsed?.role === "admin") {
-                router.push("/admin");
-                router.refresh();
-                return;
-              }
-            }
-          } catch (e) {
-            // ignore
+
+          // Determine redirect destination accurately
+          if (appUser.role === "admin") {
+            router.push("/admin");
+          } else if (!appUser.onboardingComplete) {
+            router.push("/onboarding");
+          } else {
+            router.push("/dashboard");
           }
-          router.push("/dashboard");
+
           router.refresh();
         }
       } catch (err) {
         console.error("Failed to check redirect result:", err);
+        toast.error("An error occurred during verification.");
       }
     }
 
@@ -61,13 +58,13 @@ export function GoogleAuthButton({
     setIsLoading(true);
     try {
       await signInWithGoogleRedirect();
-      // Redirect happens immediately; handle redirect result on mount.
+      // Notice: We intentionally DO NOT set isLoading(false) here.
+      // This prevents the button from flashing back to normal before the redirect executes.
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Google sign-in failed";
       toast.error(message);
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Only reset on failure
     }
   }
 
@@ -79,7 +76,6 @@ export function GoogleAuthButton({
       onClick={handleGoogleAuth}
       disabled={isLoading}
     >
-      {/* Google SVG icon */}
       <svg
         aria-hidden="true"
         className="size-4 shrink-0"
