@@ -449,16 +449,10 @@ export class CircleService {
     // Load platform settings once to get settlement period
     let settlementHours = DEFAULT_PLATFORM_SETTINGS.payouts.settlementPeriodHours;
     try {
-      const settingsSnap = await adminDb
-        .collection("admin_config")
-        .doc("platform_settings")
-        .get();
-      if (settingsSnap.exists) {
-        settlementHours =
-          (settingsSnap.data()?.payouts?.settlementPeriodHours as number) ?? settlementHours;
-      }
+      const payoutSettings = await getPayoutSettings();
+      settlementHours = payoutSettings.settlementPeriodHours;
     } catch (err) {
-      console.warn("Failed to read platform settings, using defaults", err);
+      console.warn("Failed to read platform payout settings, using defaults", err);
     }
     const snap = await this.circlesCol
       .where("status", "==", "active")
