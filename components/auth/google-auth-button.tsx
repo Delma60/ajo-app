@@ -1,13 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { signInWithGoogle } from "@/lib/firebase/auth";
+import {
+  signInWithGoogle,
+  signInWithGoogleRedirect,
+  handleGoogleRedirectResult,
+} from "@/lib/firebase/auth";
 
 interface GoogleAuthButtonProps {
   label?: string;
+}
+
+/**
+ * Detect if running inside Expo WebView
+ * Expo sets a user agent with "Expo" or uses a specific pattern
+ */
+function isExpoWebView(): boolean {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return ua.includes("Expo") || ua.includes("not a browser");
 }
 
 export function GoogleAuthButton({
@@ -16,33 +30,80 @@ export function GoogleAuthButton({
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
+  // Check for OAuth redirect result on component mount
+  useEffect(() => {
+    async function checkRedirectResult() {
+      try {
+        const wasSignedIn = await handleGoogleRedirectResult();
+        if (wasSignedIn) {
+          toast.success("Signed in successfully");
+          // Determine redirect destination
+          try {
+            const metaCookie =
+              typeof document !== "undefined"
+                ? document.cookie
+                    .split("; ")
+                    .find((c) => c.trim().startsWith("__user_meta="))
+                : null;
+            if (metaCookie) {
+              const raw = metaCookie.split("=").slice(1).join("=");
+              const parsed = JSON.parse(decodeURIComponent(raw));
+              if (parsed?.role === "admin") {
+                router.push("/admin");
+                router.refresh();
+                return;
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+          router.push("/dashboard");
+          router.refresh();
+        }
+      } catch (err) {
+        console.error("Failed to check redirect result:", err);
+      }
+    }
+
+    checkRedirectResult();
+  }, [router]);
+
   async function handleGoogleAuth() {
     setIsLoading(true);
     try {
-      await signInWithGoogle();
-      toast.success("Signed in successfully");
-      // Prefer admin landing when signing in as admin
-      try {
-        const metaCookie =
-          typeof document !== "undefined"
-            ? document.cookie
-                .split("; ")
-                .find((c) => c.trim().startsWith("__user_meta="))
-            : null;
-        if (metaCookie) {
-          const raw = metaCookie.split("=").slice(1).join("=");
-          const parsed = JSON.parse(decodeURIComponent(raw));
-          if (parsed?.role === "admin") {
-            router.push("/admin");
-            router.refresh();
-            return;
+      const useRedirect = isExpoWebView();
+
+      if (useRedirect) {
+        // For Expo WebView: use redirect-based flow
+        await signInWithGoogleRedirect();
+        // Redirect happens, don't navigate here
+      } else {
+        // For regular web: use popup-based flow
+        await signInWithGoogle();
+        toast.success("Signed in successfully");
+        // Determine redirect destination
+        try {
+          const metaCookie =
+            typeof document !== "undefined"
+              ? document.cookie
+                  .split("; ")
+                  .find((c) => c.trim().startsWith("__user_meta="))
+              : null;
+          if (metaCookie) {
+            const raw = metaCookie.split("=").slice(1).join("=");
+            const parsed = JSON.parse(decodeURIComponent(raw));
+            if (parsed?.role === "admin") {
+              router.push("/admin");
+              router.refresh();
+              return;
+            }
           }
+        } catch (e) {
+          // ignore
         }
-      } catch (e) {
-        // ignore
+        router.push("/dashboard");
+        router.refresh();
       }
-      router.push("/dashboard");
-      router.refresh();
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Google sign-in failed";

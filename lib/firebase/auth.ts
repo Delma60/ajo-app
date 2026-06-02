@@ -4,6 +4,8 @@ import {
   signOut as firebaseSignOut,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   onAuthStateChanged,
   sendPasswordResetEmail,
   updateProfile,
@@ -155,6 +157,78 @@ export async function signInWithGoogle(): Promise<User> {
   const idToken = await user.getIdToken();
   await createSession(idToken);
   return user;
+}
+
+/**
+ * Sign in with Google using redirect flow (for Expo WebView and native browsers).
+ * This opens the OAuth flow in the native browser, then redirects back to the app.
+ * Call handleGoogleRedirectResult() after this to complete the sign-in.
+ */
+export async function signInWithGoogleRedirect(): Promise<void> {
+  const provider = new GoogleAuthProvider();
+  provider.addScope("email");
+  provider.addScope("profile");
+  await signInWithRedirect(auth, provider);
+}
+
+/**
+ * Handle the result of the Google redirect flow.
+ * Call this on page load (after OAuth redirect) to complete the sign-in.
+ * @returns true if user was signed in, false if no redirect result
+ */
+export async function handleGoogleRedirectResult(): Promise<boolean> {
+  try {
+    const credential = await getRedirectResult(auth);
+    if (!credential) {
+      return false;
+    }
+
+    const { user } = credential;
+
+    // Upsert user doc (may be first Google sign-in)
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (!userDoc.exists()) {
+      const newUser: Omit<AppUser, "id"> = {
+        name: user.displayName ?? "",
+        email: user.email ?? "",
+        phone: "",
+        avatarUrl: user.photoURL ?? undefined,
+        referralCode: generateReferralCode(user.uid),
+        referralBonusAmount: 0,
+        role: "user",
+        status: "active",
+        circleIds: [],
+        bankAccounts: [],
+        onboardingComplete: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, "users", user.uid), { id: user.uid, ...newUser });
+      await setDoc(doc(db, "wallets", user.uid), {
+        userId: user.uid,
+        available: 0,
+        pending: 0,
+        totalSaved: 0,
+        totalReceived: 0,
+        referralEarnings: 0,
+        currency: "NGN",
+        updatedAt: serverTimestamp(),
+      });
+
+      fetch("/api/auth/welcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: user.displayName ?? "", email: user.email ?? "" }),
+      }).catch(console.error);
+    }
+
+    const idToken = await user.getIdToken();
+    await createSession(idToken);
+    return true;
+  } catch (error) {
+    console.error("[handleGoogleRedirectResult]", error);
+    return false;
+  }
 }
 
 // ─── Sign out ─────────────────────────────────────────────────────────────────
