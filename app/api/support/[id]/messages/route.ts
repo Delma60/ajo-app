@@ -11,7 +11,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value;
     if (!sessionCookie) {
       return NextResponse.json({ success: false, data: null, error: "Unauthorized" }, { status: 401 });

@@ -8,7 +8,7 @@ const SESSION_COOKIE = "__session";
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value;
     if (!sessionCookie) {
       return NextResponse.json({ success: false, data: null, error: "Unauthorized" }, { status: 401 });
@@ -27,7 +27,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value;
     if (!sessionCookie) {
       return NextResponse.json({ success: false, data: null, error: "Unauthorized" }, { status: 401 });

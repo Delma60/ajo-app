@@ -7,7 +7,7 @@ import { addSupportMessageSchema } from "@/lib/validators/support";
 const SESSION_COOKIE = "__session";
 
 async function verifyAdmin() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value;
   if (!sessionCookie) return null;
   try {

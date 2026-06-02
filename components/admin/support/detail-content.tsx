@@ -237,9 +237,9 @@ export function AdminSupportDetailContent({
               </div>
               <Button
                 onClick={submitReply}
-                disabled={!replyText.trim() || replyMutation.isLoading}
+                disabled={!replyText.trim() || replyMutation.isPending}
               >
-                {replyMutation.isLoading ? "Sending…" : "Post reply"}
+                {replyMutation.isPending ? "Sending…" : "Post reply"}
               </Button>
             </CardContent>
           </Card>
@@ -308,9 +308,9 @@ export function AdminSupportDetailContent({
               </div>
               <Button
                 onClick={submitUpdate}
-                disabled={updateMutation.isLoading}
+                disabled={updateMutation.isPending}
               >
-                {updateMutation.isLoading ? "Saving…" : "Save changes"}
+                {updateMutation.isPending ? "Saving…" : "Save changes"}
               </Button>
             </CardContent>
           </Card>
