@@ -7,7 +7,6 @@ import {
   Users,
   Wallet,
   Bell,
-  User,
   Settings,
   TrendingUp,
   LogOut,
@@ -29,6 +28,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { LogoutConfirmationDialog } from "@/components/shared/logout-confirmation-dialog";
 
 const NAV_ITEMS = [
   { icon: Home, label: "Dashboard", href: "/dashboard" },
@@ -49,6 +49,7 @@ export function DashboardSidebar({ unreadCount = 0 }: SidebarProps) {
   const { appUser } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
   async function handleSignOut() {
     setIsLoggingOut(true);
@@ -215,7 +216,7 @@ export function DashboardSidebar({ unreadCount = 0 }: SidebarProps) {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={handleSignOut}
+                  onClick={() => setLogoutDialogOpen(true)}
                   disabled={isLoggingOut}
                   className="opacity-0 group-hover:opacity-100 transition-opacity text-sidebar-foreground/60 hover:text-destructive"
                 >
@@ -224,6 +225,13 @@ export function DashboardSidebar({ unreadCount = 0 }: SidebarProps) {
               </TooltipTrigger>
               <TooltipContent side="right">Sign out</TooltipContent>
             </Tooltip>
+
+            <LogoutConfirmationDialog
+              open={logoutDialogOpen}
+              onOpenChange={setLogoutDialogOpen}
+              onConfirm={handleSignOut}
+              isLoading={isLoggingOut}
+            />
           </div>
         )}
       </div>
