@@ -5,6 +5,8 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/providers/auth";
 import { QueryProvider } from "@/lib/providers/tanstack-query";
+import { SettingsProvider } from "@/lib/providers/settings";
+import { getSettings } from "@/lib/services/settings-service";
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
@@ -24,23 +26,31 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: {
-    template: "%s — AjoSave",
-    default: "AjoSave — Community Savings",
-  },
-  description:
-    "Join circles, save together, and receive your payout. The modern way to do Ajo and Esusu.",
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  ),
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSettings();
+  const siteName = settings.general.siteName ?? "AjoSave";
 
-export default function RootLayout({
+  return {
+    title: {
+      template: `%s — ${siteName}`,
+      default: `${siteName} — Community Savings`,
+    },
+    description:
+      settings.general.siteDescription ??
+      "Join circles, save together, and receive your payout. The modern way to do Ajo and Esusu.",
+    metadataBase: new URL(
+      process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+    ),
+  };
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const settings = await getSettings();
+
   return (
     <html
       lang="en"
@@ -49,7 +59,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <QueryProvider>
           <AuthProvider>
-            <TooltipProvider>{children}</TooltipProvider>
+            <SettingsProvider settings={settings}>
+              <TooltipProvider>{children}</TooltipProvider>
+            </SettingsProvider>
           </AuthProvider>
         </QueryProvider>
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useSettings } from "@/lib/providers/settings";
 
 const FOOTER_LINKS = [
   {
@@ -36,6 +37,9 @@ const FOOTER_LINKS = [
 ];
 
 export function HomeFooter() {
+  const { general } = useSettings();
+  const siteName = general.siteName ?? "AjoSave";
+
   return (
     <footer className="bg-[#0a1a12] border-t border-white/8">
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16 py-16">
@@ -44,10 +48,10 @@ export function HomeFooter() {
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 mb-4">
               <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-700">
-                <span className="text-white font-bold text-sm font-mono">A</span>
+                <span className="text-white font-bold text-sm font-mono">{siteName.charAt(0) || "A"}</span>
               </div>
               <span className="text-white font-semibold text-base tracking-tight">
-                AjoSave
+                {siteName}
               </span>
             </Link>
             <p className="text-white/40 text-sm leading-relaxed">
@@ -81,7 +85,7 @@ export function HomeFooter() {
 
         <div className="mt-14 pt-8 border-t border-white/8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-white/30">
-            © {new Date().getFullYear()} AjoSave. All rights reserved.
+            © {new Date().getFullYear()} {siteName}. All rights reserved.
           </p>
           <p className="text-xs text-white/30">
             Made with care for the Nigerian savings community.

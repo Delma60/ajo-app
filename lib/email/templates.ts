@@ -24,13 +24,23 @@ import { baseLayout } from "./base-layout";
 export interface EmailSettingsContext {
   appUrl: string;
   supportEmail: string;
+  siteName?: string;
 }
 
 // Default fallback if settings are unavailable
 const DEFAULT_SETTINGS: EmailSettingsContext = {
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://ajosave.app",
   supportEmail: "support@ajosave.app",
+  siteName: process.env.NEXT_PUBLIC_SITE_NAME ?? "AjoSave",
 };
+
+function getEmailBranding(context: EmailSettingsContext) {
+  return {
+    appUrl: context.appUrl,
+    supportEmail: context.supportEmail,
+    siteName: context.siteName ?? "AjoSave",
+  };
+}
 
 // ─── Shared type ──────────────────────────────────────────────────────────────
 
@@ -51,15 +61,18 @@ export function buildWelcomeEmail(
   { name }: WelcomeEmailParams,
   context: EmailSettingsContext = DEFAULT_SETTINGS
 ): EmailTemplate {
-  const { appUrl, supportEmail } = context;
-  const subject = "Welcome to AjoSave 🎉 — Your account is ready";
+  const { appUrl, supportEmail, siteName } = getEmailBranding(context);
+  const subject = `Welcome to ${siteName} 🎉 — Your account is ready`;
   const firstName = name.split(" ")[0];
 
   const html = baseLayout({
     preheader: "You're now part of Nigeria's smarter savings community.",
+    siteName,
+    supportEmail,
+    appUrl,
     body: `
       <div class="email-header">
-        <h1 class="email-header-title">Welcome to AjoSave, ${firstName}! 🎉</h1>
+        <h1 class="email-header-title">Welcome to ${siteName}, ${firstName}! 🎉</h1>
         <p class="email-header-subtitle">Your community savings journey starts now</p>
       </div>
 
@@ -68,7 +81,7 @@ export function buildWelcomeEmail(
 
         <p class="email-text">
           You've just joined thousands of Nigerians who are saving smarter together.
-          AjoSave brings the trusted Ajo/Esusu tradition into a secure, transparent
+          ${siteName} brings the trusted Ajo/Esusu tradition into a secure, transparent
           digital platform — so you can save with people you trust and receive your
           payout on time, every time.
         </p>

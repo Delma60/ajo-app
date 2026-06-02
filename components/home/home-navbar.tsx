@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/lib/providers/settings";
 
 const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },
@@ -13,6 +14,8 @@ const NAV_LINKS = [
 ];
 
 export function HomeNavbar() {
+  const { general } = useSettings();
+  const siteName = general.siteName ?? "AjoSave";
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -36,15 +39,15 @@ export function HomeNavbar() {
         <Link
           href="/"
           className="flex items-center gap-2.5 group"
-          aria-label="AjoSave home"
+          aria-label={`${siteName} home`}
         >
           <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-700 shadow-md">
             <span className="text-white font-bold text-sm select-none font-mono">
-              A
+              {siteName.charAt(0) || "A"}
             </span>
           </div>
           <span className="text-white font-semibold text-lg tracking-tight">
-            AjoSave
+            {siteName}
           </span>
         </Link>
 

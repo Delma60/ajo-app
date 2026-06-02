@@ -8,9 +8,23 @@ export interface BaseLayoutProps {
   preheader?: string;
   body: string;
   year?: number;
+  siteName?: string;
+  supportEmail?: string;
+  appUrl?: string;
 }
 
-export function baseLayout({ preheader = "", body, year = new Date().getFullYear() }: BaseLayoutProps): string {
+export function baseLayout({
+  preheader = "",
+  body,
+  year = new Date().getFullYear(),
+  siteName = "AjoSave",
+  supportEmail = "support@ajosave.app",
+  appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://ajosave.app",
+}: BaseLayoutProps): string {
+  const brandName = siteName || "AjoSave";
+  const supportAddress = supportEmail || "support@ajosave.app";
+  const baseUrl = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+
   return `<!DOCTYPE html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
 <head>
@@ -319,9 +333,9 @@ export function baseLayout({ preheader = "", body, year = new Date().getFullYear
 
       <!-- Logo -->
       <div class="email-logo">
-        <a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://ajosave.app"}" class="email-logo-mark">
-          <span class="email-logo-icon">A</span>
-          <span class="email-logo-text">AjoSave</span>
+        <a href="${baseUrl}" class="email-logo-mark">
+          <span class="email-logo-icon">${brandName.charAt(0) || "A"}</span>
+          <span class="email-logo-text">${brandName}</span>
         </a>
       </div>
 
@@ -332,10 +346,10 @@ export function baseLayout({ preheader = "", body, year = new Date().getFullYear
         <!-- Footer -->
         <div class="email-footer">
           <p class="email-footer-text">
-            © ${year} AjoSave. Community savings, reimagined.<br>
-            Questions? <a href="mailto:support@ajosave.app" class="email-footer-link">support@ajosave.app</a>
+            © ${year} ${brandName}. Community savings, reimagined.<br>
+            Questions? <a href="mailto:${supportAddress}" class="email-footer-link">${supportAddress}</a>
             &nbsp;·&nbsp;
-            <a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://ajosave.app"}/settings?tab=notifications" class="email-footer-link">Manage email preferences</a>
+            <a href="${baseUrl}/settings?tab=notifications" class="email-footer-link">Manage email preferences</a>
           </p>
         </div>
       </div>

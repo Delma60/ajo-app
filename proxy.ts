@@ -22,7 +22,7 @@ const PROTECTED_PREFIXES = [
 const REQUIRES_ONBOARDING_COMPLETE = [
   "/dashboard",
   "/circles",
-  "/wallet",
+  "/wallet", 
   "/transactions",
   "/investments",
   "/settings",

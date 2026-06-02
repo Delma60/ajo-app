@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useSettings } from "@/lib/providers/settings";
 import {
   LayoutDashboard,
   Users,
@@ -228,6 +229,8 @@ function SidebarContent({
 }) {
   const router = useRouter();
   const { appUser } = useAuthStore();
+  const { general } = useSettings();
+  const siteName = general.siteName ?? "AjoSave";
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   async function handleSignOut() {
@@ -269,7 +272,7 @@ function SidebarContent({
               Admin Panel
             </p>
             <p className="mt-0.5 text-[10px] font-medium uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-              AjoSave
+              {siteName}
             </p>
           </div>
         )}

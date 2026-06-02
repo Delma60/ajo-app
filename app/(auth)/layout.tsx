@@ -2,18 +2,24 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { AuthSkeleton } from "@/components/auth/auth-skeleton";
+import { getSettings } from "@/lib/services/settings-service";
 
-export const metadata: Metadata = {
-  title: {
-    template: "%s — AjoSave",
-    default: "AjoSave",
-  },
-  description: "Community savings, reimagined.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSettings();
+  const siteName = settings.general.siteName ?? "AjoSave";
+
+  return {
+    title: {
+      template: `%s — ${siteName}`,
+      default: siteName,
+    },
+    description: settings.general.siteDescription ?? "Community savings, reimagined.",
+  };
+}
 
 // ─── Brand panel (left / top on mobile) ──────────────────────────────────────
 
-function BrandPanel() {
+function BrandPanel({ siteName }: { siteName: string }) {
   return (
     <div
       className="hidden lg:flex lg:flex-col lg:justify-between lg:w-[480px] lg:shrink-0
@@ -34,9 +40,9 @@ function BrandPanel() {
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 relative z-10">
         <span className="flex size-9 items-center justify-center rounded-xl bg-white/20 text-white font-bold text-lg select-none">
-          A
+          {siteName.charAt(0) || "A"}
         </span>
-        <span className="text-xl font-semibold tracking-tight">AjoSave</span>
+        <span className="text-xl font-semibold tracking-tight">{siteName}</span>
       </Link>
 
       {/* Copy */}
@@ -66,14 +72,17 @@ function BrandPanel() {
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const settings = await getSettings();
+  const siteName = settings.general.siteName ?? "AjoSave";
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      <BrandPanel />
+      <BrandPanel siteName={siteName} />
 
       {/* Form panel */}
       <main className="flex flex-1 flex-col items-center justify-center px-5 py-12 sm:px-8">
@@ -81,12 +90,12 @@ export default function AuthLayout({
         <Link
           href="/"
           className="flex items-center gap-2 mb-10 lg:hidden"
-          aria-label="AjoSave home"
+          aria-label={`${siteName} home`}
         >
           <span className="flex size-9 items-center justify-center rounded-xl bg-[#047857] text-white font-bold text-lg">
-            A
+            {siteName.charAt(0) || "A"}
           </span>
-          <span className="text-xl font-semibold tracking-tight">AjoSave</span>
+          <span className="text-xl font-semibold tracking-tight">{siteName}</span>
         </Link>
 
         <div className="w-full max-w-sm">
