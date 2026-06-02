@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, type ChangeEvent } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { auth, db } from "@/lib/firebase/client";
+import { uploadFile } from "@/lib/firebase/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +53,8 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 export function ProfileTab() {
   const { appUser, firebaseUser, setAppUser } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
   const [referralCopied, setReferralCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +78,55 @@ export function ProfileTab() {
     .toUpperCase();
 
   const referralLink = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://ajosave.app"}/register?ref=${appUser?.referralCode ?? ""}`;
+
+  async function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    if (!firebaseUser) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Avatar file must be 5MB or smaller.");
+      return;
+    }
+
+    setIsUploading(true);
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    try {
+      const path = `avatars/${firebaseUser.uid}/profile`;
+      const downloadUrl = await uploadFile(path, file);
+
+      await updateProfile(firebaseUser, { photoURL: downloadUrl });
+      await updateDoc(doc(db, "users", firebaseUser.uid), {
+        avatarUrl: downloadUrl,
+        updatedAt: serverTimestamp(),
+      });
+
+      if (appUser) {
+        setAppUser({ ...appUser, avatarUrl: downloadUrl });
+      }
+
+      toast.success("Avatar updated successfully.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to upload avatar. Please try again.");
+      setPreviewUrl(undefined);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
 
   async function onSubmit(values: ProfileFormValues) {
     if (!firebaseUser) return;
@@ -136,7 +188,12 @@ export function ProfileTab() {
           <div className="relative">
             <Avatar className="size-16">
               <AvatarImage
-                src={appUser?.avatarUrl ?? firebaseUser?.photoURL ?? undefined}
+                src={
+                  previewUrl ??
+                  appUser?.avatarUrl ??
+                  firebaseUser?.photoURL ??
+                  undefined
+                }
               />
               <AvatarFallback className="text-lg font-semibold bg-primary/10 text-primary">
                 {initials}
@@ -146,6 +203,7 @@ export function ProfileTab() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm hover:bg-primary/80 transition-colors"
+              disabled={isUploading}
             >
               <CameraIcon className="size-3" />
             </button>
@@ -154,7 +212,7 @@ export function ProfileTab() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={() => toast.info("Avatar upload coming soon.")}
+              onChange={handleAvatarChange}
             />
           </div>
           <div className="space-y-1">
@@ -163,6 +221,11 @@ export function ProfileTab() {
             </p>
             <p className="text-xs text-muted-foreground">
               {firebaseUser?.email ?? "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {isUploading
+                ? "Uploading avatar..."
+                : "Click the camera icon to update your profile photo."}
             </p>
           </div>
         </CardContent>

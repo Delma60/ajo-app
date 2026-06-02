@@ -318,6 +318,34 @@ export function DashboardContent() {
             : stats.map((s) => <StatCard key={s.label} data={s} />)}
         </div>
 
+        {/* Rewards & events banner */}
+        <Card className="border-emerald-200 bg-emerald-50">
+          <CardContent className="flex flex-col gap-4 rounded-xl p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">
+                Rewards & Events
+              </p>
+              <p className="text-sm text-emerald-700/90">
+                {eventsLoading
+                  ? "Checking active reward events..."
+                  : activeEventsCount === null
+                    ? "Explore rewards, badges, and earning opportunities."
+                    : activeEventsCount > 0
+                      ? `${activeEventsCount} active reward event${activeEventsCount === 1 ? "" : "s"} available`
+                      : "No active reward events currently."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className="rounded-full bg-emerald-100 text-emerald-700">
+                {eventsLoading ? "..." : activeEventsCount ?? 0}
+              </Badge>
+              <Button size="sm" asChild>
+                <Link href="/rewards">View events</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* My Circles */}
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -355,37 +383,7 @@ export function DashboardContent() {
               </p>
               <div className="flex gap-2 mt-4">
                 <Button size="sm" asChild>
-                  <Link href="/circles/create">
-                    {/* Rewards banner */}
-                    <Card className="border-emerald-200 bg-emerald-50">
-                      <CardContent className="flex flex-col gap-3 rounded-lg p-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-emerald-900">
-                            Rewards & Events
-                          </p>
-                          <p className="text-sm text-emerald-700/90">
-                            {eventsLoading
-                              ? "Checking active reward events..."
-                              : activeEventsCount === null
-                                ? "Explore rewards and badges"
-                                : activeEventsCount > 0
-                                  ? `${activeEventsCount} active reward event${activeEventsCount === 1 ? "" : "s"}`
-                                  : "No active reward events currently"}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className="rounded-full bg-emerald-100 text-emerald-700">
-                            {eventsLoading ? "..." : (activeEventsCount ?? "0")}
-                          </Badge>
-                          <Button size="sm" asChild>
-                            <Link href="/rewards">View rewards</Link>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Plus className="size-3.5" />
-                    Create Circle
-                  </Link>
+                  <Link href="/circles/create">Create Circle</Link>
                 </Button>
                 <Button size="sm" variant="outline" asChild>
                   <Link href="/circles/discover">Discover</Link>

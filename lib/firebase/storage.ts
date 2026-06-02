@@ -13,7 +13,9 @@ import { storage } from "@/lib/firebase/client";
  */
 export async function uploadFile(path: string, file: File | Blob): Promise<string> {
   const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type || "application/octet-stream",
+  });
   return firebaseGetDownloadURL(storageRef);
 }
 
