@@ -1,4 +1,4 @@
-import { adminAuth } from "@/lib/firebase/admin";
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { SESSION_COOKIE } from "@/lib/constants";
 import { NextRequest } from "next/server";
 
@@ -7,7 +7,10 @@ export async function getSessionUser(request: NextRequest) {
   if (!sessionCookie) return null;
 
   try {
-    return await adminAuth.verifySessionCookie(sessionCookie, true);
+    const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
+    const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
+    const role = userSnap.exists ? userSnap.data()?.role : null;
+    return { ...decoded, role };
   } catch {
     return null;
   }

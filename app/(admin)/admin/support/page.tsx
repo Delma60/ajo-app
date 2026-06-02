@@ -6,5 +6,9 @@ export const metadata: Metadata = {
 };
 
 export default function AdminSupportPage() {
-  return <AdminSupportContent />;
+  return (
+    <div className="p-6 py-8 mt-6 max-w-4xl space-y-6">
+      <AdminSupportContent />
+    </div>
+  );
 }

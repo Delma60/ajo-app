@@ -6,8 +6,8 @@ import { SupportService } from "@/lib/services/support-service";
 const SESSION_COOKIE = "__session";
 
 async function verifyAdmin() {
-  const cookieStore = cookies();
-  const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value;
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore?.get?.(SESSION_COOKIE)?.value ?? null;
   if (!sessionCookie) return null;
   try {
     const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);

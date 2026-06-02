@@ -125,7 +125,7 @@ export function AdminSupportContent() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All statuses</SelectItem>
+                <SelectItem value="all">All statuses</SelectItem>
                 {statusOptions.slice(1).map((value) => (
                   <SelectItem key={value} value={value}>
                     {
@@ -145,7 +145,7 @@ export function AdminSupportContent() {
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All categories</SelectItem>
+                <SelectItem value="all">All categories</SelectItem>
                 {categoryOptions.slice(1).map((value) => (
                   <SelectItem key={value} value={value}>
                     {
