@@ -1,151 +1,140 @@
-// app/api/auth/callback/route.ts
-/**
- * OAuth Redirect Callback Handler
- * 
- * This endpoint handles Firebase OAuth redirects (Google Sign-In).
- * After the user authenticates with Google, they are redirected here.
- * 
- * Flow:
- * 1. User taps "Sign in with Gmail" in native mobile browser or web
- * 2. Browser opens Google OAuth consent screen
- * 3. User signs in with their Google account
- * 4. Google redirects back to this endpoint
- * 5. We create a session cookie and redirect to dashboard
- * 
- * For WebView:
- * - Mobile app opens OAuth flow in native browser (not WebView)
- * - Native browser handles the OAuth redirect here
- * - Session cookie is set and shared with WebView (sharedCookiesEnabled=true)
- * - WebView detects auth state change and syncs user session
- */
-
-import { cookies } from "next/headers";
-import { adminAuth, adminDb } from "@/lib/firebase/admin";
+// app/api/auth/google/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 
-const SESSION_COOKIE_NAME = "__session";
-const USER_META_COOKIE_NAME = "__user_meta";
-const SESSION_DURATION_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
-
+/**
+ * Called by the Expo native layer after Google OAuth completes.
+ * Receives a Firebase ID token, verifies it, creates a session cookie,
+ * upserts the user doc, and redirects into the app.
+ *
+ * Flow:
+ *   Native WebBrowser → Google → Firebase redirect → this route
+ *   → sets __session cookie → redirects to /dashboard or /onboarding
+ */
 export async function GET(request: NextRequest) {
-  try {
-    // Extract ID token from URL query params
-    // Firebase redirect includes the token in the URL
-    const { searchParams } = new URL(request.url);
-    const idToken = searchParams.get("token") || searchParams.get("idToken");
+  const { searchParams } = new URL(request.url);
+  const idToken = searchParams.get("idToken");
 
-    if (!idToken) {
-      // No token provided; redirect to login
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-
-    // Verify and decode the ID token
-    const decoded = await adminAuth.verifyIdToken(idToken);
-
-    // Create session cookie
-    const sessionCookie = await adminAuth.createSessionCookie(idToken, {
-      expiresIn: SESSION_DURATION_MS,
-    });
-
-    // Fetch user profile
-    const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
-    const userData = userSnap.data();
-
-    const cookieStore = await cookies();
-    const cookieOptions = {
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax" as const,
-      path: "/",
-    };
-
-    // Set httpOnly session cookie
-    cookieStore.set(SESSION_COOKIE_NAME, sessionCookie, {
-      ...cookieOptions,
-      httpOnly: true,
-      maxAge: SESSION_DURATION_MS / 1000,
-    });
-
-    // Set readable meta cookie
-    cookieStore.set(
-      USER_META_COOKIE_NAME,
-      JSON.stringify({
-        role: userData?.role ?? "user",
-        onboardingComplete: userData?.onboardingComplete ?? false,
-      }),
-      {
-        ...cookieOptions,
-        httpOnly: false,
-        maxAge: SESSION_DURATION_MS / 1000,
-      }
+  if (!idToken) {
+    return NextResponse.redirect(
+      new URL("/login?error=missing_token", request.url)
     );
-
-    // Redirect to dashboard or onboarding
-    const redirectPath =
-      userData?.onboardingComplete === false ? "/onboarding" : "/dashboard";
-
-    return NextResponse.redirect(new URL(redirectPath, request.url));
-  } catch (err) {
-    console.error("[auth/callback] Error:", err);
-    // On error, redirect back to login
-    return NextResponse.redirect(new URL("/login?error=oauth_failed", request.url));
   }
-}
 
-export async function POST(request: NextRequest) {
   try {
-    const { idToken } = await request.json();
+    // Verify the ID token with Firebase Admin
+    const decoded = await adminAuth.verifyIdToken(idToken);
 
-    if (!idToken || typeof idToken !== "string") {
-      return Response.json(
-        { success: false, error: "Missing idToken" },
-        { status: 400 }
-      );
+    // Create a session cookie (14 days)
+    const expiresIn = 60 * 60 * 24 * 14 * 1000;
+    const sessionCookie = await adminAuth.createSessionCookie(idToken, {
+      expiresIn,
+    });
+
+    // Upsert user document in Firestore
+    const userRef = adminDb.collection("users").doc(decoded.uid);
+    const userSnap = await userRef.get();
+
+    let onboardingComplete = false;
+    let role = "user";
+
+    if (!userSnap.exists) {
+      // First-time Google sign-in — create user + wallet docs
+      function generateReferralCode(uid: string) {
+        return uid.slice(0, 8).toUpperCase();
+      }
+
+      const newUser = {
+        id: decoded.uid,
+        name: decoded.name ?? "",
+        email: decoded.email ?? "",
+        phone: "",
+        avatarUrl: decoded.picture ?? null,
+        referralCode: generateReferralCode(decoded.uid),
+        referralBonusAmount: 0,
+        role: "user",
+        status: "active",
+        circleIds: [],
+        bankAccounts: [],
+        onboardingComplete: false,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      await userRef.set(newUser);
+
+      await adminDb
+        .collection("wallets")
+        .doc(decoded.uid)
+        .set({
+          userId: decoded.uid,
+          available: 0,
+          pending: 0,
+          totalSaved: 0,
+          totalReceived: 0,
+          referralEarnings: 0,
+          currency: "NGN",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+      // Send welcome email (fire-and-forget)
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth/welcome`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: decoded.name ?? "",
+          email: decoded.email ?? "",
+        }),
+      }).catch(console.error);
+    } else {
+      const userData = userSnap.data()!;
+      onboardingComplete = userData.onboardingComplete ?? false;
+      role = userData.role ?? "user";
+
+      // Update last-seen timestamp
+      await userRef.update({ updatedAt: FieldValue.serverTimestamp() });
     }
 
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    const sessionCookie = await adminAuth.createSessionCookie(idToken, {
-      expiresIn: SESSION_DURATION_MS,
-    });
+    // Determine redirect destination
+    const redirectPath =
+      role === "admin"
+        ? "/admin"
+        : !onboardingComplete
+        ? "/onboarding"
+        : "/dashboard";
 
-    const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
-    const userData = userSnap.data();
+    // Set session cookie and redirect
+    const response = NextResponse.redirect(
+      new URL(redirectPath, request.url)
+    );
 
-    const cookieStore = await cookies();
-    const cookieOptions = {
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax" as const,
-      path: "/",
-    };
-
-    cookieStore.set(SESSION_COOKIE_NAME, sessionCookie, {
-      ...cookieOptions,
+    response.cookies.set("__session", sessionCookie, {
       httpOnly: true,
-      maxAge: SESSION_DURATION_MS / 1000,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: expiresIn / 1000, // seconds
+      path: "/",
     });
 
-    cookieStore.set(
-      USER_META_COOKIE_NAME,
-      JSON.stringify({
-        role: userData?.role ?? "user",
-        onboardingComplete: userData?.onboardingComplete ?? false,
-      }),
+    // Also set a readable meta cookie for client-side role detection
+    response.cookies.set(
+      "__user_meta",
+      encodeURIComponent(JSON.stringify({ role })),
       {
-        ...cookieOptions,
         httpOnly: false,
-        maxAge: SESSION_DURATION_MS / 1000,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: expiresIn / 1000,
+        path: "/",
       }
     );
 
-    return Response.json({
-      success: true,
-      data: { redirectPath: userData?.onboardingComplete === false ? "/onboarding" : "/dashboard" },
-      error: null,
-    });
+    return response;
   } catch (err) {
-    console.error("[auth/callback/POST]", err);
-    return Response.json(
-      { success: false, error: "Failed to create session from token" },
-      { status: 401 }
+    console.error("[google-callback] Token verification failed:", err);
+    return NextResponse.redirect(
+      new URL("/login?error=auth_failed", request.url)
     );
   }
 }

@@ -27,24 +27,24 @@ export function GoogleAuthButton({
   async function handleGoogleAuth() {
     setIsLoading(true);
 
+    // Detect Expo WebView
     const isWebView =
-      typeof window !== "undefined" && window.ReactNativeWebView;
+      typeof window !== "undefined" && !!window.ReactNativeWebView;
 
     if (isWebView) {
-      // 2. We are in Expo. Send a message to the React Native layer
-      // telling it to open the native browser for authentication.
-      window?.ReactNativeWebView?.postMessage(
-        JSON.stringify({ type: "INITIATE_GOOGLE_LOGIN" }),
+      // Tell native layer to open Google auth in system browser.
+      // We don't set isLoading=false — the page will reload after auth.
+      window.ReactNativeWebView!.postMessage(
+        JSON.stringify({ type: "INITIATE_GOOGLE_LOGIN" })
       );
-
-      // We don't set loading to false here because we are waiting
-      // for the native app to complete the flow and reload the WebView.
       return;
     }
+
+    // Standard web flow
     try {
       await signInWithGoogle();
       toast.success("Signed in successfully");
-      // Prefer admin landing when signing in as admin
+
       try {
         const metaCookie =
           typeof document !== "undefined"
@@ -61,9 +61,10 @@ export function GoogleAuthButton({
             return;
           }
         }
-      } catch (e) {
-        // ignore
+      } catch {
+        // ignore cookie parse errors
       }
+
       router.push("/dashboard");
       router.refresh();
     } catch (err: unknown) {
@@ -72,7 +73,6 @@ export function GoogleAuthButton({
       if (!message.includes("popup-closed")) {
         toast.error(message);
       }
-    } finally {
       setIsLoading(false);
     }
   }
@@ -85,7 +85,6 @@ export function GoogleAuthButton({
       onClick={handleGoogleAuth}
       disabled={isLoading}
     >
-      {/* Google SVG icon */}
       <svg
         aria-hidden="true"
         className="size-4 shrink-0"
