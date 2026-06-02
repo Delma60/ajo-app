@@ -68,9 +68,7 @@ export function ClaimsTable({
               </div>
               <div className="mt-3">
                 <Badge
-                  variant={
-                    claim.status === "awarded" ? "default" : "secondary"
-                  }
+                  variant={claim.status === "awarded" ? "default" : "secondary"}
                 >
                   {claim.status}
                 </Badge>
