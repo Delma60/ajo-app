@@ -231,7 +231,7 @@ export function CreateEventForm() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="startDate">Start Date</Label>
                 <Input
@@ -332,7 +332,7 @@ export function CreateEventForm() {
             <div className="pt-4 border-t space-y-4">
               <h3 className="font-medium text-sm">Claim Limits</h3>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="maxClaimsTotal">
                     Max Total Claims (0 = unlimited)

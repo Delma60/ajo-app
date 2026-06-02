@@ -99,8 +99,49 @@ export function AdminEventsContent() {
         </Link>
       </div>
 
-      {/* Events table */}
-      <div className="overflow-x-auto">
+      {/* Mobile list (small screens) */}
+      <div className="space-y-3 sm:hidden">
+        {events.map((event) => (
+          <Card key={event.id}>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="font-medium text-sm">{event.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {event.triggerType.replace(/_/g, " ")}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <Badge variant="outline" className="capitalize mb-2">
+                    {event.status}
+                  </Badge>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(
+                      parseTimestamp(event.createdAt) ?? new Date(),
+                      { addSuffix: true },
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <div className="text-xs text-muted-foreground">
+                  {event.rewardType.replace(/_/g, " ")}
+                </div>
+                <Link href={`/admin/events/${event.id}`}>
+                  <Button variant="ghost" size="sm">
+                    <ExternalLink className="size-4" />
+                    View
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Events table (desktop) */}
+      <div className="hidden sm:block overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

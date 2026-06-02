@@ -148,7 +148,7 @@ export function SupportTicketDetailContent({
                 <MessageSquare className="size-4" /> Conversation
               </div>
             </CardHeader>
-            <CardContent className="space-y-4 p-4">
+            <CardContent className="space-y-4 p-4 max-h-[60vh] overflow-y-auto">
               {messages.map((message) => (
                 <div
                   key={message.id}

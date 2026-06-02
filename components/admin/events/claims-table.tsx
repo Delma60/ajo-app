@@ -38,7 +38,49 @@ export function ClaimsTable({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto">
+      {/* Mobile cards */}
+      <div className="space-y-3 sm:hidden">
+        {claims.map((claim) => (
+          <Card key={claim.id}>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="font-medium text-sm">
+                    {claim.userId.substring(0, 8)}...
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {claim.rewardType.replace(/_/g, " ")}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm">
+                    {claim.rewardAmountKobo
+                      ? formatNaira(claim.rewardAmountKobo)
+                      : "—"}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {formatDistanceToNow(
+                      parseTimestamp(claim.createdAt) ?? new Date(),
+                      { addSuffix: true },
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3">
+                <Badge
+                  variant={
+                    claim.status === "awarded" ? "default" : "secondary"
+                  }
+                >
+                  {claim.status}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="hidden sm:block overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
