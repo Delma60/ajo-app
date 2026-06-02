@@ -29,7 +29,7 @@ import { adminDb, admin } from "@/lib/firebase/admin";
 import * as eventTrigger from "@/lib/services/event-trigger";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
-import { MAX_ACTIVE_CIRCLES } from "@/lib/constants";
+// import { MAX_ACTIVE_CIRCLES } from "@/lib/constants";
 import { sendNotification } from "@/lib/services/notification-service";
 import * as smsService from "@/lib/services/sms-service";
 import {
@@ -209,11 +209,12 @@ export class CircleService {
         throw new CircleError("CIRCLE_INACTIVE", "This circle is not accepting new members.");
       }
 
+      const settings = await getCircleSettings();
       const activeCount = await this.countActiveCircles(userId);
-      if (activeCount >= MAX_ACTIVE_CIRCLES) {
+      if (activeCount >= settings.maxActiveCirclesPerUser) {
         throw new CircleError(
           "MAX_CIRCLES_REACHED",
-          `You can be in a maximum of ${MAX_ACTIVE_CIRCLES} active circles.`
+          `You can be in a maximum of ${settings.maxActiveCirclesPerUser} active circles.`
         );
       }
 
