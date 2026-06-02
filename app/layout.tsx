@@ -6,7 +6,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/providers/auth";
 import { QueryProvider } from "@/lib/providers/tanstack-query";
 import { SettingsProvider } from "@/lib/providers/settings";
-import { getSettings, serializeSettings } from "@/lib/services/settings-service";
+import {
+  getSettings,
+  serializeSettings,
+} from "@/lib/services/settings-service";
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
