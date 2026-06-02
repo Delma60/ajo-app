@@ -319,32 +319,81 @@ export function DashboardContent() {
         </div>
 
         {/* Rewards & events banner */}
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="flex flex-col gap-4 rounded-xl p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-emerald-900">
-                Rewards & Events
+        {/* Rewards & events banner */}
+        <div
+          className="relative overflow-hidden rounded-2xl p-5 text-white"
+          style={{ backgroundColor: "#047857" }}
+        >
+          {/* Decorative rings */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-14 right-28 size-44 rounded-full border border-white/10"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-10 right-14 size-28 rounded-full border border-white/[0.08]"
+          />
+
+          <div className="relative z-10 flex items-center justify-between gap-4">
+            {/* Left: copy */}
+            <div className="flex flex-col gap-2 min-w-0">
+              {/* Eyebrow */}
+              <div className="flex items-center gap-2">
+                <span className="size-1.5 rounded-full bg-emerald-300 shrink-0" />
+                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium text-emerald-100 tracking-wide">
+                  {eventsLoading
+                    ? "Loading…"
+                    : `${activeEventsCount ?? 0} event${activeEventsCount === 1 ? "" : "s"} live`}
+                </span>
+              </div>
+
+              <p className="text-[17px] font-medium leading-snug text-white">
+                Earn rewards while you save
               </p>
-              <p className="text-sm text-emerald-700/90">
-                {eventsLoading
-                  ? "Checking active reward events..."
-                  : activeEventsCount === null
-                    ? "Explore rewards, badges, and earning opportunities."
-                    : activeEventsCount > 0
-                      ? `${activeEventsCount} active reward event${activeEventsCount === 1 ? "" : "s"} available`
-                      : "No active reward events currently."}
+              <p className="text-[13px] text-white/70">
+                Complete milestones, collect badges & get wallet credits.
               </p>
+
+              {/* Feature pills */}
+              <div className="flex flex-wrap gap-1.5 mt-0.5">
+                {["Badges", "Wallet credits", "Referral bonuses"].map(
+                  (label) => (
+                    <span
+                      key={label}
+                      className="rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-[11px] text-emerald-100"
+                    >
+                      {label}
+                    </span>
+                  ),
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge className="rounded-full bg-emerald-100 text-emerald-700">
-                {eventsLoading ? "..." : (activeEventsCount ?? 0)}
-              </Badge>
-              <Button size="sm" asChild>
-                <Link href="/rewards">View events</Link>
+
+            {/* Right: count + CTA */}
+            <div className="flex shrink-0 flex-col items-end gap-2.5">
+              {!eventsLoading && (
+                <div className="flex flex-col items-end">
+                  <span className="font-mono text-3xl font-medium leading-none text-white tabular-nums">
+                    {activeEventsCount ?? 0}
+                  </span>
+                  <span className="mt-1 text-[11px] text-white/60">
+                    active events
+                  </span>
+                </div>
+              )}
+              <Button
+                size="sm"
+                asChild
+                className="bg-white text-emerald-800 hover:bg-emerald-50 border-0 font-medium"
+              >
+                <Link href="/rewards">
+                  View events
+                  <ArrowRight className="size-3.5" />
+                </Link>
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* My Circles */}
         <div>

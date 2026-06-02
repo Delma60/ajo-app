@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { adminDb } from "@/lib/firebase/admin";
+import { Timestamp } from "firebase-admin/firestore";
 import { Event } from "@/lib/types/event";
 
 /**
@@ -10,18 +10,16 @@ import { Event } from "@/lib/types/event";
 export async function GET(request: NextRequest) {
   try {
     const now = Timestamp.now();
-    const eventsRef = collection(db, "events");
-    const q = query(
-      eventsRef,
-      where("status", "==", "active"),
-      where("startDate", "<=", now),
-      where("endDate", ">=", now),
-    );
+    const eventsRef = adminDb.collection("events");
+    const snapshot = await eventsRef
+      .where("status", "==", "active")
+      .where("startDate", "<=", now)
+      .where("endDate", ">=", now)
+      .get();
 
-    const snapshot = await getDocs(q);
     const events = snapshot.docs.map((doc) => ({
       id: doc.id,
-      ...doc.data(),
+      ...(doc.data() as any),
     })) as Event[];
 
     return NextResponse.json({

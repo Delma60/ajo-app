@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb, admin, adminAuth } from "@/lib/firebase/admin";
+import { adminDb, adminAuth } from "@/lib/firebase/admin";
+import { Timestamp } from "firebase-admin/firestore";
 import { Event } from "@/lib/types/event";
 import { SESSION_COOKIE } from "@/lib/constants";
 
@@ -142,11 +143,11 @@ export async function POST(request: NextRequest) {
       badgeId,
       maxClaimsTotal: maxClaimsTotal || 0,
       maxClaimsPerUser: maxClaimsPerUser || 1,
-      startDate: admin.firestore.Timestamp.fromDate(new Date(startDate)),
-      endDate: admin.firestore.Timestamp.fromDate(new Date(endDate)),
+      startDate: Timestamp.fromDate(new Date(startDate)),
+      endDate: Timestamp.fromDate(new Date(endDate)),
       createdBy: adminUser.uid,
-      createdAt: admin.firestore.Timestamp.now(),
-      updatedAt: admin.firestore.Timestamp.now(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     };
 
     await adminDb.collection("events").doc(eventId).set(event as any);

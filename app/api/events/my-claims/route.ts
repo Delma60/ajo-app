@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  doc,
-  getDoc,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { adminDb } from "@/lib/firebase/admin";
 import { EventClaim, Event } from "@/lib/types/event";
 import { getSessionUser } from "@/lib/firebase/server-auth";
 
@@ -25,25 +17,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const claimsRef = collection(db, "event_claims");
-    const q = query(
-      claimsRef,
-      where("userId", "==", user.uid),
-      where("status", "==", "awarded"),
-    );
-
-    const snapshot = await getDocs(q);
+    const snapshot = await adminDb
+      .collection("event_claims")
+      .where("userId", "==", user.uid)
+      .where("status", "==", "awarded")
+      .get();
 
     const results: (EventClaim & { event?: Event })[] = [];
 
     for (const claimDoc of snapshot.docs) {
       const claim = claimDoc.data() as EventClaim;
-
-      // Fetch the event details
-      const eventDoc = await getDoc(doc(db, "events", claim.eventId));
-      const event = eventDoc.exists()
-        ? (eventDoc.data() as Event)
-        : undefined;
+      const eventDoc = await adminDb.collection("events").doc(claim.eventId).get();
+      const event = eventDoc.exists() ? (eventDoc.data() as Event) : undefined;
 
       results.push({
         ...claim,

@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  doc,
-  getDoc,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
-import { EventClaim, UserBadge, Badge } from "@/lib/types/event";
+import { adminDb } from "@/lib/firebase/admin";
+import { UserBadge, Badge } from "@/lib/types/event";
 import { getSessionUser } from "@/lib/firebase/server-auth";
 
 /**
@@ -25,21 +17,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const badgesRef = collection(
-      db,
-      `users/${user.uid}/earned_badges`,
-    );
-    const snapshot = await getDocs(badgesRef);
+    const snapshot = await adminDb
+      .collection("users")
+      .doc(user.uid)
+      .collection("earned_badges")
+      .get();
 
     const results: (UserBadge & Badge)[] = [];
 
     for (const badgeDoc of snapshot.docs) {
       const userBadge = badgeDoc.data() as UserBadge;
-
-      // Fetch the badge definition
       if (userBadge.badgeId) {
-        const badgeDef = await getDoc(doc(db, "badges", userBadge.badgeId));
-        if (badgeDef.exists()) {
+        const badgeDef = await adminDb.collection("badges").doc(userBadge.badgeId).get();
+        if (badgeDef.exists) {
           results.push({
             ...userBadge,
             ...(badgeDef.data() as Badge),

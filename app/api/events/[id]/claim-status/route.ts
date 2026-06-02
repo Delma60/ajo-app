@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { adminDb } from "@/lib/firebase/admin";
 import { EventClaim } from "@/lib/types/event";
+import { getSessionUser } from "@/lib/firebase/server-auth";
 
 /**
  * GET /api/events/[id]/claim-status
@@ -12,28 +12,22 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
+    const user = await getSessionUser(request);
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: "userId is required" },
-        { status: 400 },
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
       );
     }
 
     const { id: eventId } = await params;
 
-    const claimsRef = collection(db, "event_claims");
-    const q = query(
-      claimsRef,
-      where("eventId", "==", eventId),
-      where("userId", "==", userId),
-    );
+    const snapshot = await adminDb
+      .collection("event_claims")
+      .where("eventId", "==", eventId)
+      .where("userId", "==", user.uid)
+      .get();
 
-    const snapshot = await getDocs(q);
-
-    // Return true if user has any pending or awarded claim
     const hasClaimed = snapshot.docs.some((doc) => {
       const claim = doc.data() as EventClaim;
       return claim.status === "awarded" || claim.status === "pending";

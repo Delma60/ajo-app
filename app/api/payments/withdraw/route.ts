@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { PaymentService, PaymentError } from "@/lib/services/payment-service";
 import { getWalletSettings } from "@/lib/services/settings-service";
+import { withdrawSchema } from "@/lib/validators/payment";
 
 const SESSION_COOKIE = "__session";
 
@@ -41,21 +42,17 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const { amount, bankAccountId } = body;
-    if (!amount || typeof amount !== "number" || amount <= 0) {
-      return Response.json(
-        { success: false, data: null, error: "amount must be a positive number (kobo)" },
-        { status: 400 }
-      );
-    }
-    if (!bankAccountId || typeof bankAccountId !== "string") {
-      return Response.json(
-        { success: false, data: null, error: "bankAccountId is required" },
-        { status: 400 }
-      );
-    }
 
-    // Enforce settings minimum withdrawal
+    const result = withdrawSchema.safeParse(body);
+    if (!result.success) {
+      const errorMessage = result.error.issues?.[0]?.message ?? "Invalid request body";
+      return Response.json(
+        { success: false, data: null, error: errorMessage },
+        { status: 400 }
+      );
+    }
+    const { amount, bankAccountId } = result.data;
+
     const walletSettings = await getWalletSettings();
     if (amount < walletSettings.minWithdrawKobo) {
       return Response.json(
@@ -69,13 +66,13 @@ export async function POST(request: NextRequest) {
     }
 
     const service = new PaymentService();
-    const result = await service.initiateWithdrawal(
+    const withdrawal = await service.initiateWithdrawal(
       sessionUser.uid,
       amount,
       bankAccountId
     );
 
-    return Response.json({ success: true, data: result, error: null });
+    return Response.json({ success: true, data: withdrawal, error: null });
   } catch (err) {
     if (err instanceof PaymentError) {
       return Response.json(

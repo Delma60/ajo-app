@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { PaymentService } from "@/lib/services/payment-service";
 import { getWalletSettings } from "@/lib/services/settings-service";
+import { depositSchema } from "@/lib/validators/payment";
 
 const SESSION_COOKIE = "__session";
 
@@ -35,15 +36,17 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const { amount, email, name } = body;
-    if (!amount || typeof amount !== "number" || amount <= 0) {
+
+    const result = depositSchema.safeParse(body);
+    if (!result.success) {
+      const errorMessage = result.error.issues?.[0]?.message ?? "Invalid request body";
       return Response.json(
-        { success: false, data: null, error: "Invalid amount" },
+        { success: false, data: null, error: errorMessage },
         { status: 400 }
       );
     }
 
-    // Enforce settings minimum deposit
+    const { amount, email, name } = result.data;
     const walletSettings = await getWalletSettings();
     if (amount < walletSettings.minDepositKobo) {
       return Response.json(
