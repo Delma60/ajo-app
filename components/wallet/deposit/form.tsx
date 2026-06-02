@@ -4,17 +4,13 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  ShieldCheckIcon,
-  ZapIcon,
-  LockIcon,
-  InfoIcon,
-} from "lucide-react";
+import { ShieldCheckIcon, ZapIcon, LockIcon, InfoIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { useNativeBridge } from "@/hooks/use-native-bridge";
 import { formatNaira, cn } from "@/lib/utils";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -86,6 +82,7 @@ export function DepositForm({
 }: DepositFormProps) {
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { haptic } = useNativeBridge();
 
   const {
     register,
@@ -103,12 +100,14 @@ export function DepositForm({
   const newBalanceKobo = walletBalance + amountKobo;
 
   function handlePresetClick(naira: number) {
+    haptic("selection");
     setSelectedPreset(naira);
     setValue("amount", String(naira), { shouldValidate: true });
   }
 
   async function onSubmit(values: DepositFormValues) {
     const kobo = Math.round(parseFloat(values.amount) * 100);
+    haptic("selection");
     setIsSubmitting(true);
     onProcessing();
 
@@ -130,6 +129,7 @@ export function DepositForm({
       if (paymentLink) {
         // Redirect to Flutterwave hosted payment page
         onRedirecting(reference, kobo);
+        haptic("success");
         // Small delay so the user sees the "redirecting" state
         await new Promise((r) => setTimeout(r, 600));
         window.location.href = paymentLink;
@@ -137,11 +137,15 @@ export function DepositForm({
         // Dev/test environment: simulate success
         await new Promise((r) => setTimeout(r, 1200));
         onSuccess(kobo);
+        haptic("success");
       }
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Could not start payment. Please try again."
+        err instanceof Error
+          ? err.message
+          : "Could not start payment. Please try again.",
       );
+      haptic("error");
       // Reset back to form
       setIsSubmitting(false);
       // Parent stays in "processing" — we need to signal back.
@@ -177,7 +181,7 @@ export function DepositForm({
             key={label}
             className={cn(
               "rounded-xl border border-border p-3 space-y-1 text-center",
-              bg
+              bg,
             )}
           >
             <Icon className={cn("size-4 mx-auto", color)} />
@@ -211,7 +215,7 @@ export function DepositForm({
                     "h-10 rounded-lg border text-sm font-semibold transition-all",
                     isSelected
                       ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                      : "border-border bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground"
+                      : "border-border bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground",
                   )}
                 >
                   {naira >= 1000 ? `₦${naira / 1000}k` : `₦${naira}`}
@@ -290,7 +294,9 @@ export function DepositForm({
                   <span
                     className={cn(
                       "font-mono font-semibold",
-                      highlight ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
+                      highlight
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-foreground",
                     )}
                   >
                     {value}
@@ -321,8 +327,8 @@ export function DepositForm({
           {isSubmitting
             ? "Processing…"
             : amountKobo >= 50000
-            ? `Pay ${formatNaira(amountKobo)}`
-            : "Enter an amount to continue"}
+              ? `Pay ${formatNaira(amountKobo)}`
+              : "Enter an amount to continue"}
         </Button>
       </form>
 

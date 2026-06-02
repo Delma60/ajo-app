@@ -16,6 +16,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useNativeBridge } from "@/hooks/use-native-bridge";
 import { formatNaira } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ export function WithdrawContent({
   const router = useRouter();
   const { appUser } = useAuthStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { haptic } = useNativeBridge();
 
   const {
     register,
@@ -60,7 +62,9 @@ export function WithdrawContent({
     formState: { errors },
   } = useForm<WithdrawFormValues>({
     resolver: zodResolver(withdrawSchema),
-    defaultValues: { bankAccountId: appUser?.bankAccounts?.find((b) => b.isDefault)?.id ?? "" },
+    defaultValues: {
+      bankAccountId: appUser?.bankAccounts?.find((b) => b.isDefault)?.id ?? "",
+    },
   });
 
   const amountStr = watch("amount") ?? "";
@@ -73,6 +77,7 @@ export function WithdrawContent({
   const bankAccounts: BankAccount[] = appUser?.bankAccounts ?? [];
 
   async function onSubmit(values: WithdrawFormValues) {
+    haptic("selection");
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/payments/withdraw", {
@@ -86,9 +91,15 @@ export function WithdrawContent({
       const data = await res.json();
       if (!data.success) throw new Error(data.error ?? "Withdrawal failed");
       toast.success("Withdrawal initiated! Funds will arrive within minutes.");
+      haptic("success");
       router.push("/wallet");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Withdrawal failed. Please try again.");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Withdrawal failed. Please try again.",
+      );
+      haptic("error");
     } finally {
       setIsSubmitting(false);
     }
@@ -123,7 +134,11 @@ export function WithdrawContent({
           </p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+          className="space-y-5"
+        >
           {/* Bank account selection */}
           <div className="space-y-2">
             <Label>Bank account</Label>
@@ -134,7 +149,9 @@ export function WithdrawContent({
                   No bank accounts saved yet.
                 </p>
                 <Button size="sm" variant="outline" asChild>
-                  <Link href="/settings?tab=bank-accounts">Add bank account</Link>
+                  <Link href="/settings?tab=bank-accounts">
+                    Add bank account
+                  </Link>
                 </Button>
               </div>
             ) : (
@@ -143,21 +160,27 @@ export function WithdrawContent({
                   <button
                     type="button"
                     key={account.id}
-                    onClick={() => setValue("bankAccountId", account.id)}
+                    onClick={() => {
+                      haptic("selection");
+                      setValue("bankAccountId", account.id);
+                    }}
                     className={cn(
                       "w-full flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all",
                       selectedAccountId === account.id
                         ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                        : "border-border hover:border-primary/40"
+                        : "border-border hover:border-primary/40",
                     )}
                   >
                     <div className="flex size-9 items-center justify-center rounded-lg bg-muted shrink-0">
                       <BuildingIcon className="size-4 text-muted-foreground" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{account.bankName}</p>
+                      <p className="text-sm font-medium truncate">
+                        {account.bankName}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        •••• {account.accountNumber.slice(-4)} · {account.accountName}
+                        •••• {account.accountNumber.slice(-4)} ·{" "}
+                        {account.accountName}
                       </p>
                     </div>
                     {account.isDefault && (
@@ -170,7 +193,9 @@ export function WithdrawContent({
               </div>
             )}
             {errors.bankAccountId && (
-              <p className="text-xs text-destructive">{errors.bankAccountId.message}</p>
+              <p className="text-xs text-destructive">
+                {errors.bankAccountId.message}
+              </p>
             )}
           </div>
 
@@ -193,7 +218,9 @@ export function WithdrawContent({
               />
             </div>
             {errors.amount && (
-              <p className="text-xs text-destructive">{errors.amount.message}</p>
+              <p className="text-xs text-destructive">
+                {errors.amount.message}
+              </p>
             )}
           </div>
 
@@ -202,8 +229,14 @@ export function WithdrawContent({
             <Card>
               <CardContent className="divide-y divide-border space-y-0 py-3">
                 {[
-                  { label: "Withdrawal amount", value: formatNaira(amountKobo) },
-                  { label: "Fee (1% + ₦50, max ₦500)", value: `-${formatNaira(feeKobo)}` },
+                  {
+                    label: "Withdrawal amount",
+                    value: formatNaira(amountKobo),
+                  },
+                  {
+                    label: "Fee (1% + ₦50, max ₦500)",
+                    value: `-${formatNaira(feeKobo)}`,
+                  },
                   {
                     label: "You receive",
                     value: netKobo > 0 ? formatNaira(netKobo) : "—",
@@ -218,7 +251,7 @@ export function WithdrawContent({
                     <span
                       className={cn(
                         "font-mono font-semibold",
-                        highlight ? "text-primary" : "text-foreground"
+                        highlight ? "text-primary" : "text-foreground",
                       )}
                     >
                       {value}
@@ -244,7 +277,8 @@ export function WithdrawContent({
 
           {!hasSufficientFunds && amountKobo > 0 && (
             <p className="text-xs text-destructive">
-              Insufficient balance. You have {formatNaira(walletBalance)} available.
+              Insufficient balance. You have {formatNaira(walletBalance)}{" "}
+              available.
             </p>
           )}
 
@@ -265,7 +299,9 @@ export function WithdrawContent({
             }
           >
             {isSubmitting && <Loader2 className="size-4 animate-spin" />}
-            {isSubmitting ? "Processing…" : `Withdraw ${amountKobo > 0 ? formatNaira(amountKobo) : ""}`}
+            {isSubmitting
+              ? "Processing…"
+              : `Withdraw ${amountKobo > 0 ? formatNaira(amountKobo) : ""}`}
           </Button>
         </form>
       </div>

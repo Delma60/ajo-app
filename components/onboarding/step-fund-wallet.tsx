@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNativeBridge } from "@/hooks/use-native-bridge";
 
 import { useAuth } from "@/lib/hooks/use-auth";
 import { formatNaira } from "@/lib/utils";
@@ -49,6 +50,7 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
   const { user, appUser } = useAuth();
   const [flowState, setFlowState] = useState<FlowState>("form");
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const { haptic } = useNativeBridge();
 
   const {
     register,
@@ -63,12 +65,14 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
   const amountValue = watch("amount");
 
   function selectPreset(amount: number) {
+    haptic("selection");
     setSelectedPreset(amount);
     setValue("amount", String(amount), { shouldValidate: true });
   }
 
   async function onSubmit(values: DepositFormValues) {
     if (!user || !appUser) return;
+    haptic("selection");
     setFlowState("processing");
 
     try {
@@ -85,7 +89,8 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
       });
 
       const data = await res.json();
-      if (!data.success) throw new Error(data.error ?? "Payment initiation failed");
+      if (!data.success)
+        throw new Error(data.error ?? "Payment initiation failed");
 
       // Redirect to Flutterwave
       if (data.data?.paymentLink) {
@@ -99,6 +104,7 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
     } catch (err) {
       console.error(err);
       toast.error("Could not initiate payment. Please try again.");
+      haptic("error");
       setFlowState("form");
     }
   }
@@ -119,10 +125,17 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
         <div className="space-y-1">
           <h3 className="text-lg font-semibold">Wallet funded!</h3>
           <p className="text-sm text-muted-foreground">
-            {amountValue && `₦${parseFloat(amountValue).toLocaleString()} has been added to your wallet.`}
+            {amountValue &&
+              `₦${parseFloat(amountValue).toLocaleString()} has been added to your wallet.`}
           </p>
         </div>
-        <Button className="w-full" onClick={onComplete}>
+        <Button
+          className="w-full"
+          onClick={() => {
+            haptic("selection");
+            onComplete();
+          }}
+        >
           Continue to circles
         </Button>
       </div>
@@ -133,7 +146,9 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
     <div className="bg-card ring-1 ring-foreground/10 rounded-2xl p-8 space-y-6">
       {/* Header */}
       <div className="space-y-1">
-        <h2 className="text-xl font-semibold tracking-tight">Fund your wallet</h2>
+        <h2 className="text-xl font-semibold tracking-tight">
+          Fund your wallet
+        </h2>
         <p className="text-sm text-muted-foreground">
           Add money to your AjoSave wallet to start contributing to circles.
           Minimum first deposit is ₦500.
@@ -143,8 +158,16 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
       {/* Benefits row */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { icon: ZapIcon, label: "Instant credit", sub: "Funds available immediately" },
-          { icon: WalletIcon, label: "Secure wallet", sub: "Protected by bank-grade encryption" },
+          {
+            icon: ZapIcon,
+            label: "Instant credit",
+            sub: "Funds available immediately",
+          },
+          {
+            icon: WalletIcon,
+            label: "Secure wallet",
+            sub: "Protected by bank-grade encryption",
+          },
         ].map(({ icon: Icon, label, sub }) => (
           <div
             key={label}
@@ -173,7 +196,7 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
                   "h-9 rounded-lg border text-sm font-medium transition-all",
                   selectedPreset === amount && String(amount) === amountValue
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background hover:border-primary/50 text-foreground"
+                    : "border-border bg-background hover:border-primary/50 text-foreground",
                 )}
               >
                 ₦{amount >= 1000 ? `${amount / 1000}k` : amount}
@@ -216,13 +239,18 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
             {flowState === "processing" && (
               <Loader2 className="size-4 animate-spin" />
             )}
-            {flowState === "processing" ? "Redirecting to payment…" : "Fund wallet"}
+            {flowState === "processing"
+              ? "Redirecting to payment…"
+              : "Fund wallet"}
           </Button>
           <Button
             type="button"
             variant="ghost"
             className="w-full text-muted-foreground"
-            onClick={onComplete}
+            onClick={() => {
+              haptic("selection");
+              onComplete();
+            }}
           >
             Skip for now
           </Button>
@@ -231,7 +259,10 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
 
       <button
         type="button"
-        onClick={onBack}
+        onClick={() => {
+          haptic("selection");
+          onBack();
+        }}
         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mx-auto"
       >
         <ArrowLeftIcon className="size-3.5" />

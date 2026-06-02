@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useNativeBridge } from "@/hooks/use-native-bridge";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,7 +79,9 @@ const FREQ_LABELS: Record<string, string> = {
 };
 
 function CircleCard({ circle, onJoin, isJoining }: CircleCardProps) {
-  const fillPct = Math.round((circle.memberIds.length / circle.maxMembers) * 100);
+  const fillPct = Math.round(
+    (circle.memberIds.length / circle.maxMembers) * 100,
+  );
   const spotsLeft = circle.maxMembers - circle.memberIds.length;
 
   return (
@@ -120,11 +123,13 @@ function CircleCard({ circle, onJoin, isJoining }: CircleCardProps) {
               ? "[&>[data-slot=progress-indicator]]:bg-[var(--success,#10b981)]"
               : fillPct >= 50
                 ? "[&>[data-slot=progress-indicator]]:bg-[var(--warning,#f59e0b)]"
-                : ""
+                : "",
           )}
         />
         <p className="text-xs text-muted-foreground">
-          {spotsLeft === 0 ? "Circle full" : `${spotsLeft} spot${spotsLeft !== 1 ? "s" : ""} left`}
+          {spotsLeft === 0
+            ? "Circle full"
+            : `${spotsLeft} spot${spotsLeft !== 1 ? "s" : ""} left`}
         </p>
       </div>
 
@@ -163,6 +168,7 @@ export function StepJoinCircle({
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const { haptic } = useNativeBridge();
 
   const { data: circles, isLoading } = useQuery<PublicCircle[]>({
     queryKey: ["public-circles"],
@@ -177,11 +183,12 @@ export function StepJoinCircle({
   const filtered = circles?.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.description.toLowerCase().includes(search.toLowerCase())
+      c.description.toLowerCase().includes(search.toLowerCase()),
   );
 
   async function handleJoin(circleId: string) {
     if (!user) return;
+    haptic("selection");
     setJoiningId(circleId);
     try {
       const res = await fetch(`/api/circles/${circleId}/join`, {
@@ -190,16 +197,19 @@ export function StepJoinCircle({
       const data = await res.json();
       if (!data.success) throw new Error(data.error ?? "Failed to join circle");
       toast.success("Join request sent! The admin will review your request.");
+      haptic("success");
       onComplete();
     } catch (err) {
       console.error(err);
       toast.error("Could not send join request. Please try again.");
+      haptic("error");
     } finally {
       setJoiningId(null);
     }
   }
 
   function handleCreateCircle() {
+    haptic("selection");
     // Mark onboarding as complete, then redirect to create
     if (user) {
       updateDoc(doc(db, "users", user.uid), {
@@ -216,7 +226,8 @@ export function StepJoinCircle({
       <div className="p-8 pb-0 space-y-1">
         <h2 className="text-xl font-semibold tracking-tight">Join a circle</h2>
         <p className="text-sm text-muted-foreground">
-          Browse public circles or create your own to start your savings journey.
+          Browse public circles or create your own to start your savings
+          journey.
         </p>
       </div>
 
@@ -252,7 +263,9 @@ export function StepJoinCircle({
               <div className="text-center py-10 space-y-2">
                 <Users2Icon className="size-8 text-muted-foreground mx-auto" />
                 <p className="text-sm text-muted-foreground">
-                  {search ? "No circles match your search." : "No public circles available right now."}
+                  {search
+                    ? "No circles match your search."
+                    : "No public circles available right now."}
                 </p>
               </div>
             ) : (
@@ -277,8 +290,9 @@ export function StepJoinCircle({
             <div className="space-y-1">
               <p className="font-medium text-sm">Start your own circle</p>
               <p className="text-xs text-muted-foreground">
-                Set your own contribution amount, frequency, and invite people you trust.
-                A creation fee of 5% of your contribution amount applies.
+                Set your own contribution amount, frequency, and invite people
+                you trust. A creation fee of 5% of your contribution amount
+                applies.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs text-left">
@@ -288,7 +302,10 @@ export function StepJoinCircle({
                 { icon: TrendingUpIcon, label: "Rotational or bidding payout" },
                 { icon: CalendarIcon, label: "You control the schedule" },
               ].map(({ icon: Icon, label }) => (
-                <div key={label} className="flex items-center gap-1.5 text-muted-foreground">
+                <div
+                  key={label}
+                  className="flex items-center gap-1.5 text-muted-foreground"
+                >
                   <Icon className="size-3.5 text-primary shrink-0" />
                   {label}
                 </div>
@@ -306,13 +323,19 @@ export function StepJoinCircle({
         <Button
           variant="ghost"
           className="w-full text-muted-foreground"
-          onClick={onSkip}
+          onClick={() => {
+            haptic("selection");
+            onSkip();
+          }}
         >
           Skip for now — I'll join a circle later
         </Button>
         <button
           type="button"
-          onClick={onBack}
+          onClick={() => {
+            haptic("selection");
+            onBack();
+          }}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mx-auto"
         >
           <ArrowLeftIcon className="size-3.5" />

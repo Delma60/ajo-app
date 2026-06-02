@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useNativeBridge } from "@/hooks/use-native-bridge";
 import { signInWithGoogle } from "@/lib/firebase/auth";
 
 interface GoogleAuthButtonProps {
@@ -23,8 +24,10 @@ export function GoogleAuthButton({
 }: GoogleAuthButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { haptic } = useNativeBridge();
 
   async function handleGoogleAuth() {
+    haptic("selection");
     setIsLoading(true);
 
     // Detect Expo WebView
@@ -35,7 +38,7 @@ export function GoogleAuthButton({
       // Tell native layer to open Google auth in system browser.
       // We don't set isLoading=false — the page will reload after auth.
       window.ReactNativeWebView!.postMessage(
-        JSON.stringify({ type: "INITIATE_GOOGLE_LOGIN" })
+        JSON.stringify({ type: "INITIATE_GOOGLE_LOGIN" }),
       );
       return;
     }
@@ -44,6 +47,7 @@ export function GoogleAuthButton({
     try {
       await signInWithGoogle();
       toast.success("Signed in successfully");
+      haptic("success");
 
       try {
         const metaCookie =
@@ -72,6 +76,7 @@ export function GoogleAuthButton({
         err instanceof Error ? err.message : "Google sign-in failed";
       if (!message.includes("popup-closed")) {
         toast.error(message);
+        haptic("error");
       }
       setIsLoading(false);
     }
