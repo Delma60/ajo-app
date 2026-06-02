@@ -18,7 +18,11 @@ declare global {
   }
 }
 
-export function GoogleAuthButton() {
+interface GoogleAuthButtonProps {
+  label?: string;
+}
+
+export function GoogleAuthButton({ label }: GoogleAuthButtonProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -93,7 +97,7 @@ export function GoogleAuthButton() {
           d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"
         />
       </svg>
-      {isLoading ? "Signing in…" : "Continue with Google"}
+      {isLoading ? "Signing in…" : (label ?? "Continue with Google")}
     </Button>
   );
 }
