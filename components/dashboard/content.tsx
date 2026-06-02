@@ -337,7 +337,7 @@ export function DashboardContent() {
             </div>
             <div className="flex items-center gap-2">
               <Badge className="rounded-full bg-emerald-100 text-emerald-700">
-                {eventsLoading ? "..." : activeEventsCount ?? 0}
+                {eventsLoading ? "..." : (activeEventsCount ?? 0)}
               </Badge>
               <Button size="sm" asChild>
                 <Link href="/rewards">View events</Link>
