@@ -185,6 +185,7 @@ export function DashboardContent() {
           const c = d.data() as Circle;
           return {
             ...c,
+            id: d.id, // Include document ID
             goal: c.contribution * c.maxMembers, // derived — never stored
           };
         });
@@ -384,11 +385,11 @@ export function DashboardContent() {
               <Button
                 size="sm"
                 asChild
-                className="bg-white text-emerald-800 hover:bg-emerald-50 border-0 font-medium"
+                className="bg-white text-emerald-800 hover:bg-emerald-50 border-0 font-medium whitespace-nowrap"
               >
-                <Link href="/rewards">
+                <Link href="/rewards" className="flex items-center gap-1.5">
                   View events
-                  <ArrowRight className="size-3.5" />
+                  <ArrowRight className="size-3.5 shrink-0" />
                 </Link>
               </Button>
             </div>
