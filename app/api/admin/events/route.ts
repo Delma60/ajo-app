@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       id: eventId,
       title,
       description,
-      status: "draft",
+      status: "active",
       triggerType,
       conditions: conditions || {},
       rewardType,
