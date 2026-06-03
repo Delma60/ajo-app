@@ -64,6 +64,21 @@ export interface NotificationSettings {
   emailProviderName: string; // "Nodemailer"
 }
 
+export interface AppDistributionPlatform {
+  enabled: boolean;
+  version: string;
+  fileName: string;
+  downloadUrl: string;
+  releaseNotes: string;
+  lastUploadedAt: string | null;
+}
+
+export interface AppDistributionSettings {
+  android: AppDistributionPlatform;
+  ios: AppDistributionPlatform;
+  pageMessage: string;
+}
+
 export interface MaintenanceSettings {
   maintenanceMode: boolean;
   maintenanceMessage: string;
@@ -79,6 +94,7 @@ export interface PlatformSettings {
   trustScore: TrustScoreSettings;
   notifications: NotificationSettings;
   maintenance: MaintenanceSettings;
+  appDistribution: AppDistributionSettings;
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -148,6 +164,26 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
     maintenanceMessage:
       "AjoSave is currently undergoing scheduled maintenance. We'll be back shortly.",
     allowedAdminAccess: true,
+  },
+  appDistribution: {
+    android: {
+      enabled: false,
+      version: "",
+      fileName: "",
+      downloadUrl: "",
+      releaseNotes: "",
+      lastUploadedAt: null,
+    },
+    ios: {
+      enabled: false,
+      version: "",
+      fileName: "",
+      downloadUrl: "",
+      releaseNotes: "",
+      lastUploadedAt: null,
+    },
+    pageMessage:
+      "Install the latest app directly from this website. Choose the package for your device and follow the instructions.",
   },
 };
 

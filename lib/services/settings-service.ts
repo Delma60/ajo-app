@@ -33,6 +33,30 @@ interface CacheEntry {
   timestamp: number;
 }
 
+function mergeDeep<T>(base: T, override: Record<string, unknown>): T {
+  const result: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+
+  for (const key of Object.keys(override)) {
+    const overrideValue = override[key];
+    const baseValue = (base as Record<string, unknown>)[key];
+
+    if (
+      baseValue &&
+      typeof baseValue === "object" &&
+      !Array.isArray(baseValue) &&
+      overrideValue &&
+      typeof overrideValue === "object" &&
+      !Array.isArray(overrideValue)
+    ) {
+      result[key] = mergeDeep(baseValue, overrideValue as Record<string, unknown>);
+    } else {
+      result[key] = overrideValue;
+    }
+  }
+
+  return result as T;
+}
+
 // ─── Cache configuration ──────────────────────────────────────────────────────
 
 const SETTINGS_COLLECTION = "admin_config";
@@ -63,10 +87,18 @@ export async function getSettings(): Promise<PlatformSettings> {
 
     if (!snap.exists) {
       // No custom settings yet; use defaults
+      cachedSettings = {
+        settings: DEFAULT_PLATFORM_SETTINGS,
+        timestamp: Date.now(),
+      };
       return DEFAULT_PLATFORM_SETTINGS;
     }
 
-    const settings = snap.data() as PlatformSettings;
+    const settingsData = snap.data() as PlatformSettings;
+    const settings = mergeDeep(
+      DEFAULT_PLATFORM_SETTINGS,
+      settingsData as unknown as Record<string, unknown>,
+    );
 
     // Update cache
     cachedSettings = {

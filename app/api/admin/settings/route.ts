@@ -61,13 +61,36 @@ export async function GET(request: NextRequest) {
     }
 
     const data = snap.data()!;
+    const responseData = {
+      ...DEFAULT_PLATFORM_SETTINGS,
+      ...data,
+      appDistribution: {
+        ...DEFAULT_PLATFORM_SETTINGS.appDistribution,
+        ...(data.appDistribution || {}),
+        android: {
+          ...DEFAULT_PLATFORM_SETTINGS.appDistribution.android,
+          ...(data.appDistribution?.android || {}),
+          lastUploadedAt:
+            data.appDistribution?.android?.lastUploadedAt?.toDate?.()?.toISOString() ??
+            data.appDistribution?.android?.lastUploadedAt ??
+            null,
+        },
+        ios: {
+          ...DEFAULT_PLATFORM_SETTINGS.appDistribution.ios,
+          ...(data.appDistribution?.ios || {}),
+          lastUploadedAt:
+            data.appDistribution?.ios?.lastUploadedAt?.toDate?.()?.toISOString() ??
+            data.appDistribution?.ios?.lastUploadedAt ??
+            null,
+        },
+      },
+      updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
+      isDefault: false,
+    };
+
     return NextResponse.json({
       success: true,
-      data: {
-        ...data,
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
-        isDefault: false,
-      },
+      data: responseData,
       error: null,
     });
   } catch (err) {
@@ -106,6 +129,7 @@ export async function PATCH(request: NextRequest) {
       "trustScore",
       "notifications",
       "maintenance",
+      "appDistribution",
     ];
 
     if (!section || !validSections.includes(section)) {

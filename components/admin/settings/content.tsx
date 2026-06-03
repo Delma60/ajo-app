@@ -21,6 +21,7 @@ import {
   UserIcon,
   AlertCircleIcon,
   CopyIcon,
+  DownloadIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -56,6 +57,7 @@ import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 
 const TABS = [
   { id: "general", label: "General", icon: SettingsIcon },
+  { id: "appDistribution", label: "App", icon: DownloadIcon },
   { id: "wallet", label: "Wallet", icon: WalletIcon },
   { id: "circles", label: "Circles", icon: CircleDollarSignIcon },
   { id: "payouts", label: "Payouts", icon: CoinsIcon },
@@ -465,6 +467,11 @@ export function AdminSettingsContent() {
   const [serverIpError, setServerIpError] = useState<string | null>(null);
   const [isFetchingServerIp, setIsFetchingServerIp] = useState(false);
   const [platformIpError, setPlatformIpError] = useState<string | null>(null);
+  const [androidFile, setAndroidFile] = useState<File | null>(null);
+  const [iosFile, setIosFile] = useState<File | null>(null);
+  const [uploadingPlatform, setUploadingPlatform] = useState<
+    "android" | "ios" | null
+  >(null);
 
   // -- Load settings ---------------------------------------------------------
 
@@ -671,6 +678,19 @@ export function AdminSettingsContent() {
     );
   }
 
+  function updateAppDistribution<
+    K extends keyof PlatformSettings["appDistribution"],
+  >(key: K, value: PlatformSettings["appDistribution"][K]) {
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            appDistribution: { ...prev.appDistribution, [key]: value },
+          }
+        : prev,
+    );
+  }
+
   function updateGeneral<K extends keyof PlatformSettings["general"]>(
     key: K,
     value: PlatformSettings["general"][K],
@@ -678,6 +698,61 @@ export function AdminSettingsContent() {
     setDraft((prev) =>
       prev ? { ...prev, general: { ...prev.general, [key]: value } } : prev,
     );
+  }
+
+  async function uploadAppFile(platform: "android" | "ios") {
+    const file = platform === "android" ? androidFile : iosFile;
+    if (!file) {
+      toast.error("Choose a file before uploading.");
+      return;
+    }
+
+    setUploadingPlatform(platform);
+    try {
+      const formData = new FormData();
+      formData.append("platform", platform);
+      formData.append("file", file);
+      formData.append(
+        "version",
+        draft?.appDistribution?.[platform]?.version || "latest",
+      );
+      formData.append(
+        "releaseNotes",
+        draft?.appDistribution?.[platform]?.releaseNotes || "",
+      );
+
+      const res = await fetch("/api/admin/app-distribution", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Upload failed");
+
+      const metadata = json.data.appDistribution[platform];
+      setDraft((prev) =>
+        prev && prev.appDistribution
+          ? {
+              ...prev,
+              appDistribution: {
+                ...prev.appDistribution,
+                [platform]: {
+                  ...prev.appDistribution[platform],
+                  ...metadata,
+                },
+              },
+            }
+          : prev,
+      );
+      setAndroidFile(platform === "android" ? null : androidFile);
+      setIosFile(platform === "ios" ? null : iosFile);
+      toast.success(
+        `${platform === "android" ? "Android" : "iOS"} app uploaded`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadingPlatform(null);
+    }
   }
 
   function isValidIp(value?: string) {
@@ -1050,6 +1125,182 @@ export function AdminSettingsContent() {
                   className="w-40"
                 />
               </SettingRow>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* APP DISTRIBUTION TAB */}
+        {activeTab === "appDistribution" && (
+          <Card>
+            <CardHeader className="border-b pb-4">
+              <SectionHeader
+                icon={DownloadIcon}
+                title="App Distribution"
+                description="Upload Android and iOS app packages, and publish direct download links."
+                color="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                hasChanges={hasChanges("appDistribution")}
+                isSaving={savingSection === "appDistribution"}
+                onSave={() => saveSection("appDistribution")}
+                onDiscard={() => discardSection("appDistribution")}
+              />
+            </CardHeader>
+            <CardContent className="pt-2 space-y-6">
+              <SettingRow
+                label="Direct download notice"
+                description="Message shown on the public home page download card."
+                changed={
+                  draft.appDistribution?.pageMessage !==
+                  settings?.appDistribution?.pageMessage
+                }
+              >
+                <Textarea
+                  value={draft.appDistribution?.pageMessage}
+                  onChange={(e) =>
+                    updateAppDistribution("pageMessage", e.target.value)
+                  }
+                  rows={3}
+                  className="w-full max-w-3xl"
+                />
+              </SettingRow>
+
+              <div className="grid gap-6 xl:grid-cols-2">
+                {(["android", "ios"] as const).map((platform) => {
+                  const platformData = draft.appDistribution?.[platform];
+                  const savedData = settings?.appDistribution?.[platform];
+                  const fileLabel = platform === "android" ? "APK" : "IPA";
+                  const selectedFile =
+                    platform === "android" ? androidFile : iosFile;
+                  return (
+                    <div
+                      key={platform}
+                      className="rounded-3xl border border-border bg-background/80 p-5"
+                    >
+                      <div className="flex items-center justify-between gap-3 mb-4">
+                        <div>
+                          <p className="text-sm font-semibold capitalize text-foreground">
+                            {platform === "android" ? "Android" : "iOS"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Upload the latest {fileLabel} package and publish
+                            the public download link.
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-400">
+                          {fileLabel}
+                        </span>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-foreground">
+                            Package file
+                          </label>
+                          <input
+                            type="file"
+                            accept={platform === "android" ? ".apk" : ".ipa"}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0] ?? null;
+                              if (platform === "android") {
+                                setAndroidFile(file);
+                              } else {
+                                setIosFile(file);
+                              }
+                            }}
+                            className="w-full text-sm text-foreground file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white file:rounded-lg file:bg-emerald-600 hover:file:bg-emerald-500"
+                          />
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <Label className="text-sm font-medium">
+                              Version
+                            </Label>
+                            <Input
+                              value={platformData?.version ?? ""}
+                              onChange={(e) =>
+                                updateAppDistribution(
+                                  platform === "android" ? "android" : "ios",
+                                  {
+                                    ...platformData,
+                                    version: e.target.value,
+                                  } as any,
+                                )
+                              }
+                              className="mt-2 w-full"
+                              placeholder="1.0.0"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">
+                              Release Notes
+                            </Label>
+                            <Input
+                              value={platformData?.releaseNotes ?? ""}
+                              onChange={(e) =>
+                                updateAppDistribution(
+                                  platform === "android" ? "android" : "ios",
+                                  {
+                                    ...platformData,
+                                    releaseNotes: e.target.value,
+                                  } as any,
+                                )
+                              }
+                              className="mt-2 w-full"
+                              placeholder="Bug fixes, performance improvements..."
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <Button
+                            onClick={() => uploadAppFile(platform)}
+                            disabled={
+                              !selectedFile || uploadingPlatform === platform
+                            }
+                            className="w-full sm:w-auto"
+                          >
+                            {uploadingPlatform === platform
+                              ? "Uploading…"
+                              : `Upload ${fileLabel}`}
+                          </Button>
+                          {platformData?.downloadUrl ? (
+                            <a
+                              href={platformData.downloadUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sm text-emerald-400 hover:text-emerald-300"
+                            >
+                              View current download
+                            </a>
+                          ) : null}
+                        </div>
+
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                          <p>
+                            {platformData?.enabled
+                              ? `Current version: ${platformData.version || "latest"}`
+                              : "No published package yet."}
+                          </p>
+                          {platformData?.lastUploadedAt ? (
+                            <p>
+                              Last uploaded:{" "}
+                              {fmtDateTime(platformData.lastUploadedAt)}
+                            </p>
+                          ) : null}
+                          {platformData?.releaseNotes ? (
+                            <p>Notes: {platformData.releaseNotes}</p>
+                          ) : null}
+                          {savedData?.fileName ? (
+                            <p className="text-xs text-slate-500">
+                              Stored file: {savedData.fileName}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
         )}

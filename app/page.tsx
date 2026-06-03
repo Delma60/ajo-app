@@ -5,6 +5,7 @@ import { HowItWorksSection } from "@/components/home/how-it-works-section";
 import { FeaturesSection } from "@/components/home/features-section";
 import { TestimonialsSection } from "@/components/home/testimonials-section";
 import { CtaSection } from "@/components/home/cta-section";
+import { AppDownloadSection } from "@/components/home/app-download-section";
 import { HomeFooter } from "@/components/home/home-footer";
 
 export const metadata: Metadata = {
@@ -43,7 +44,10 @@ export default function HomePage() {
           <TestimonialsSection />
         </section>
 
-        {/* 5. Final CTA */}
+        {/* 5. App download */}
+        <AppDownloadSection />
+
+        {/* 6. Final CTA */}
         <CtaSection />
       </main>
 
