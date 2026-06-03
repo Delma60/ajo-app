@@ -112,7 +112,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/circles/[id] — admin only
+// DELETE /api/circles/[id] — circle admin or platform admin
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -136,9 +136,16 @@ export async function DELETE(
       );
     }
 
-    if (doc.data()?.adminId !== sessionUser.uid) {
+    // Check if user is circle admin or platform admin
+    const isCircleAdmin = doc.data()?.adminId === sessionUser.uid;
+    
+    // Check if user is a platform admin
+    const userDoc = await adminDb.collection("users").doc(sessionUser.uid).get();
+    const isPlatformAdmin = userDoc.exists && userDoc.data()?.role === "admin";
+
+    if (!isCircleAdmin && !isPlatformAdmin) {
       return Response.json(
-        { success: false, data: null, error: "Only the admin can delete a circle" },
+        { success: false, data: null, error: "Only the circle admin or platform admin can cancel a circle" },
         { status: 403 }
       );
     }
