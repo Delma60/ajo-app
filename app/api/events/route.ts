@@ -13,14 +13,42 @@ export async function GET(request: NextRequest) {
     const eventsRef = adminDb.collection("events");
     const snapshot = await eventsRef
       .where("status", "==", "active")
-      .where("startDate", "<=", now)
       .where("endDate", ">=", now)
       .get();
 
-    const events = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as any),
-    })) as Event[];
+    const events = snapshot.docs
+      .map((doc) => {
+        const data = doc.data() as any;
+        return {
+          id: doc.id,
+          ...data,
+        };
+      })
+      .filter(
+        (event) =>
+          event.startDate &&
+          typeof event.startDate.toMillis === "function" &&
+          event.startDate.toMillis() <= now.toMillis(),
+      )
+      .map((event) => ({
+        ...event,
+        startDate:
+          typeof event.startDate?.toDate === "function"
+            ? event.startDate.toDate().toISOString()
+            : event.startDate,
+        endDate:
+          typeof event.endDate?.toDate === "function"
+            ? event.endDate.toDate().toISOString()
+            : event.endDate,
+        createdAt:
+          typeof event.createdAt?.toDate === "function"
+            ? event.createdAt.toDate().toISOString()
+            : event.createdAt,
+        updatedAt:
+          typeof event.updatedAt?.toDate === "function"
+            ? event.updatedAt.toDate().toISOString()
+            : event.updatedAt,
+      })) as Event[];
 
     return NextResponse.json({
       success: true,

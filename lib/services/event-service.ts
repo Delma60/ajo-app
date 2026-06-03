@@ -24,11 +24,17 @@ export async function evaluateAndAward(
     const snapshot = await eventsRef
       .where("triggerType", "==", triggerType)
       .where("status", "==", "active")
-      .where("startDate", "<=", now)
       .where("endDate", ">=", now)
       .get();
 
-    const events = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Event[];
+    const events = (snapshot.docs
+      .map((d) => ({ id: d.id, ...d.data() })) as Event[])
+      .filter(
+        (event) =>
+          event.startDate &&
+          typeof event.startDate.toMillis === "function" &&
+          event.startDate.toMillis() <= now.toMillis(),
+      );
 
     // For each matching event, check eligibility and issue reward if eligible
     for (const event of events) {

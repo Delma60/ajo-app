@@ -1,8 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Timestamp, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Event, EventClaim, UserBadge, Badge } from "@/lib/types/event";
 
@@ -13,20 +11,13 @@ export function useActiveEvents() {
   return useQuery({
     queryKey: ["activeEvents"],
     queryFn: async () => {
-      const now = Timestamp.now();
-      const eventsRef = collection(db, "events");
-      const q = query(
-        eventsRef,
-        where("status", "==", "active"),
-        where("startDate", "<=", now),
-        where("endDate", ">=", now),
-      );
+      const response = await fetch("/api/events");
+      if (!response.ok) {
+        throw new Error("Failed to fetch active events");
+      }
 
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Event[];
+      const json = await response.json();
+      return (json?.data ?? []) as Event[];
     },
     staleTime: 1000 * 60 * 5, // 5 min
   });
