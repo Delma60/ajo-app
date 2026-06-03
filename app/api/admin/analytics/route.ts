@@ -146,6 +146,7 @@ export async function GET(request: NextRequest) {
         .get(),
       adminDb
         .collection("transactions")
+        .where("status", "==", "success")
         .where("createdAt", ">=", rangeStartTs)
         .get(),
       adminDb
@@ -206,11 +207,11 @@ export async function GET(request: NextRequest) {
     });
 
     // ── Transaction type breakdown ─────────────────────────────────────────
+    // allTxTypesSnap is already filtered by status == "success"
     const typeCounts: Record<string, number> = {};
     const typeVolumes: Record<string, number> = {};
     for (const doc of allTxTypesSnap.docs) {
-      const { type, amount, status } = doc.data() as { type: string; amount: number; status: string };
-      if (status !== "success") continue;
+      const { type, amount } = doc.data() as { type: string; amount: number };
       typeCounts[type] = (typeCounts[type] ?? 0) + 1;
       typeVolumes[type] = (typeVolumes[type] ?? 0) + (amount ?? 0);
     }
