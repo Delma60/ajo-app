@@ -458,7 +458,7 @@ export function AdminSettingsContent() {
   const [draft, setDraft] = useState<PlatformSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [savingSection, setSavingSection] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>("wallet");
+  const [activeTab, setActiveTab] = useState<TabId>("general");
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
