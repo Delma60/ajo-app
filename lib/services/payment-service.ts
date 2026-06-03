@@ -464,6 +464,209 @@ export class PaymentService {
     }
   }
 
+  // ─── Private: reconcile pending Flutterwave deposits and withdrawals ───────────
+
+  async reconcilePendingTransactions(cutoffMinutes = 15): Promise<{
+    depositsChecked: number;
+    withdrawalsChecked: number;
+    reconciled: number;
+    skipped: number;
+  }> {
+    const cutoff = new Date(Date.now() - cutoffMinutes * 60 * 1000);
+    const cutoffTs = Timestamp.fromDate(cutoff);
+
+    let depositsChecked = 0;
+    let withdrawalsChecked = 0;
+    let reconciled = 0;
+    let skipped = 0;
+
+    const depositSnap = await this.txCol
+      .where("type", "==", "deposit")
+      .where("status", "==", "pending")
+      .where("provider", "==", "flutterwave")
+      .where("createdAt", "<", cutoffTs)
+      .get();
+
+    for (const depositDoc of depositSnap.docs) {
+      depositsChecked += 1;
+      const result = await this.reconcilePendingDeposit(depositDoc);
+      if (result === "reconciled") reconciled += 1;
+      if (result === "skipped") skipped += 1;
+    }
+
+    const withdrawalSnap = await this.txCol
+      .where("type", "==", "withdrawal")
+      .where("status", "==", "pending")
+      .where("createdAt", "<", cutoffTs)
+      .get();
+
+    for (const withdrawalDoc of withdrawalSnap.docs) {
+      withdrawalsChecked += 1;
+      const result = await this.reconcilePendingWithdrawal(withdrawalDoc);
+      if (result === "reconciled") reconciled += 1;
+      if (result === "skipped") skipped += 1;
+    }
+
+    return { depositsChecked, withdrawalsChecked, reconciled, skipped };
+  }
+
+  private async reconcilePendingDeposit(
+    txDoc: admin.firestore.QueryDocumentSnapshot
+  ): Promise<"reconciled" | "skipped"> {
+    const txData = txDoc.data() as Transaction;
+    if (txData.status !== "pending") return "skipped";
+
+    let flwStatus = "pending";
+    let amountKobo = txData.amount;
+    let providerReference = txData.providerReference;
+
+    try {
+      const verifyUrl = providerReference
+        ? `${FLW_API}/transactions/${providerReference}/verify`
+        : `${FLW_API}/transactions/verify?tx_ref=${encodeURIComponent(txData.reference)}`;
+      const flwData = await flwFetch(verifyUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+        },
+      });
+
+      const status = String(flwData.data?.status ?? "").toLowerCase();
+      const id = flwData.data?.id != null ? String(flwData.data.id) : undefined;
+      const amountNaira = typeof flwData.data?.amount === "number"
+        ? flwData.data.amount
+        : Number(flwData.data?.amount || 0);
+
+      amountKobo = Math.round(amountNaira * 100);
+      providerReference = providerReference ?? id;
+
+      if (status === "successful") {
+        flwStatus = "success";
+      } else if (status === "failed" || status === "cancelled") {
+        flwStatus = "failed";
+      }
+    } catch (err: any) {
+      if (err?.code === "FLW_API_ERROR") {
+        console.warn(`[payment-service] Deposit verification API returned an error for ${txDoc.id}:`, err.message);
+        return "skipped";
+      }
+      console.error(`[payment-service] Failed to verify deposit ${txDoc.id}:`, err);
+      return "skipped";
+    }
+
+    if (flwStatus === "pending") {
+      return "skipped";
+    }
+
+    if (flwStatus === "failed") {
+      await txDoc.ref.update({
+        status: "failed",
+        providerReference,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return "reconciled";
+    }
+
+    await adminDb.runTransaction(async (tx) => {
+      const current = await tx.get(txDoc.ref);
+      if (!current.exists) return;
+      const currentData = current.data() as Transaction;
+      if (currentData.status !== "pending") return;
+
+      tx.update(txDoc.ref, {
+        status: "success",
+        providerReference,
+        amount: amountKobo,
+        netAmount: amountKobo,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      await creditWalletBalance(tx, currentData.userId, amountKobo, "deposit");
+    });
+
+    void sendNotification(txData.userId, {
+      type: "general",
+      title: "Deposit Confirmed",
+      body: `₦${(amountKobo / 100).toLocaleString("en-NG")} has been added to your wallet.`,
+      link: "/wallet",
+    });
+
+    return "reconciled";
+  }
+
+  private async reconcilePendingWithdrawal(
+    txDoc: admin.firestore.QueryDocumentSnapshot
+  ): Promise<"reconciled" | "skipped"> {
+    const txData = txDoc.data() as Transaction;
+    if (txData.status !== "pending") return "skipped";
+
+    let flwStatus = "pending";
+    let providerReference = txData.providerReference;
+
+    try {
+      const verifyUrl = `${FLW_API}/transfers/verify?reference=${encodeURIComponent(txData.reference)}`;
+      const flwData = await flwFetch(verifyUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+        },
+      });
+
+      const status = String(flwData.data?.status ?? "").toLowerCase();
+      const id = flwData.data?.id != null ? String(flwData.data.id) : undefined;
+      providerReference = providerReference ?? id;
+
+      if (status === "success" || status === "successful") {
+        flwStatus = "success";
+      } else if (status === "failed" || status === "cancelled") {
+        flwStatus = "failed";
+      }
+    } catch (err: any) {
+      if (err?.code === "FLW_API_ERROR") {
+        console.warn(`[payment-service] Withdrawal verification API returned an error for ${txDoc.id}:`, err.message);
+        return "skipped";
+      }
+      console.error(`[payment-service] Failed to verify withdrawal ${txDoc.id}:`, err);
+      return "skipped";
+    }
+
+    if (flwStatus === "pending") {
+      return "skipped";
+    }
+
+    if (flwStatus === "failed") {
+      await adminDb.runTransaction(async (tx) => {
+        await creditWallet(tx, txData.userId, txData.amount, "withdrawal", `Refund: failed withdrawal`, {
+          reference: txData.reference,
+        });
+        tx.update(txDoc.ref, {
+          status: "failed",
+          providerReference,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+      void sendNotification(txData.userId, {
+        type: "general",
+        title: "Withdrawal Failed",
+        body: `Your withdrawal of ₦${(txData.amount / 100).toLocaleString("en-NG")} failed and has been returned to your wallet.`,
+        link: "/wallet",
+      });
+      return "reconciled";
+    }
+
+    await txDoc.ref.update({
+      status: "success",
+      providerReference,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    void sendNotification(txData.userId, {
+      type: "general",
+      title: "Withdrawal Successful",
+      body: `₦${(txData.netAmount / 100).toLocaleString("en-NG")} has been sent to your bank account.`,
+      link: "/wallet",
+    });
+    return "reconciled";
+  }
+
   // ─── Private: withdrawal status ─────────────────────────────────────────────
 
   private async processWithdrawalStatus(

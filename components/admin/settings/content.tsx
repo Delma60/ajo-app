@@ -877,7 +877,7 @@ export function AdminSettingsContent() {
         </div>
 
         {/* -- Tab bar -- */}
-        <div className="flex gap-2 p-2 bg-muted rounded-2xl overflow-x-auto">
+        <div className="flex gap-1.5 p-2 bg-muted rounded-2xl overflow-x-auto">
           {TABS.map((tab) => {
             const changed = hasChanges(tab.id);
             return (
