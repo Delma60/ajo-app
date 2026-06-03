@@ -877,7 +877,7 @@ export function AdminSettingsContent() {
         </div>
 
         {/* -- Tab bar -- */}
-        <div className="flex gap-1 p-1 bg-muted rounded-xl overflow-x-auto">
+        <div className="flex gap-2 p-2 bg-muted rounded-2xl overflow-x-auto">
           {TABS.map((tab) => {
             const changed = hasChanges(tab.id);
             return (
@@ -886,7 +886,7 @@ export function AdminSettingsContent() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all whitespace-nowrap flex-1 justify-center min-w-[80px]",
+                  "relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-semibold transition-all whitespace-nowrap flex-none justify-center min-w-[100px] sm:min-w-[120px]",
                   activeTab === tab.id
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",

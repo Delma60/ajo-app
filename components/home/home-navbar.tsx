@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#features", label: "Features" },
   { href: "#testimonials", label: "Testimonials" },
+  { href: "/download", label: "App" },
 ];
 
 export function HomeNavbar() {
