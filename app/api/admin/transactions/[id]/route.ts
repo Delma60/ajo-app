@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { creditWallet } from "@/lib/services/wallet-service";
 import { sendNotification } from "@/lib/services/notification-service";
 import type { Transaction } from "@/lib/types/transaction";
 
@@ -132,31 +131,15 @@ export async function PATCH(
           );
         }
 
-        if (walletAction === "refund") {
-          // Credit wallet with the full debit amount (refund)
-          await creditWallet(
-            firestoreTx,
-            freshTx.userId,
-            freshTx.amount,
-            freshTx.type === "withdrawal" ? "withdrawal" : freshTx.type,
-            `Admin refund: ${freshTx.description ?? freshTx.type} (ref: ${freshTx.reference})`,
-            {
-              circleId: freshTx.circleId,
-              reference: `REFUND-${freshTx.reference}`,
-            }
-          );
-        } else if (walletAction === "credit") {
-          // Manually credit a deposit that was stuck in failed/pending
-          await creditWallet(
-            firestoreTx,
-            freshTx.userId,
-            freshTx.amount,
-            "deposit",
-            `Admin manual credit: ${freshTx.description ?? "deposit"} (ref: ${freshTx.reference})`,
-            {
-              reference: `MANUAL-${freshTx.reference}`,
-            }
-          );
+        if (walletAction === "refund" || walletAction === "credit") {
+          // Adjust the user's wallet directly instead of creating a new
+          // transaction document. This prevents spawning duplicate
+          // transactions when an admin updates the status.
+          const walletRef = adminDb.collection("wallets").doc(freshTx.userId);
+          firestoreTx.update(walletRef, {
+            available: FieldValue.increment(freshTx.amount),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
         }
 
         // Update the original transaction status

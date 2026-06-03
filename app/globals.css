@@ -169,3 +169,10 @@
     @apply font-sans;
   }
 }
+
+/* Prevent pinch-to-zoom and double-tap zoom on mobile devices */
+html, body, input, textarea, select, button {
+  touch-action: manipulation;
+  -ms-touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}

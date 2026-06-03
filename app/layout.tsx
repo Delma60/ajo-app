@@ -44,6 +44,9 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(
       process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
     ),
+    // Prevent user pinch-zoom / page scaling on mobile devices
+    viewport:
+      "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no",
   };
 }
 
