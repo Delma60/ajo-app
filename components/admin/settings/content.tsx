@@ -1337,6 +1337,22 @@ export function AdminSettingsContent() {
               </SettingRow>
 
               <SettingRow
+                label="Maximum Deposit"
+                description="The highest amount a user can deposit into their wallet."
+                tip="Applied during Flutterwave payment initialisation. Set to at least ₦500 to cover gateway minimums."
+                changed={
+                  draft.wallet?.maxDepositKobo !==
+                  settings?.wallet?.maxDepositKobo
+                }
+              >
+                <NairaInput
+                  valueKobo={draft.wallet?.minDepositKobo}
+                  onChange={(v) => updateWallet("minDepositKobo", v)}
+                  min={10000}
+                />
+              </SettingRow>
+
+              <SettingRow
                 label="Minimum Withdrawal"
                 description="The smallest amount a user can withdraw to their bank account."
                 tip="Must cover the flat withdrawal fee plus at least ₦1 net transfer."
