@@ -6,6 +6,12 @@ import { FieldValue } from "firebase-admin/firestore";
 import { invalidateCache } from "@/lib/services/settings-service";
 import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 
+// ─── Route segment config ─────────────────────────────────────────────────────
+// Allow large file uploads for APK and IPA files (5 min timeout).
+export const config = {
+  maxDuration: 300,
+};
+
 const SESSION_COOKIE = "__session";
 const SETTINGS_COLLECTION = "admin_config";
 const SETTINGS_DOC = "platform_settings";
@@ -92,7 +98,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const formData = await request.formData();
+    // Parse FormData with large file support
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (parseErr) {
+      console.error("[POST /api/admin/app-distribution] FormData parse error:", parseErr);
+      return NextResponse.json(
+        { success: false, data: null, error: "Failed to parse upload. File may be too large or request malformed." },
+        { status: 400 },
+      );
+    }
+
     const file = formData.get("file");
     const platform = String(formData.get("platform") || "").toLowerCase();
     const version = String(formData.get("version") || "").trim();
@@ -130,8 +147,13 @@ export async function POST(request: NextRequest) {
 
     const savedName = platform === "android" ? "ajosave-android.apk" : "ajosave-ios.ipa";
     const savedPath = path.join(downloadsDir, savedName);
-    const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Write file to disk
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
     await fs.promises.writeFile(savedPath, buffer);
+
+    console.log(`[POST /api/admin/app-distribution] Successfully uploaded ${savedName} (${buffer.length} bytes)`);
 
     const downloadUrl = `/downloads/${savedName}`;
     const metadataUpdate = {

@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
     "@firebase/app",
     "undici",
   ],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '500mb'
+    }
+  },
 };
 
 export default nextConfig;
