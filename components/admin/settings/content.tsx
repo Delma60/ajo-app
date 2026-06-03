@@ -1100,6 +1100,22 @@ export function AdminSettingsContent() {
                   min={10000}
                 />
               </SettingRow>
+              {/* maximum withdrawal */}
+              <SettingRow
+                label="Maximum Withdrawal"
+                description="The hightest amount a user can withdraw to their bank account."
+                tip="Must cover the flat withdrawal fee plus at least ₦1 net transfer."
+                changed={
+                  draft.wallet?.maxWithdrawKobo !==
+                  settings?.wallet?.maxWithdrawKobo
+                }
+              >
+                <NairaInput
+                  valueKobo={draft.wallet?.maxWithdrawKobo}
+                  onChange={(v) => updateWallet("maxWithdrawKobo", v)}
+                  min={10000}
+                />
+              </SettingRow>
 
               <SettingRow
                 label="Withdrawal Flat Fee"

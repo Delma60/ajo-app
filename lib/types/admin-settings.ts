@@ -4,6 +4,7 @@ export interface WalletSettings {
   minDepositKobo: number;          // ₦500 default
   maxDepositKobo: number;          // ₦5,000,000 default
   minWithdrawKobo: number;         // ₦1,000 default
+  maxWithdrawKobo: number;         // ₦10,00,000 default (safety limit)
   withdrawFeeFlatKobo: number;     // ₦50 flat fee
   withdrawFeePercent: number;      // 1% of amount
   withdrawFeeCapKobo: number;      // ₦500 cap
@@ -88,7 +89,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   general: {
     siteName: "AjoSave",
     siteDescription: "Rotational savings platform for communities.",
-    siteUrl: "http://localhost:3000",
+    siteUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
     logoUrl: "",
     supportEmail: "support@ajosave.example",
     supportPhone: "",
@@ -101,6 +102,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
     minDepositKobo: 50_000,
     maxDepositKobo: 500_000_000,
     minWithdrawKobo: 100_000,
+    maxWithdrawKobo: 100_000_000,
     withdrawFeeFlatKobo: 5_000,
     withdrawFeePercent: 1,
     withdrawFeeCapKobo: 50_000,

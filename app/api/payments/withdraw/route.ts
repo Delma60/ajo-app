@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { PaymentService, PaymentError } from "@/lib/services/payment-service";
-import { getWalletSettings } from "@/lib/services/settings-service";
-import { withdrawSchema } from "@/lib/validators/payment";
+import { getSettings } from "@/lib/services/settings-service";
+import { buildWithdrawSchema } from "@/lib/validators/payment";
 
 const SESSION_COOKIE = "__session";
 
@@ -43,26 +43,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = withdrawSchema.safeParse(body);
-    if (!result.success) {
-      const errorMessage = result.error.issues?.[0]?.message ?? "Invalid request body";
-      return Response.json(
-        { success: false, data: null, error: errorMessage },
-        { status: 400 }
-      );
-    }
-    const { amount, bankAccountId } = result.data;
-
-    const walletSettings = await getWalletSettings();
-    if (amount < walletSettings.minWithdrawKobo) {
-      return Response.json(
-        {
-          success: false,
-          data: null,
-          error: `Minimum withdrawal is ₦${walletSettings.minWithdrawKobo / 100}`,
-        },
-        { status: 400 }
-      );
+    // Validate against live settings
+    try {
+      const settings = await getSettings();
+      const withdrawSchema = buildWithdrawSchema(settings);
+      const result = withdrawSchema.safeParse(body);
+      if (!result.success) {
+        const errorMessage = result.error.issues?.[0]?.message ?? "Invalid request body";
+        return Response.json(
+          { success: false, data: null, error: errorMessage },
+          { status: 400 }
+        );
+      }
+      var { amount, bankAccountId } = result.data;
+    } catch (settingsErr) {
+      console.error("[POST /api/payments/withdraw] Failed to validate against settings:", settingsErr);
+      // Fallback to default schema
+      const withdrawSchema = buildWithdrawSchema();
+      const result = withdrawSchema.safeParse(body);
+      if (!result.success) {
+        const errorMessage = result.error.issues?.[0]?.message ?? "Invalid request body";
+        return Response.json(
+          { success: false, data: null, error: errorMessage },
+          { status: 400 }
+        );
+      }
+      var { amount, bankAccountId } = result.data;
     }
 
     const service = new PaymentService();

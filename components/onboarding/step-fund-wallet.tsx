@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNativeBridge } from "@/hooks/use-native-bridge";
-
+import { useSettings } from "@/lib/providers/settings";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { formatNaira } from "@/lib/utils";
 
@@ -25,19 +25,30 @@ import { cn } from "@/lib/utils";
 
 const MIN_DEPOSIT = 50000; // ₦500 in kobo
 
-const depositSchema = z.object({
-  amount: z
-    .string()
-    .min(1, "Enter an amount")
-    .refine((v) => {
-      const num = parseFloat(v);
-      return !isNaN(num) && num >= 500;
-    }, "Minimum deposit is ₦500"),
-});
+function buildDepositSchema(settings: any) {
+  const minDepositKobo = settings.wallet.minDepositKobo;
+  return z.object({
+    amount: z
+      .string()
+      .min(1, "Enter an amount")
+      .refine(
+        (v) => {
+          const num = parseFloat(v);
+          return !isNaN(num) && num >= minDepositKobo / 100;
+        },
+        `Minimum deposit is ₦${minDepositKobo / 100}`,
+      ),
+  });
+}
 
-type DepositFormValues = z.infer<typeof depositSchema>;
+function buildPresetAmounts(settings: any): number[] {
+  const minDeposit = settings.wallet.minDepositKobo / 100;
+  return [minDeposit, 1000, 2000, 5000].filter(
+    (a, i, arr) => a === arr[0] || a !== arr[i - 1],
+  );
+}
 
-const PRESET_AMOUNTS = [500, 1000, 2000, 5000];
+type DepositFormValues = { amount: string };
 
 type FlowState = "form" | "processing" | "success";
 
@@ -48,6 +59,9 @@ interface StepFundWalletProps {
 
 export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
   const { user, appUser } = useAuth();
+  const settings = useSettings();
+  const depositSchema = buildDepositSchema(settings);
+  const PRESET_AMOUNTS = buildPresetAmounts(settings);
   const [flowState, setFlowState] = useState<FlowState>("form");
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const { haptic } = useNativeBridge();
@@ -215,9 +229,9 @@ export function StepFundWallet({ onComplete, onBack }: StepFundWalletProps) {
             <Input
               id="deposit-amount"
               type="number"
-              min="500"
+              min={String(settings.wallet.minDepositKobo / 100)}
               step="100"
-              placeholder="500"
+              placeholder={String(settings.wallet.minDepositKobo / 100)}
               className="pl-7"
               aria-invalid={!!errors.amount}
               {...register("amount", {

@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { PaymentService } from "@/lib/services/payment-service";
-import { getWalletSettings } from "@/lib/services/settings-service";
-import { depositSchema } from "@/lib/validators/payment";
+import { getSettings } from "@/lib/services/settings-service";
+import { buildDepositSchema } from "@/lib/validators/payment";
 
 const SESSION_COOKIE = "__session";
 
@@ -37,26 +37,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = depositSchema.safeParse(body);
-    if (!result.success) {
-      const errorMessage = result.error.issues?.[0]?.message ?? "Invalid request body";
-      return Response.json(
-        { success: false, data: null, error: errorMessage },
-        { status: 400 }
-      );
-    }
-
-    const { amount, email, name } = result.data;
-    const walletSettings = await getWalletSettings();
-    if (amount < walletSettings.minDepositKobo) {
-      return Response.json(
-        {
-          success: false,
-          data: null,
-          error: `Minimum deposit is ₦${walletSettings.minDepositKobo / 100}`,
-        },
-        { status: 400 }
-      );
+    // Validate against live settings
+    try {
+      const settings = await getSettings();
+      const depositSchema = buildDepositSchema(settings);
+      const result = depositSchema.safeParse(body);
+      if (!result.success) {
+        const errorMessage = result.error.issues?.[0]?.message ?? "Invalid request body";
+        return Response.json(
+          { success: false, data: null, error: errorMessage },
+          { status: 400 }
+        );
+      }
+      var { amount, email, name } = result.data;
+    } catch (settingsErr) {
+      console.error("[POST /api/payments/deposit] Failed to validate against settings:", settingsErr);
+      // Fallback to default schema
+      const depositSchema = buildDepositSchema();
+      const result = depositSchema.safeParse(body);
+      if (!result.success) {
+        const errorMessage = result.error.issues?.[0]?.message ?? "Invalid request body";
+        return Response.json(
+          { success: false, data: null, error: errorMessage },
+          { status: 400 }
+        );
+      }
+      var { amount, email, name } = result.data;
     }
 
     const service = new PaymentService();
