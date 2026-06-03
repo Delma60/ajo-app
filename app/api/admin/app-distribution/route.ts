@@ -7,10 +7,6 @@ import { invalidateCache } from "@/lib/services/settings-service";
 import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 
 // ─── Route segment config ─────────────────────────────────────────────────────
-// Allow large file uploads for APK and IPA files (5 min timeout).
-export const config = {
-  maxDuration: 300,
-};
 
 const SESSION_COOKIE = "__session";
 const SETTINGS_COLLECTION = "admin_config";
