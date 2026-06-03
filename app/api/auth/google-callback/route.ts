@@ -1,35 +1,88 @@
-/**
- * Google OAuth callback handler for the Expo mobile app.
- *
- * Flow:
- *   Google → redirects here with ?code=...&state=...
- *   We exchange the code for tokens via Google's token endpoint
- *   We find/create the Firebase user via Admin SDK
- *   We set the session cookie
- *   We redirect to the custom scheme: mobileapp://auth-complete
- *   The in-app browser sees the custom scheme and closes automatically
- */
+// app/api/auth/google-callback/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
-
-// 14 days — must match your existing session creation in /api/auth/session
 const SESSION_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
+const APP_SCHEME = "mobileapp://auth-complete";
+
+function buildSuccessPage(sessionCookie: string): Response {
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Signing you in…</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; display: flex; align-items: center;
+           justify-content: center; height: 100vh; margin: 0; background: #f9fafb; }
+    .card { text-align: center; padding: 32px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #e5e7eb;
+               border-top-color: #047857; border-radius: 50%;
+               animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { color: #6b7280; font-size: 15px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <p>Signing you in…</p>
+  </div>
+  <script>
+    // Redirect to the app's custom scheme — this is what closes the in-app browser
+    window.location.href = "${APP_SCHEME}";
+    
+    // Fallback: if the page is still visible after 2s, try again
+    setTimeout(function() {
+      window.location.replace("${APP_SCHEME}");
+    }, 2000);
+  </script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      // Set the session cookie on this response
+      "Set-Cookie": `__session=${sessionCookie}; Path=/; Max-Age=${SESSION_DURATION_MS / 1000}; HttpOnly; Secure; SameSite=Lax`,
+    },
+  });
+}
+
+function buildErrorPage(error: string): Response {
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sign-in failed</title>
+</head>
+<body>
+  <script>
+    window.location.href = "${APP_SCHEME}?error=${encodeURIComponent(error)}";
+    setTimeout(function() {
+      window.location.replace("${APP_SCHEME}?error=${encodeURIComponent(error)}");
+    }, 1500);
+  </script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const state = searchParams.get("state"); // encoded mobileapp://auth-complete
-
-  // Always redirect to the app — even on error — so the browser closes
-  const appSchemeBase = "mobileapp://auth-complete";
 
   if (!code) {
     console.error("[google-callback] Missing code param");
-    return NextResponse.redirect(`${appSchemeBase}?error=missing_code`);
+    return buildErrorPage("missing_code");
   }
 
   try {
@@ -51,59 +104,54 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error("[google-callback] Token exchange failed:", err);
-      return NextResponse.redirect(`${appSchemeBase}?error=token_exchange_failed`);
+      return buildErrorPage("token_exchange_failed");
     }
 
-    const { access_token, id_token } = await tokenRes.json();
+    const { access_token } = await tokenRes.json();
 
-    // ── 2. Get user info from Google ────────────────────────────────────────
+    // ── 2. Get user info ────────────────────────────────────────────────────
     const userInfoRes = await fetch(GOOGLE_USERINFO_URL, {
       headers: { Authorization: `Bearer ${access_token}` },
     });
 
     if (!userInfoRes.ok) {
-      console.error("[google-callback] Failed to fetch user info");
-      return NextResponse.redirect(`${appSchemeBase}?error=userinfo_failed`);
+      return buildErrorPage("userinfo_failed");
     }
 
-    const googleUser = await userInfoRes.json();
-    const { sub: googleUid, email, name, picture } = googleUser;
+    const { sub: googleUid, email, name, picture } = await userInfoRes.json();
 
     if (!email) {
-      return NextResponse.redirect(`${appSchemeBase}?error=no_email`);
+      return buildErrorPage("no_email");
     }
 
     // ── 3. Find or create Firebase user ────────────────────────────────────
     let firebaseUid: string;
 
     try {
-      // Try to get existing user by email
-      const existingUser = await adminAuth.getUserByEmail(email);
-      firebaseUid = existingUser.uid;
+      const existing = await adminAuth.getUserByEmail(email);
+      firebaseUid = existing.uid;
     } catch {
-      // User doesn't exist — create them
-      const newUser = await adminAuth.createUser({
+      const created = await adminAuth.createUser({
         email,
         displayName: name,
         photoURL: picture,
         emailVerified: true,
       });
-      firebaseUid = newUser.uid;
+      firebaseUid = created.uid;
     }
 
-    // ── 4. Upsert Firestore user doc ────────────────────────────────────────
+    // ── 4. Upsert Firestore user + wallet ───────────────────────────────────
     const userRef = adminDb.collection("users").doc(firebaseUid);
     const userSnap = await userRef.get();
 
     if (!userSnap.exists) {
-      const referralCode = firebaseUid.slice(0, 8).toUpperCase();
       await userRef.set({
         id: firebaseUid,
         name: name ?? "",
         email,
         phone: "",
         avatarUrl: picture ?? null,
-        referralCode,
+        referralCode: firebaseUid.slice(0, 8).toUpperCase(),
         referralBonusAmount: 0,
         role: "user",
         status: "active",
@@ -114,7 +162,6 @@ export async function GET(request: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Create wallet for new user
       await adminDb.collection("wallets").doc(firebaseUid).set({
         userId: firebaseUid,
         available: 0,
@@ -126,17 +173,15 @@ export async function GET(request: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
     } else {
-      // Update avatar if it changed
       await userRef.update({
         avatarUrl: picture ?? null,
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
 
-    // ── 5. Create Firebase custom token → session cookie ────────────────────
+    // ── 5. Create session cookie via custom token ───────────────────────────
     const customToken = await adminAuth.createCustomToken(firebaseUid);
 
-    // Exchange custom token for an ID token via Firebase REST API
     const signInRes = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
       {
@@ -147,43 +192,22 @@ export async function GET(request: NextRequest) {
     );
 
     if (!signInRes.ok) {
-      console.error("[google-callback] Custom token sign-in failed");
-      return NextResponse.redirect(`${appSchemeBase}?error=session_failed`);
+      return buildErrorPage("session_failed");
     }
 
     const { idToken } = await signInRes.json();
 
-    // Create session cookie
     const sessionCookie = await adminAuth.createSessionCookie(idToken, {
       expiresIn: SESSION_DURATION_MS,
     });
 
-    // ── 6. Redirect to app scheme — this closes the in-app browser ──────────
-    // Decode the state param — it should be mobileapp://auth-complete
-    let redirectTarget = appSchemeBase;
-    if (state) {
-      try {
-        const decoded = decodeURIComponent(state);
-        if (decoded.startsWith("mobileapp://")) {
-          redirectTarget = decoded;
-        }
-      } catch {}
-    }
-
-    const response = NextResponse.redirect(redirectTarget);
-
-    // Set the session cookie on the response
-    response.cookies.set("__session", sessionCookie, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: SESSION_DURATION_MS / 1000,
-      path: "/",
-      sameSite: "lax",
-    });
-
-    return response;
+    // ── 6. Return HTML page that redirects to app scheme ────────────────────
+    // A client-side redirect (window.location) works reliably in Chrome Custom
+    // Tabs / ASWebAuthenticationSession. A server-side 307 to a custom scheme
+    // can be swallowed by Vercel edge middleware or the browser's security model.
+    return buildSuccessPage(sessionCookie);
   } catch (err) {
     console.error("[google-callback] Unexpected error:", err);
-    return NextResponse.redirect(`${appSchemeBase}?error=server_error`);
+    return buildErrorPage("server_error");
   }
 }
