@@ -1,6 +1,6 @@
 // app/api/auth/google-callback/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -9,7 +9,7 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 const SESSION_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
 const APP_SCHEME = "mobileapp://auth-complete";
 
-function buildSuccessPage(sessionCookie: string): Response {
+function buildSuccessPage(sessionCookie: string, redirectTarget: string): Response {
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -33,11 +33,11 @@ function buildSuccessPage(sessionCookie: string): Response {
   </div>
   <script>
     // Redirect to the app's custom scheme — this is what closes the in-app browser
-    window.location.href = "${APP_SCHEME}";
+    window.location.href = ${JSON.stringify(redirectTarget)};
     
     // Fallback: if the page is still visible after 2s, try again
     setTimeout(function() {
-      window.location.replace("${APP_SCHEME}");
+      window.location.replace(${JSON.stringify(redirectTarget)});
     }, 2000);
   </script>
 </body>
@@ -79,6 +79,7 @@ function buildErrorPage(error: string): Response {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
 
   if (!code) {
     console.error("[google-callback] Missing code param");
@@ -201,11 +202,23 @@ export async function GET(request: NextRequest) {
       expiresIn: SESSION_DURATION_MS,
     });
 
+    let redirectTarget = APP_SCHEME;
+    if (state) {
+      try {
+        const decoded = decodeURIComponent(state);
+        if (decoded.startsWith("mobileapp://")) {
+          redirectTarget = decoded;
+        }
+      } catch (err) {
+        console.warn("[google-callback] Failed to decode state", err);
+      }
+    }
+
     // ── 6. Return HTML page that redirects to app scheme ────────────────────
     // A client-side redirect (window.location) works reliably in Chrome Custom
     // Tabs / ASWebAuthenticationSession. A server-side 307 to a custom scheme
     // can be swallowed by Vercel edge middleware or the browser's security model.
-    return buildSuccessPage(sessionCookie);
+    return buildSuccessPage(sessionCookie, redirectTarget);
   } catch (err) {
     console.error("[google-callback] Unexpected error:", err);
     return buildErrorPage("server_error");
