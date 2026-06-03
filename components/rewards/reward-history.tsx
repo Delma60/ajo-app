@@ -53,32 +53,32 @@ export function RewardHistory() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {(claims as ClaimWithEvent[]).map((claim) => (
-            <TableRow key={claim.id}>
+          {(claims as ClaimWithEvent[] || [])?.map((claim) => (
+            <TableRow key={claim?.id}>
               <TableCell>
                 <div>
                   <p className="text-sm font-medium">
-                    {claim.event?.title || "—"}
+                    {claim?.event?.title || "—"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {claim.event?.description || "—"}
+                    {claim?.event?.description || "—"}
                   </p>
                 </div>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  {claim.rewardType === "wallet_credit" ||
-                  claim.rewardType === "both" ? (
+                  {claim?.rewardType === "wallet_credit" ||
+                  claim?.rewardType === "both" ? (
                     <div className="flex items-center gap-1 text-xs">
                       <Zap className="size-3 text-amber-500" />
-                      {claim.rewardAmountKobo
-                        ? formatNaira(claim.rewardAmountKobo)
+                      {claim?.rewardAmountKobo
+                        ? formatNaira(claim?.rewardAmountKobo)
                         : "—"}
                     </div>
                   ) : null}
 
-                  {claim.rewardType === "badge" ||
-                  claim.rewardType === "both" ? (
+                  {claim?.rewardType === "badge" ||
+                  claim?.rewardType === "both" ? (
                     <div className="flex items-center gap-1 text-xs">
                       <Trophy className="size-3 text-amber-600" />
                       Badge
@@ -87,7 +87,7 @@ export function RewardHistory() {
                 </div>
               </TableCell>
               <TableCell className="text-xs text-muted-foreground">
-                {formatDistanceToNow(claim.createdAt.toDate(), {
+                {formatDistanceToNow(claim?.createdAt.toDate(), {
                   addSuffix: true,
                 })}
               </TableCell>
