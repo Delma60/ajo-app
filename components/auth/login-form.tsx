@@ -14,8 +14,6 @@ import { signInWithEmail, resetPassword } from "@/lib/firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 
 export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -93,14 +91,6 @@ export function LoginForm() {
 
   return (
     <div className="w-full space-y-6">
-      <GoogleAuthButton label="Continue with Google" />
-
-      <div className="flex items-center gap-3">
-        <Separator className="flex-1" />
-        <span className="text-xs text-muted-foreground">or</span>
-        <Separator className="flex-1" />
-      </div>
-
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         {/* Email */}
         <div className="space-y-1.5">

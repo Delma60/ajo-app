@@ -16,8 +16,6 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
-  GoogleAuthProvider,
-  signInWithPopup,
 } from "firebase/auth";
 import { toast } from "sonner";
 

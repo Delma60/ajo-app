@@ -24,6 +24,10 @@ import {
   XCircleIcon,
   ExternalLinkIcon,
   CalendarIcon,
+  AlertTriangleIcon,
+  WalletIcon,
+  RotateCcwIcon,
+  InfoIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,6 +50,14 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -83,6 +95,56 @@ interface Stats {
   failedCount: number;
   creditVolume: number;
   debitVolume: number;
+}
+
+// ─── Wallet impact helper ─────────────────────────────────────────────────────
+
+/**
+ * Determines what wallet side-effect will occur when admin changes status.
+ * Must mirror the logic in app/api/admin/transactions/[id]/route.ts.
+ */
+function getWalletImpact(
+  tx: AdminTransaction,
+  newStatus: string,
+): {
+  action: "refund" | "credit" | null;
+  label: string;
+  description: string;
+  severity: "warning" | "info" | null;
+} {
+  const isSuccessfulDebit = tx.status === "success" && tx.direction === "debit";
+  const isBeingReversed = newStatus === "failed" || newStatus === "cancelled";
+
+  if (isSuccessfulDebit && isBeingReversed) {
+    return {
+      action: "refund",
+      label: "Wallet Refund",
+      description: `₦${(tx.amount / 100).toLocaleString("en-NG")} will be credited back to ${tx.userName}'s wallet.`,
+      severity: "warning",
+    };
+  }
+
+  const isFailedOrPendingCredit =
+    (tx.status === "failed" || tx.status === "pending") &&
+    tx.direction === "credit" &&
+    tx.type === "deposit";
+
+  if (isFailedOrPendingCredit && newStatus === "success") {
+    return {
+      action: "credit",
+      label: "Manual Wallet Credit",
+      description: `₦${(tx.amount / 100).toLocaleString("en-NG")} will be credited to ${tx.userName}'s wallet immediately.`,
+      severity: "warning",
+    };
+  }
+
+  return {
+    action: null,
+    label: "No Wallet Change",
+    description:
+      "This status change will not affect the user's wallet balance.",
+    severity: "info",
+  };
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -333,7 +395,6 @@ function TransactionRow({
       className="flex items-center gap-3 px-4 py-3.5 border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer group"
       onClick={() => onOpenDetail(tx)}
     >
-      {/* Type icon */}
       <div
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-xl",
@@ -343,7 +404,6 @@ function TransactionRow({
         <typeMeta.icon className={cn("size-4", typeMeta.iconColor)} />
       </div>
 
-      {/* Description + reference */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate leading-tight">
           {tx.description}
@@ -353,7 +413,6 @@ function TransactionRow({
         </p>
       </div>
 
-      {/* User */}
       <div className="hidden md:flex items-center gap-2 shrink-0 w-40">
         <Avatar className="size-6 shrink-0">
           <AvatarImage src={tx.userAvatarUrl ?? undefined} />
@@ -369,14 +428,12 @@ function TransactionRow({
         </div>
       </div>
 
-      {/* Type badge */}
       <div className="hidden lg:block shrink-0">
         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
           {typeMeta.label}
         </span>
       </div>
 
-      {/* Status */}
       <div className="hidden sm:flex shrink-0 items-center gap-1">
         <StatusIcon
           className={cn(
@@ -402,12 +459,10 @@ function TransactionRow({
         </span>
       </div>
 
-      {/* Date */}
       <p className="hidden xl:block text-xs text-muted-foreground shrink-0 w-28 text-right">
         {fmtDate(tx.createdAt)}
       </p>
 
-      {/* Amount + Status (mobile) */}
       <div className="text-right shrink-0">
         <p
           className={cn(
@@ -425,7 +480,6 @@ function TransactionRow({
             fee {fmtNaira(tx.fee)}
           </p>
         )}
-        {/* Status for mobile (shown below amount, hidden on sm+) */}
         <span
           className={cn(
             "inline-flex items-center gap-1 mt-0.5 text-[10px] font-medium sm:hidden",
@@ -436,22 +490,199 @@ function TransactionRow({
                 : "text-red-700 dark:text-red-400",
           )}
         >
-          <StatusIcon
-            className={cn(
-              "size-3.5",
-              tx.status === "success"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : tx.status === "pending"
-                  ? "text-amber-600 dark:text-amber-400"
-                  : "text-red-600 dark:text-red-400",
-            )}
-          />
+          <StatusIcon className="size-3.5" />
           {statusMeta.label}
         </span>
       </div>
 
       <ChevronRightIcon className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
     </div>
+  );
+}
+
+// ─── Status Update Confirmation Dialog ───────────────────────────────────────
+
+function StatusUpdateConfirmDialog({
+  open,
+  onOpenChange,
+  tx,
+  newStatus,
+  onConfirm,
+  isUpdating,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  tx: AdminTransaction;
+  newStatus: string;
+  onConfirm: () => void;
+  isUpdating: boolean;
+}) {
+  if (!tx) return null;
+
+  const impact = getWalletImpact(tx, newStatus);
+  const newStatusMeta = STATUS_META[newStatus] ?? STATUS_META.pending;
+  const StatusIcon = newStatusMeta.icon;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangleIcon className="size-4 text-amber-500" />
+            Confirm Status Change
+          </DialogTitle>
+          <DialogDescription>
+            You're about to update the status of transaction{" "}
+            <span className="font-mono font-medium text-foreground">
+              {tx.reference}
+            </span>
+            .
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-1">
+          {/* Status transition */}
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground mb-1">
+                Current status
+              </p>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                  STATUS_META[tx.status]?.cls ??
+                    "bg-muted text-muted-foreground",
+                )}
+              >
+                {tx.status}
+              </span>
+            </div>
+            <ChevronRightIcon className="size-4 text-muted-foreground shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground mb-1">New status</p>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                  newStatusMeta.cls,
+                )}
+              >
+                <StatusIcon className="size-3" />
+                {newStatus}
+              </span>
+            </div>
+          </div>
+
+          {/* Wallet impact */}
+          <div
+            className={cn(
+              "rounded-lg border px-4 py-3 space-y-1.5",
+              impact.action === "refund" || impact.action === "credit"
+                ? "border-amber-200 bg-amber-50 dark:border-amber-800/30 dark:bg-amber-900/10"
+                : "border-border bg-muted/20",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <WalletIcon
+                className={cn(
+                  "size-3.5 shrink-0",
+                  impact.action
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-muted-foreground",
+                )}
+              />
+              <p
+                className={cn(
+                  "text-xs font-semibold",
+                  impact.action
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-muted-foreground",
+                )}
+              >
+                {impact.label}
+              </p>
+            </div>
+            <p
+              className={cn(
+                "text-xs leading-relaxed",
+                impact.action
+                  ? "text-amber-700 dark:text-amber-300"
+                  : "text-muted-foreground",
+              )}
+            >
+              {impact.description}
+            </p>
+            {impact.action === "refund" && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                ⚠️ This cannot be automatically reversed.
+              </p>
+            )}
+            {impact.action === "credit" && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                ⚠️ Only do this if you have confirmed the payment with the
+                provider.
+              </p>
+            )}
+          </div>
+
+          {/* Transaction summary */}
+          <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">User</span>
+              <span className="font-medium">{tx.userName}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Amount</span>
+              <span className="font-mono font-semibold">
+                {tx.direction === "credit" ? "+" : "−"}
+                {fmtNaira(tx.amount)}
+              </span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Type</span>
+              <span className="font-medium capitalize">
+                {tx.type.replace(/_/g, " ")}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            disabled={isUpdating}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={onConfirm}
+            disabled={isUpdating}
+            className={cn(
+              impact.action ? "bg-amber-600 hover:bg-amber-700 text-white" : "",
+            )}
+          >
+            {isUpdating ? (
+              <>
+                <RefreshCwIcon className="size-3.5 mr-1.5 animate-spin" />
+                Updating…
+              </>
+            ) : (
+              <>
+                {impact.action === "refund" && (
+                  <RotateCcwIcon className="size-3.5 mr-1.5" />
+                )}
+                {impact.action === "credit" && (
+                  <WalletIcon className="size-3.5 mr-1.5" />
+                )}
+                Confirm
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -466,13 +697,14 @@ function TransactionDetailSheet({
   tx: AdminTransaction | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onStatusChange?: (status: string) => void;
+  onStatusChange?: (status: string, walletAffected: boolean) => void;
 }) {
-  const [status, setStatus] = useState(tx?.status || "pending");
+  const [pendingStatus, setPendingStatus] = useState(tx?.status ?? "pending");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
-    setStatus(tx?.status || "pending");
+    setPendingStatus(tx?.status ?? "pending");
   }, [tx]);
 
   if (!tx) return null;
@@ -483,7 +715,8 @@ function TransactionDetailSheet({
     iconBg: "bg-muted",
     iconColor: "text-muted-foreground",
   };
-  const statusMeta = STATUS_META[status] ?? STATUS_META.pending;
+  const currentStatusMeta = STATUS_META[tx.status] ?? STATUS_META.pending;
+  const impact = getWalletImpact(tx, pendingStatus);
 
   const initials = tx.userName
     .split(" ")
@@ -524,18 +757,34 @@ function TransactionDetailSheet({
     );
   }
 
-  async function handleStatusUpdate() {
+  async function handleConfirmedUpdate() {
     setIsUpdating(true);
     try {
       const res = await fetch(`/api/admin/transactions/${tx?.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status: pendingStatus }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to update");
-      toast.success("Transaction status updated");
-      if (onStatusChange) onStatusChange(status);
+
+      const { walletAffected, walletAction } = json.data ?? {};
+
+      if (walletAction === "refund") {
+        toast.success(
+          `Status updated. ₦${(tx!.amount / 100).toLocaleString("en-NG")} refunded to ${tx!.userName}'s wallet.`,
+        );
+      } else if (walletAction === "credit") {
+        toast.success(
+          `Deposit approved. ₦${(tx!.amount / 100).toLocaleString("en-NG")} credited to ${tx!.userName}'s wallet.`,
+        );
+      } else {
+        toast.success("Transaction status updated.");
+      }
+
+      setConfirmOpen(false);
+      if (onStatusChange)
+        onStatusChange(pendingStatus, walletAffected ?? false);
     } catch (err: any) {
       toast.error(err.message || "Failed to update status");
     } finally {
@@ -543,195 +792,258 @@ function TransactionDetailSheet({
     }
   }
 
+  const hasStatusChange = pendingStatus !== tx.status;
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full sm:max-w-md flex flex-col p-0 gap-0"
-      >
-        {/* Header */}
-        <SheetHeader className="px-5 pt-5 pb-4 border-b border-border shrink-0">
-          <div className="flex items-center gap-4">
-            <div
-              className={cn(
-                "flex size-12 shrink-0 items-center justify-center rounded-2xl",
-                typeMeta.iconBg,
-              )}
-            >
-              <typeMeta.icon className={cn("size-5", typeMeta.iconColor)} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <SheetTitle className="text-base font-semibold leading-tight">
-                {typeMeta.label}
-              </SheetTitle>
-              <SheetDescription className="text-xs mt-0.5 line-clamp-2">
-                {tx.description}
-              </SheetDescription>
-              <div className="flex items-center gap-1.5 mt-2">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                    statusMeta.cls,
-                  )}
-                >
-                  <statusMeta.icon className="size-3" />
-                  {statusMeta.label}
-                </span>
-                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
-                  {tx.direction === "credit" ? "Credit" : "Debit"}
-                </span>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-md flex flex-col p-0 gap-0"
+        >
+          {/* Header */}
+          <SheetHeader className="px-5 pt-5 pb-4 border-b border-border shrink-0">
+            <div className="flex items-center gap-4">
+              <div
+                className={cn(
+                  "flex size-12 shrink-0 items-center justify-center rounded-2xl",
+                  typeMeta.iconBg,
+                )}
+              >
+                <typeMeta.icon className={cn("size-5", typeMeta.iconColor)} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <SheetTitle className="text-base font-semibold leading-tight">
+                  {typeMeta.label}
+                </SheetTitle>
+                <SheetDescription className="text-xs mt-0.5 line-clamp-2">
+                  {tx.description}
+                </SheetDescription>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                      currentStatusMeta.cls,
+                    )}
+                  >
+                    <currentStatusMeta.icon className="size-3" />
+                    {currentStatusMeta.label}
+                  </span>
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                    {tx.direction === "credit" ? "Credit" : "Debit"}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </SheetHeader>
+          </SheetHeader>
 
-        {/* Status update UI */}
-        <div className="px-5 pt-4 pb-2">
-          <label className="block text-xs font-semibold mb-1 text-muted-foreground">
-            Change Status
-          </label>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="w-full max-w-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="success">Success</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            className="mt-2"
-            size="sm"
-            onClick={handleStatusUpdate}
-            disabled={isUpdating || status === tx.status}
-            loading={isUpdating}
-          >
-            Update Status
-          </Button>
-        </div>
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            {/* ── Status Update Panel ── */}
+            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+              <p className="text-xs font-semibold text-foreground">
+                Update Status
+              </p>
 
-        {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
-          {/* Amount card */}
-          <div className="rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 p-4 space-y-3">
-            <p className="text-[10px] font-semibold text-primary uppercase tracking-wide">
-              Amount
-            </p>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <p className="text-[10px] text-muted-foreground mb-0.5">
-                  Gross
-                </p>
-                <p
+              <Select value={pendingStatus} onValueChange={setPendingStatus}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Wallet impact preview */}
+              {hasStatusChange && (
+                <div
                   className={cn(
-                    "text-xl font-black font-mono leading-none",
-                    tx.direction === "credit"
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-foreground",
+                    "rounded-lg border px-3 py-2.5 flex items-start gap-2.5",
+                    impact.action
+                      ? "border-amber-200 bg-amber-50 dark:border-amber-800/30 dark:bg-amber-900/10"
+                      : "border-border bg-background",
                   )}
                 >
-                  {tx.direction === "credit" ? "+" : "−"}
-                  {fmtNairaFull(tx.amount)}
-                </p>
-              </div>
-              {tx.fee > 0 && (
-                <div>
-                  <p className="text-[10px] text-muted-foreground mb-0.5">
-                    Fee
-                  </p>
-                  <p className="text-sm font-semibold font-mono text-muted-foreground">
-                    −{fmtNairaFull(tx.fee)}
-                  </p>
+                  {impact.action ? (
+                    <WalletIcon className="size-3.5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  ) : (
+                    <InfoIcon className="size-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0">
+                    <p
+                      className={cn(
+                        "text-xs font-semibold",
+                        impact.action
+                          ? "text-amber-700 dark:text-amber-400"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {impact.label}
+                    </p>
+                    <p
+                      className={cn(
+                        "text-xs mt-0.5 leading-relaxed",
+                        impact.action
+                          ? "text-amber-700/80 dark:text-amber-300/80"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {impact.description}
+                    </p>
+                  </div>
                 </div>
               )}
-              <div>
-                <p className="text-[10px] text-muted-foreground mb-0.5">Net</p>
-                <p className="text-sm font-semibold font-mono">
-                  {fmtNairaFull(tx.netAmount)}
-                </p>
+
+              <Button
+                size="sm"
+                className="w-full gap-1.5"
+                disabled={!hasStatusChange || isUpdating}
+                onClick={() => setConfirmOpen(true)}
+              >
+                {impact.action === "refund" && (
+                  <RotateCcwIcon className="size-3.5" />
+                )}
+                {impact.action === "credit" && (
+                  <WalletIcon className="size-3.5" />
+                )}
+                {!impact.action && <CheckIcon className="size-3.5" />}
+                {hasStatusChange
+                  ? impact.action
+                    ? `Update & ${impact.action === "refund" ? "Refund Wallet" : "Credit Wallet"}`
+                    : "Update Status"
+                  : "No Changes"}
+              </Button>
+            </div>
+
+            {/* Amount card */}
+            <div className="rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 p-4 space-y-3">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-wide">
+                Amount
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-0.5">
+                    Gross
+                  </p>
+                  <p
+                    className={cn(
+                      "text-xl font-black font-mono leading-none",
+                      tx.direction === "credit"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-foreground",
+                    )}
+                  >
+                    {tx.direction === "credit" ? "+" : "−"}
+                    {fmtNairaFull(tx.amount)}
+                  </p>
+                </div>
+                {tx.fee > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">
+                      Fee
+                    </p>
+                    <p className="text-sm font-semibold font-mono text-muted-foreground">
+                      −{fmtNairaFull(tx.fee)}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-0.5">
+                    Net
+                  </p>
+                  <p className="text-sm font-semibold font-mono">
+                    {fmtNairaFull(tx.netAmount)}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* User */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-              User
-            </p>
-            <div className="flex items-center gap-3 rounded-xl border border-border p-3">
-              <Avatar className="size-10 shrink-0">
-                <AvatarImage src={tx.userAvatarUrl ?? undefined} />
-                <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{tx.userName}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {tx.userEmail}
-                </p>
+            {/* User */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                User
+              </p>
+              <div className="flex items-center gap-3 rounded-xl border border-border p-3">
+                <Avatar className="size-10 shrink-0">
+                  <AvatarImage src={tx.userAvatarUrl ?? undefined} />
+                  <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{tx.userName}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {tx.userEmail}
+                  </p>
+                </div>
+                <CopyButton value={tx.userId} />
               </div>
-              <CopyButton value={tx.userId} />
             </div>
-          </div>
 
-          {/* Transaction details */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-              Transaction Details
-            </p>
-            <div className="rounded-xl border border-border overflow-hidden">
-              <InfoRow label="Reference" value={tx.reference} mono copyable />
-              {tx.providerReference && (
+            {/* Transaction details */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Transaction Details
+              </p>
+              <div className="rounded-xl border border-border overflow-hidden">
+                <InfoRow label="Reference" value={tx.reference} mono copyable />
+                {tx.providerReference && (
+                  <InfoRow
+                    label="Provider Ref"
+                    value={tx.providerReference}
+                    mono
+                    copyable
+                  />
+                )}
+                <InfoRow label="Transaction ID" value={tx.id} mono copyable />
+                {tx.circleId && (
+                  <InfoRow
+                    label="Circle ID"
+                    value={tx.circleId}
+                    mono
+                    copyable
+                  />
+                )}
+                {tx.provider && (
+                  <InfoRow label="Provider" value={tx.provider} />
+                )}
+                <InfoRow label="Type" value={typeMeta.label} />
                 <InfoRow
-                  label="Provider Ref"
-                  value={tx.providerReference}
-                  mono
-                  copyable
+                  label="Direction"
+                  value={
+                    tx.direction === "credit"
+                      ? "Credit (incoming)"
+                      : "Debit (outgoing)"
+                  }
                 />
-              )}
-              <InfoRow label="Transaction ID" value={tx.id} mono copyable />
-              {tx.circleId && (
-                <InfoRow label="Circle ID" value={tx.circleId} mono copyable />
-              )}
-              {tx.provider && <InfoRow label="Provider" value={tx.provider} />}
-              <InfoRow label="Type" value={typeMeta.label} />
-              <InfoRow
-                label="Direction"
-                value={
-                  tx.direction === "credit"
-                    ? "Credit (incoming)"
-                    : "Debit (outgoing)"
-                }
-              />
-              <InfoRow label="Created" value={fmtDateTime(tx.createdAt)} />
-              <InfoRow label="Updated" value={fmtDateTime(tx.updatedAt)} />
-            </div>
-          </div>
-
-          {/* Meta */}
-          {tx.meta && Object.keys(tx.meta).length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Metadata
-              </p>
-              <div className="rounded-xl border border-border bg-muted/30 p-3 overflow-auto max-h-36">
-                <pre className="text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all">
-                  {JSON.stringify(tx.meta, null, 2)}
-                </pre>
+                <InfoRow label="Created" value={fmtDateTime(tx.createdAt)} />
+                <InfoRow label="Updated" value={fmtDateTime(tx.updatedAt)} />
               </div>
             </div>
-          )}
 
-          {/* Actions */}
-          {tx.circleId && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Quick Links
-              </p>
-              <div className="flex flex-col gap-2">
+            {/* Meta */}
+            {tx.meta && Object.keys(tx.meta).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Metadata
+                </p>
+                <div className="rounded-xl border border-border bg-muted/30 p-3 overflow-auto max-h-36">
+                  <pre className="text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all">
+                    {JSON.stringify(tx.meta, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
+
+            {/* Quick links */}
+            {tx.circleId && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Quick Links
+                </p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -748,11 +1060,21 @@ function TransactionDetailSheet({
                   </a>
                 </Button>
               </div>
-            </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Confirmation dialog */}
+      <StatusUpdateConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        tx={tx}
+        newStatus={pendingStatus}
+        onConfirm={handleConfirmedUpdate}
+        isUpdating={isUpdating}
+      />
+    </>
   );
 }
 
@@ -785,7 +1107,6 @@ function FiltersBar({
   return (
     <div className="space-y-2">
       <div className="flex flex-col sm:flex-row gap-2">
-        {/* Search */}
         <div className="relative flex-1">
           <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -796,7 +1117,6 @@ function FiltersBar({
           />
         </div>
 
-        {/* Type */}
         <Select value={filters.type} onValueChange={(v) => update({ type: v })}>
           <SelectTrigger className="w-full sm:w-[155px]">
             <FilterIcon className="size-3.5 text-muted-foreground" />
@@ -814,7 +1134,6 @@ function FiltersBar({
           </SelectContent>
         </Select>
 
-        {/* Status */}
         <Select
           value={filters.status}
           onValueChange={(v) => update({ status: v })}
@@ -831,7 +1150,6 @@ function FiltersBar({
           </SelectContent>
         </Select>
 
-        {/* Direction */}
         <Select
           value={filters.direction}
           onValueChange={(v) => update({ direction: v })}
@@ -847,14 +1165,12 @@ function FiltersBar({
         </Select>
       </div>
 
-      {/* Date range row */}
       <div className="flex flex-col sm:flex-row gap-2 items-center">
         <div className="flex items-center gap-2 flex-1">
           <CalendarIcon className="size-4 text-muted-foreground shrink-0" />
           <Input
             type="date"
             className="h-8 text-xs flex-1"
-            placeholder="From"
             value={filters.dateFrom}
             onChange={(e) => update({ dateFrom: e.target.value })}
           />
@@ -862,7 +1178,6 @@ function FiltersBar({
           <Input
             type="date"
             className="h-8 text-xs flex-1"
-            placeholder="To"
             value={filters.dateTo}
             onChange={(e) => update({ dateTo: e.target.value })}
           />
@@ -930,13 +1245,9 @@ export function AdminTransactionsContent() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasError, setHasError] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
-
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [detailTx, setDetailTx] = useState<AdminTransaction | null>(null);
-
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchTransactions = useCallback(
     async (cursor: string | null = null, reset = true) => {
@@ -977,7 +1288,6 @@ export function AdminTransactionsContent() {
     [filters],
   );
 
-  // Debounce on search, immediate on other filter changes
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     const delay = filters.search ? 400 : 0;
@@ -989,7 +1299,6 @@ export function AdminTransactionsContent() {
     };
   }, [filters, fetchTransactions]);
 
-  // Count active filters
   const activeFilterCount = [
     filters.type !== "all",
     filters.status !== "all",
@@ -1001,12 +1310,9 @@ export function AdminTransactionsContent() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-5">
-        {/* ── Page header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold flex items-center gap-2">
-              Transactions
-            </h1>
+            <h1 className="text-xl font-semibold">Transactions</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Monitor all financial activity across the platform.
             </p>
@@ -1025,10 +1331,8 @@ export function AdminTransactionsContent() {
           </Button>
         </div>
 
-        {/* ── Stats strip ── */}
         <StatsStrip stats={stats} isLoading={isLoading} />
 
-        {/* ── Filters ── */}
         <FiltersBar
           filters={filters}
           onChange={(f) => setFilters(f)}
@@ -1036,7 +1340,6 @@ export function AdminTransactionsContent() {
           onClear={() => setFilters(DEFAULT_FILTERS)}
         />
 
-        {/* ── Result count ── */}
         {!isLoading && !hasError && (
           <p className="text-xs text-muted-foreground">
             {transactions.length} transaction
@@ -1045,7 +1348,6 @@ export function AdminTransactionsContent() {
           </p>
         )}
 
-        {/* ── Table ── */}
         <Card>
           <CardHeader className="border-b py-3 px-4">
             <div className="flex items-center justify-between gap-3">
@@ -1054,7 +1356,6 @@ export function AdminTransactionsContent() {
                   ? "Loading…"
                   : `${transactions.length} result${transactions.length !== 1 ? "s" : ""}${hasMore ? "+" : ""}`}
               </CardTitle>
-              {/* Column labels — desktop only */}
               <div className="hidden xl:flex items-center gap-1 text-xs text-muted-foreground pr-8 space-x-4">
                 <span className="w-40">User</span>
                 <span className="w-20 text-center">Type</span>
@@ -1121,7 +1422,6 @@ export function AdminTransactionsContent() {
           </CardContent>
         </Card>
 
-        {/* ── Load more ── */}
         {hasMore && !isLoading && !hasError && (
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
@@ -1146,16 +1446,21 @@ export function AdminTransactionsContent() {
         )}
       </div>
 
-      {/* ── Detail sheet ── */}
       <TransactionDetailSheet
         tx={detailTx}
         open={!!detailTx}
         onOpenChange={(open) => !open && setDetailTx(null)}
-        onStatusChange={(newStatus) => {
+        onStatusChange={(newStatus, walletAffected) => {
           if (!detailTx) return;
-          setDetailTx({ ...detailTx, status: newStatus });
+          // Update the tx in the list
+          setTransactions((prev) =>
+            prev.map((t) =>
+              t.id === detailTx.id ? { ...t, status: newStatus } : t,
+            ),
+          );
+          // Update the open detail view
+          setDetailTx((prev) => (prev ? { ...prev, status: newStatus } : null));
           router.refresh();
-          // Optionally, refresh the list or stats if needed
         }}
       />
     </div>
