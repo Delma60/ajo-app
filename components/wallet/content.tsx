@@ -22,6 +22,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useSettings } from "@/lib/providers/settings";
 import { BalanceCard } from "@/components/dashboard/balance-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,7 +81,7 @@ function TxRow({ tx }: { tx: Transaction }) {
             "text-sm font-semibold font-mono",
             isCredit
               ? "text-emerald-600 dark:text-emerald-400"
-              : "text-foreground"
+              : "text-foreground",
           )}
         >
           {isCredit ? "+" : "-"}
@@ -123,6 +124,7 @@ function StatTile({
 
 export function WalletContent() {
   const { firebaseUser } = useAuthStore();
+  const settings = useSettings();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [walletLoading, setWalletLoading] = useState(true);
@@ -141,7 +143,7 @@ export function WalletContent() {
         if (snap.exists()) setWallet(snap.data() as Wallet);
         setWalletLoading(false);
       },
-      () => setWalletLoading(false)
+      () => setWalletLoading(false),
     );
     return () => unsub();
   }, [firebaseUser]);
@@ -156,14 +158,14 @@ export function WalletContent() {
         collection(db, "transactions"),
         where("userId", "==", firebaseUser.uid),
         orderBy("createdAt", "desc"),
-        limit(PAGE_SIZE + 1)
-      )
+        limit(PAGE_SIZE + 1),
+      ),
     )
       .then((snap) => {
         const docs = snap.docs.slice(0, PAGE_SIZE);
         setHasMore(snap.docs.length > PAGE_SIZE);
         setTransactions(
-          docs.map((d) => ({ id: d.id, ...d.data() } as Transaction))
+          docs.map((d) => ({ id: d.id, ...d.data() }) as Transaction),
         );
       })
       .catch(console.error)
@@ -175,7 +177,7 @@ export function WalletContent() {
     navigator.clipboard
       .writeText(
         `${process.env.NEXT_PUBLIC_APP_URL}/register?ref=` +
-          (firebaseUser?.uid?.slice(0, 8).toUpperCase() ?? "")
+          (firebaseUser?.uid?.slice(0, 8).toUpperCase() ?? ""),
       )
       .then(() => {
         setReferralCopied(true);
@@ -224,7 +226,10 @@ export function WalletContent() {
         {walletLoading ? (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-1">
+              <div
+                key={i}
+                className="rounded-xl border border-border bg-card p-4 space-y-1"
+              >
                 <Skeleton className="h-3 w-20" />
                 <Skeleton className="h-6 w-24" />
               </div>
@@ -259,11 +264,11 @@ export function WalletContent() {
         <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">
-              Earn ₦500 per referral
+              Earn ₦{settings.payouts.referralBonusKobo / 100} per referral
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Share your invite link. You earn when they make their first
-              deposit of ₦1,000+.
+              deposit of ₦{settings.wallet.minDepositKobo / 100}+.
             </p>
           </div>
           <Button

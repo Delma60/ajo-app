@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { PlatformSettings } from "@/lib/types/admin-settings";
 
 interface SettingsProviderProps {
@@ -14,8 +14,39 @@ export function SettingsProvider({
   children,
   settings,
 }: SettingsProviderProps) {
+  const [currentSettings, setCurrentSettings] =
+    useState<PlatformSettings>(settings);
+
+  useEffect(() => {
+    setCurrentSettings(settings);
+  }, [settings]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshSettings() {
+      try {
+        const response = await fetch("/api/settings", { cache: "no-store" });
+        if (!response.ok) return;
+        const json = await response.json();
+        if (json?.success && json?.data && active) {
+          setCurrentSettings(json.data);
+        }
+      } catch (err) {
+        console.debug("[SettingsProvider] failed to refresh settings", err);
+      }
+    }
+
+    refreshSettings();
+    const interval = window.setInterval(refreshSettings, 60000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
   return (
-    <SettingsContext.Provider value={settings}>
+    <SettingsContext.Provider value={currentSettings}>
       {children}
     </SettingsContext.Provider>
   );

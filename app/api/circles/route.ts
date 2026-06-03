@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { CircleService } from "@/lib/services/circle-service";
-import { createCircleSchema } from "@/lib/validators/circle";
+import { buildCreateCircleSchema } from "@/lib/validators/circle";
 import { getSettings } from "@/lib/services/settings-service";
 import { Circle } from "@/lib/types/circle";
 
@@ -92,19 +92,43 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const parsed = createCircleSchema.safeParse(body);
 
-    if (!parsed.success) {
-      return Response.json(
-        {
-          success: false,
-          data: null,
-          error: parsed.error.issues[0]?.message ?? "Invalid input",
-        },
-        { status: 400 }
-      );
+    // Validate payload against live server settings (KOBO units expected from client)
+    try {
+      const settings = await getSettings();
+      const schema = buildCreateCircleSchema(settings, "KOBO");
+      const parsed = schema.safeParse(body);
+
+      if (!parsed.success) {
+        return Response.json(
+          {
+            success: false,
+            data: null,
+            error: parsed.error.issues[0]?.message ?? "Invalid input",
+          },
+          { status: 400 }
+        );
+      }
+
+      // Use parsed data for creation
+      var parsedData = parsed.data;
+    } catch (settingsErr) {
+      console.error("[POST /api/circles] Failed to validate against settings:", settingsErr);
+      // Fallback to previous behavior: try default schema (KOBO)
+      const schema = buildCreateCircleSchema(undefined, "KOBO");
+      const parsed = schema.safeParse(body);
+      if (!parsed.success) {
+        return Response.json(
+          {
+            success: false,
+            data: null,
+            error: parsed.error.issues[0]?.message ?? "Invalid input",
+          },
+          { status: 400 }
+        );
+      }
+      var parsedData = parsed.data;
     }
-
     const {
       name,
       description,
@@ -114,60 +138,9 @@ export async function POST(request: NextRequest) {
       payoutOrder,
       isPrivate,
       tags,
-    } = parsed.data;
+    } = parsedData as any;
 
-      // Re-validate against dynamic server-side settings
-      try {
-        const settings = await getSettings();
-        const circleSettings = settings.circles;
-
-        if (contribution < circleSettings.minContributionKobo) {
-          return Response.json(
-            {
-              success: false,
-              data: null,
-              error: `Minimum contribution is ₦${circleSettings.minContributionKobo / 100}.`,
-            },
-            { status: 400 }
-          );
-        }
-
-        if (contribution > circleSettings.maxContributionKobo) {
-          return Response.json(
-            {
-              success: false,
-              data: null,
-              error: `Maximum contribution is ₦${circleSettings.maxContributionKobo / 100}.`,
-            },
-            { status: 400 }
-          );
-        }
-
-        if (maxMembers < circleSettings.minCircleMembers) {
-          return Response.json(
-            {
-              success: false,
-              data: null,
-              error: `Circle must have at least ${circleSettings.minCircleMembers} members.`,
-            },
-            { status: 400 }
-          );
-        }
-
-        if (maxMembers > circleSettings.maxCircleMembers) {
-          return Response.json(
-            {
-              success: false,
-              data: null,
-              error: `Maximum members allowed is ${circleSettings.maxCircleMembers}.`,
-            },
-            { status: 400 }
-          );
-        }
-      } catch (settingsErr) {
-        console.error("[POST /api/circles] Failed to validate against settings:", settingsErr);
-        // Proceed anyway; service layer will re-validate with settings
-      }
+    // Additional server-side checks are handled by the schema built with live settings
 
     const service = new CircleService();
     const circle = await service.createCircle(

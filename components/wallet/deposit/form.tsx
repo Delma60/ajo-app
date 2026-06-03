@@ -11,29 +11,50 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { useNativeBridge } from "@/hooks/use-native-bridge";
+import { useSettings } from "@/lib/providers/settings";
 import { formatNaira, cn } from "@/lib/utils";
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
+// ─── Schema (built dynamically with settings) ─────────────────────────────────
 
-const depositFormSchema = z.object({
-  amount: z
-    .string()
-    .min(1, "Please enter an amount")
-    .refine((v) => {
-      const n = parseFloat(v);
-      return !isNaN(n) && n >= 500;
-    }, "Minimum deposit is ₦500")
-    .refine((v) => {
-      const n = parseFloat(v);
-      return !isNaN(n) && n <= 5_000_000;
-    }, "Maximum single deposit is ₦5,000,000"),
-});
+function buildDepositSchema(settings: any) {
+  const minDepositKobo = settings.wallet.minDepositKobo;
+  const maxDepositKobo = settings.wallet.maxDepositKobo;
+  return z.object({
+    amount: z
+      .string()
+      .min(1, "Please enter an amount")
+      .refine(
+        (v) => {
+          const n = parseFloat(v);
+          return !isNaN(n) && n >= minDepositKobo / 100;
+        },
+        `Minimum deposit is ₦${minDepositKobo / 100}.`,
+      )
+      .refine(
+        (v) => {
+          const n = parseFloat(v);
+          return !isNaN(n) && n <= maxDepositKobo / 100;
+        },
+        `Maximum single deposit is ₦${maxDepositKobo / 100}.`,
+      ),
+  });
+}
 
-type DepositFormValues = z.infer<typeof depositFormSchema>;
+type DepositFormValues = { amount: string };
 
-// ─── Preset amounts ───────────────────────────────────────────────────────────
+// ─── Preset amounts (built dynamically) ───────────────────────────────────────
 
-const PRESET_AMOUNTS = [1000, 2000, 5000, 10000] as const;
+function buildPresetAmounts(settings: any): readonly number[] {
+  const minDeposit = settings.wallet.minDepositKobo / 100;
+  const maxDeposit = settings.wallet.maxDepositKobo / 100;
+  // Return preset amounts that fit within the min/max
+  return [
+    minDeposit,
+    Math.min(2000, maxDeposit),
+    Math.min(5000, maxDeposit),
+    Math.min(10000, maxDeposit),
+  ].filter((a, i, arr) => a === arr[0] || a !== arr[i - 1]);
+}
 
 // ─── Trust badges ─────────────────────────────────────────────────────────────
 
@@ -80,9 +101,13 @@ export function DepositForm({
   onRedirecting,
   onSuccess,
 }: DepositFormProps) {
+  const settings = useSettings();
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { haptic } = useNativeBridge();
+
+  const depositFormSchema = buildDepositSchema(settings);
+  const PRESET_AMOUNTS = buildPresetAmounts(settings);
 
   const {
     register,
@@ -239,10 +264,10 @@ export function DepositForm({
               id="deposit-amount"
               type="number"
               inputMode="numeric"
-              min="500"
-              max="5000000"
+              min={String(settings.wallet.minDepositKobo / 100)}
+              max={String(settings.wallet.maxDepositKobo / 100)}
               step="100"
-              placeholder="500"
+              placeholder={String(settings.wallet.minDepositKobo / 100)}
               className="pl-7"
               aria-invalid={!!errors.amount}
               {...register("amount", {
@@ -254,7 +279,8 @@ export function DepositForm({
             <p className="text-xs text-destructive">{errors.amount.message}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Min ₦500 · Max ₦5,000,000 per transaction
+              Min ₦{settings.wallet.minDepositKobo / 100} · Max ₦
+              {settings.wallet.maxDepositKobo / 100} per transaction
             </p>
           )}
         </div>

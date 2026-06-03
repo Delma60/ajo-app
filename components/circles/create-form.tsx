@@ -21,10 +21,11 @@ import {
 } from "lucide-react";
 
 import {
-  createCircleSchema,
+  buildCreateCircleSchema,
   type CreateCircleFormValues,
 } from "@/lib/validators/circle";
 import { useCreateCircle } from "@/lib/hooks/use-circle";
+import { useSettings } from "@/lib/providers/settings";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { formatNaira } from "@/lib/utils";
 
@@ -154,9 +155,13 @@ function SummaryRow({
 export function CreateCircleForm() {
   const router = useRouter();
   const { appUser } = useAuthStore();
+  const settings = useSettings();
   const createCircle = useCreateCircle();
   const [tagInput, setTagInput] = useState("");
   const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Build dynamic schema based on live settings (NGN for client form)
+  const circleSchema = buildCreateCircleSchema(settings, "NGN");
 
   const {
     register,
@@ -166,7 +171,7 @@ export function CreateCircleForm() {
     setValue,
     formState: { errors },
   } = useForm<CreateCircleFormValues>({
-    resolver: zodResolver(createCircleSchema),
+    resolver: zodResolver(circleSchema),
     defaultValues: {
       frequency: "monthly",
       payoutOrder: "rotational",
@@ -179,7 +184,8 @@ export function CreateCircleForm() {
   const contributionNum = Number(watchedValues.contribution ?? 0) || 0;
   const maxMembersNum = Number(watchedValues.maxMembers ?? 0) || 0;
   const goalKobo = contributionNum * 100 * maxMembersNum;
-  const creationFee = Math.round(contributionNum * 100 * 0.05); // 5%
+  const creationFeePercent = settings.circles.creationFeePercent;
+  const creationFee = Math.round(contributionNum * 100 * creationFeePercent);
   const walletBalance = appUser ? 0 : 0; // will come from wallet store
 
   function applyTemplate(tpl: (typeof TEMPLATES)[0]) {
@@ -406,7 +412,7 @@ export function CreateCircleForm() {
                 <Input
                   id="circle-contribution"
                   type="number"
-                  min="500"
+                  min={String(settings.circles.minContributionKobo / 100)}
                   step="100"
                   placeholder="5000"
                   className="pl-7"
@@ -426,8 +432,8 @@ export function CreateCircleForm() {
               <Input
                 id="circle-members"
                 type="number"
-                min="2"
-                max="100"
+                min={String(settings.circles.minCircleMembers)}
+                max={String(settings.circles.maxCircleMembers)}
                 placeholder="10"
                 aria-invalid={!!errors.maxMembers}
                 {...register("maxMembers")}

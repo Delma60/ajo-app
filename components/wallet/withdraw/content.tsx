@@ -16,6 +16,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useSettings } from "@/lib/providers/settings";
 import { useNativeBridge } from "@/hooks/use-native-bridge";
 import { formatNaira } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,23 +26,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { BankAccount } from "@/lib/types/user";
 
-const withdrawSchema = z.object({
-  amount: z
-    .string()
-    .min(1, "Enter an amount")
-    .refine((v) => {
-      const n = parseFloat(v);
-      return !isNaN(n) && n >= 1000;
-    }, "Minimum withdrawal is ₦1,000"),
-  bankAccountId: z.string().min(1, "Select a bank account"),
-});
+const buildWithdrawSchema = (settings: any) =>
+  z.object({
+    amount: z
+      .string()
+      .min(1, "Enter an amount")
+      .refine(
+        (v) => {
+          const n = parseFloat(v);
+          return !isNaN(n) && n >= settings.wallet.minWithdrawKobo / 100;
+        },
+        `Minimum withdrawal is ₦${settings.wallet.minWithdrawKobo / 100}`,
+      ),
+    bankAccountId: z.string().min(1, "Select a bank account"),
+  });
 
-type WithdrawFormValues = z.infer<typeof withdrawSchema>;
+type WithdrawFormValues = { amount: string; bankAccountId: string };
 
-function calculateFee(amountNaira: number): number {
-  const percent = Math.round(amountNaira * 100 * 0.01); // 1%
-  const flat = 5000; // ₦50 in kobo
-  return Math.min(percent + flat, 50000); // capped at ₦500
+function calculateFee(amountNaira: number, settings: any): number {
+  const feePercent = settings.wallet.withdrawFeePercent; // e.g., 0.01 for 1%
+  const feeFlatKobo = settings.wallet.withdrawFeeFlatKobo; // e.g., 5000 for ₦50
+  const feeCapKobo = settings.wallet.withdrawFeeCapKobo; // e.g., 50000 for ₦500 cap
+  const percent = Math.round(amountNaira * 100 * feePercent);
+  return Math.min(percent + feeFlatKobo, feeCapKobo);
 }
 
 export function WithdrawContent({
@@ -51,6 +58,8 @@ export function WithdrawContent({
 }) {
   const router = useRouter();
   const { appUser } = useAuthStore();
+  const settings = useSettings();
+  const withdrawSchema = buildWithdrawSchema(settings);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { haptic } = useNativeBridge();
 
@@ -71,7 +80,7 @@ export function WithdrawContent({
   const selectedAccountId = watch("bankAccountId");
   const amountNaira = parseFloat(amountStr) || 0;
   const amountKobo = Math.round(amountNaira * 100);
-  const feeKobo = calculateFee(amountNaira);
+  const feeKobo = calculateFee(amountNaira, settings);
   const netKobo = amountKobo - feeKobo;
   const hasSufficientFunds = walletBalance >= amountKobo;
   const bankAccounts: BankAccount[] = appUser?.bankAccounts ?? [];
@@ -209,9 +218,9 @@ export function WithdrawContent({
               <Input
                 id="withdraw-amount"
                 type="number"
-                min="1000"
+                min={String(settings.wallet.minWithdrawKobo / 100)}
                 step="100"
-                placeholder="1000"
+                placeholder={String(settings.wallet.minWithdrawKobo / 100)}
                 className="pl-7"
                 aria-invalid={!!errors.amount}
                 {...register("amount")}

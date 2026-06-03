@@ -2,6 +2,7 @@
 
 export interface WalletSettings {
   minDepositKobo: number;          // ₦500 default
+  maxDepositKobo: number;          // ₦5,000,000 default
   minWithdrawKobo: number;         // ₦1,000 default
   withdrawFeeFlatKobo: number;     // ₦50 flat fee
   withdrawFeePercent: number;      // 1% of amount
@@ -98,6 +99,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   },
   wallet: {
     minDepositKobo: 50_000,
+    maxDepositKobo: 500_000_000,
     minWithdrawKobo: 100_000,
     withdrawFeeFlatKobo: 5_000,
     withdrawFeePercent: 1,
