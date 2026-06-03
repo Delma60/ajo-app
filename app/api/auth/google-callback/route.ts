@@ -10,11 +10,11 @@ import { adminAuth } from '@/lib/firebase/admin';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
-  const state = searchParams.get('state'); // contains the ajosave:// redirect URI
+  const state = searchParams.get('state'); // contains the mobileapp:// redirect URI
   const error = searchParams.get('error');
 
   // Decode the redirect target passed via state
-  const redirectTarget = state ? decodeURIComponent(state) : 'ajosave://auth-complete';
+  const redirectTarget = state ? decodeURIComponent(state) : 'mobileapp://auth-complete';
 
   // ── Handle user cancellation ──────────────────────────────────────────────
   if (error || !code) {

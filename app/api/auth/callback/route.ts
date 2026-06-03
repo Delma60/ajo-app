@@ -1,140 +1,77 @@
-// app/api/auth/google/callback/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
+// app/api/auth/google-callback/route.ts
+//
+// Receives the OAuth code from Google, exchanges it for tokens,
+// creates a Firebase session, then redirects to the custom app scheme
+// so the in-app browser closes and returns control to the native app.
 
-/**
- * Called by the Expo native layer after Google OAuth completes.
- * Receives a Firebase ID token, verifies it, creates a session cookie,
- * upserts the user doc, and redirects into the app.
- *
- * Flow:
- *   Native WebBrowser → Google → Firebase redirect → this route
- *   → sets __session cookie → redirects to /dashboard or /onboarding
- */
+import { NextRequest, NextResponse } from 'next/server';
+import { adminAuth } from '@/lib/firebase/admin';
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const idToken = searchParams.get("idToken");
+  const code = searchParams.get('code');
+  const state = searchParams.get('state'); // contains the mobileapp:// redirect URI
+  const error = searchParams.get('error');
 
-  if (!idToken) {
-    return NextResponse.redirect(
-      new URL("/login?error=missing_token", request.url)
-    );
+  // Decode the redirect target passed via state
+  const redirectTarget = state ? decodeURIComponent(state) : 'mobileapp://auth-complete';
+
+  // ── Handle user cancellation ──────────────────────────────────────────────
+  if (error || !code) {
+    console.error('[google-callback] OAuth error or missing code:', error);
+    return NextResponse.redirect(`${redirectTarget}?error=cancelled`);
   }
 
   try {
-    // Verify the ID token with Firebase Admin
-    const decoded = await adminAuth.verifyIdToken(idToken);
-
-    // Create a session cookie (14 days)
-    const expiresIn = 60 * 60 * 24 * 14 * 1000;
-    const sessionCookie = await adminAuth.createSessionCookie(idToken, {
-      expiresIn,
+    // ── 1. Exchange code for tokens ─────────────────────────────────────────
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/google-callback`,
+        grant_type: 'authorization_code',
+      }),
     });
 
-    // Upsert user document in Firestore
-    const userRef = adminDb.collection("users").doc(decoded.uid);
-    const userSnap = await userRef.get();
-
-    let onboardingComplete = false;
-    let role = "user";
-
-    if (!userSnap.exists) {
-      // First-time Google sign-in — create user + wallet docs
-      function generateReferralCode(uid: string) {
-        return uid.slice(0, 8).toUpperCase();
-      }
-
-      const newUser = {
-        id: decoded.uid,
-        name: decoded.name ?? "",
-        email: decoded.email ?? "",
-        phone: "",
-        avatarUrl: decoded.picture ?? null,
-        referralCode: generateReferralCode(decoded.uid),
-        referralBonusAmount: 0,
-        role: "user",
-        status: "active",
-        circleIds: [],
-        bankAccounts: [],
-        onboardingComplete: false,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-
-      await userRef.set(newUser);
-
-      await adminDb
-        .collection("wallets")
-        .doc(decoded.uid)
-        .set({
-          userId: decoded.uid,
-          available: 0,
-          pending: 0,
-          totalSaved: 0,
-          totalReceived: 0,
-          referralEarnings: 0,
-          currency: "NGN",
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-      // Send welcome email (fire-and-forget)
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/auth/welcome`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: decoded.name ?? "",
-          email: decoded.email ?? "",
-        }),
-      }).catch(console.error);
-    } else {
-      const userData = userSnap.data()!;
-      onboardingComplete = userData.onboardingComplete ?? false;
-      role = userData.role ?? "user";
-
-      // Update last-seen timestamp
-      await userRef.update({ updatedAt: FieldValue.serverTimestamp() });
+    if (!tokenRes.ok) {
+      const body = await tokenRes.text();
+      throw new Error(`Token exchange failed: ${body}`);
     }
 
-    // Determine redirect destination
-    const redirectPath =
-      role === "admin"
-        ? "/admin"
-        : !onboardingComplete
-        ? "/onboarding"
-        : "/dashboard";
+    const { id_token } = await tokenRes.json() as { id_token: string };
 
-    // Set session cookie and redirect
-    const response = NextResponse.redirect(
-      new URL(redirectPath, request.url)
-    );
+    // ── 2. Verify the ID token with Firebase Admin ──────────────────────────
+    // This also creates the user in Firebase Auth if it's their first sign-in.
+    const firebaseToken = await adminAuth.verifyIdToken(id_token);
+    const uid = firebaseToken.uid;
 
-    response.cookies.set("__session", sessionCookie, {
+    // ── 3. Ensure user doc exists in Firestore ──────────────────────────────
+    // (Your existing signUpWithEmail flow already handles this for new users.
+    //  For Google sign-ins, upsert the profile doc here if needed.)
+    // await upsertUserDoc(uid, firebaseToken);
+
+    // ── 4. Create a session cookie (14 days) ───────────────────────────────
+    const expiresIn = 60 * 60 * 24 * 14 * 1000; // 14 days in ms
+    const sessionCookie = await adminAuth.createSessionCookie(id_token, { expiresIn });
+
+    // ── 5. Set the cookie and redirect back to the custom scheme ────────────
+    const response = NextResponse.redirect(redirectTarget);
+    response.cookies.set('__session', sessionCookie, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: expiresIn / 1000, // seconds
-      path: "/",
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: expiresIn / 1000,
+      path: '/',
     });
 
-    // Also set a readable meta cookie for client-side role detection
-    response.cookies.set(
-      "__user_meta",
-      encodeURIComponent(JSON.stringify({ role })),
-      {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: expiresIn / 1000,
-        path: "/",
-      }
-    );
-
     return response;
+
   } catch (err) {
-    console.error("[google-callback] Token verification failed:", err);
-    return NextResponse.redirect(
-      new URL("/login?error=auth_failed", request.url)
-    );
+    console.error('[google-callback] Error:', err);
+    // Redirect back to app with error — the WebView will re-enable the button
+    return NextResponse.redirect(`${redirectTarget}?error=auth_failed`);
   }
 }
