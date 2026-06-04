@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import {
   Select,
   SelectContent,
@@ -27,22 +28,22 @@ import {
 
 const RARITIES: BadgeRarity[] = ["common", "rare", "legendary"];
 
-const EMOJI_SUGGESTIONS = [
-  "🏆",
-  "⭐",
-  "🎖️",
-  "🥇",
-  "🥈",
-  "🥉",
-  "🎯",
-  "💎",
-  "👑",
-  "🔥",
-  "✨",
-  "🎁",
-  "🚀",
-  "💪",
-  "🎊",
+const ICON_SUGGESTIONS = [
+  "Trophy",
+  "Award",
+  "Star",
+  "Sparkles",
+  "ShieldCheck",
+  "Crown",
+  "Rocket",
+  "Gift",
+  "Zap",
+  "Heart",
+  "Medal",
+  "Gem",
+  "CheckCircle2",
+  "Shield",
+  "Lightning",
 ];
 
 interface CreateBadgeDialogProps {
@@ -59,7 +60,7 @@ export function CreateBadgeDialog({
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    iconEmoji: "🏆",
+    iconName: "Trophy",
     rarity: "common" as BadgeRarity,
   });
 
@@ -104,7 +105,7 @@ export function CreateBadgeDialog({
       setFormData({
         name: "",
         description: "",
-        iconEmoji: "🏆",
+        iconName: "Trophy",
         rarity: "common",
       });
 
@@ -165,34 +166,34 @@ export function CreateBadgeDialog({
             />
           </div>
 
-          {/* Icon Emoji */}
+          {/* Icon Name */}
           <div className="space-y-2">
-            <Label htmlFor="badge-emoji">Icon Emoji</Label>
-            <div className="flex gap-2 flex-wrap mb-2">
-              {EMOJI_SUGGESTIONS.map((emoji) => (
+            <Label htmlFor="badge-icon">Icon Name</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
+              {ICON_SUGGESTIONS.map((icon) => (
                 <button
-                  key={emoji}
+                  key={icon}
                   type="button"
-                  className={`text-2xl p-2 rounded border transition-colors ${
-                    formData.iconEmoji === emoji
+                  className={`flex items-center justify-center gap-2 rounded border px-3 py-2 text-sm transition-colors ${
+                    formData.iconName === icon
                       ? "border-primary bg-primary/10"
                       : "border-border hover:border-primary"
                   }`}
-                  onClick={() => setFormData({ ...formData, iconEmoji: emoji })}
+                  onClick={() => setFormData({ ...formData, iconName: icon })}
                 >
-                  {emoji}
+                  <DynamicIcon name={icon} className="size-4" />
+                  <span className="truncate">{icon}</span>
                 </button>
               ))}
             </div>
             <Input
-              id="badge-emoji"
-              placeholder="Or paste custom emoji"
-              value={formData.iconEmoji}
+              id="badge-icon"
+              placeholder="Lucide icon name e.g. Trophy"
+              value={formData.iconName}
               onChange={(e) =>
-                setFormData({ ...formData, iconEmoji: e.target.value })
+                setFormData({ ...formData, iconName: e.target.value })
               }
               disabled={loading}
-              maxLength={2}
             />
           </div>
 

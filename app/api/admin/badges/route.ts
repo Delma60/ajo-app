@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         id: d.id,
         name: data.name,
         description: data.description,
+        iconName: data.iconName,
         iconEmoji: data.iconEmoji,
         iconUrl: data.iconUrl,
         rarity: data.rarity,
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, iconEmoji, iconUrl, rarity } = body;
+    const { name, description, iconName, iconEmoji, iconUrl, rarity } = body;
 
     if (!name || !rarity) {
       return NextResponse.json(
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
       id: badgeId,
       name,
       description: description || "",
+      iconName,
       iconEmoji,
       iconUrl,
       rarity,

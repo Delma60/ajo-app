@@ -49,6 +49,7 @@ export async function GET(
       id: doc.id,
       name: data?.name,
       description: data?.description,
+      iconName: data?.iconName,
       iconEmoji: data?.iconEmoji,
       iconUrl: data?.iconUrl,
       rarity: data?.rarity,
@@ -92,11 +93,12 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, description, iconEmoji, iconUrl, rarity } = body;
+    const { name, description, iconName, iconEmoji, iconUrl, rarity } = body;
 
     const updateData: Record<string, any> = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
+    if (iconName !== undefined) updateData.iconName = iconName;
     if (iconEmoji !== undefined) updateData.iconEmoji = iconEmoji;
     if (iconUrl !== undefined) updateData.iconUrl = iconUrl;
     if (rarity !== undefined) updateData.rarity = rarity;

@@ -8,6 +8,7 @@ import { Loader2, Plus, Trash2, Edit2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -57,7 +58,7 @@ export function BadgesContent() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    iconEmoji: "🏆",
+    iconName: "Trophy",
     rarity: "common" as BadgeRarity,
   });
 
@@ -95,7 +96,7 @@ export function BadgesContent() {
       setFormData({
         name: "",
         description: "",
-        iconEmoji: "🏆",
+        iconName: "Trophy",
         rarity: "common",
       });
       setIsCreating(false);
@@ -177,14 +178,13 @@ export function BadgesContent() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="emoji">Icon Emoji</Label>
+                  <Label htmlFor="iconName">Icon Name</Label>
                   <Input
-                    id="emoji"
-                    maxLength={2}
-                    placeholder="🏆"
-                    value={formData.iconEmoji}
+                    id="iconName"
+                    placeholder="Trophy"
+                    value={formData.iconName}
                     onChange={(e) =>
-                      setFormData({ ...formData, iconEmoji: e.target.value })
+                      setFormData({ ...formData, iconName: e.target.value })
                     }
                   />
                 </div>
@@ -215,7 +215,12 @@ export function BadgesContent() {
               </div>
 
               <div className="p-3 bg-muted rounded-lg text-center">
-                <span className="text-3xl">{formData.iconEmoji}</span>
+                <div className="flex items-center justify-center mb-3">
+                  <DynamicIcon
+                    name={formData.iconName || "Trophy"}
+                    className="size-8"
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground mt-2">
                   {formData.name || "Badge Name"}
                 </p>
@@ -264,7 +269,12 @@ export function BadgesContent() {
             <Card key={badge.id} className="overflow-hidden">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
-                  <span className="text-4xl">{badge.iconEmoji || "🏆"}</span>
+                  <div className="text-4xl">
+                    <DynamicIcon
+                      name={badge.iconName || "Trophy"}
+                      className="size-6"
+                    />
+                  </div>
                   <div className="flex gap-1">
                     <Button
                       size="sm"

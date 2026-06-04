@@ -12,6 +12,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { CreateBadgeDialog } from "./create-badge-dialog";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 
 interface BadgeSelectorProps {
   value?: string;
@@ -91,7 +92,10 @@ export function BadgeSelector({
             badges.map((badge) => (
               <SelectItem key={badge.id} value={badge.id}>
                 <div className="flex items-center gap-2">
-                  <span>{badge.iconEmoji || "🏆"}</span>
+                  <DynamicIcon
+                    name={badge.iconName || "Trophy"}
+                    className="size-4"
+                  />
                   <span>{badge.name}</span>
                   <span
                     className={`text-xs capitalize ${

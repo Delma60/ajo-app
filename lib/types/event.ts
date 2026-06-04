@@ -33,7 +33,8 @@ export interface Badge {
   id: string;
   name: string;
   description: string;
-  iconEmoji?: string; // e.g. "🏆"
+  iconName?: string; // Lucide icon name, e.g. "Trophy"
+  iconEmoji?: string; // fallback for legacy badges
   iconUrl?: string;
   rarity: BadgeRarity;
   createdAt: FirestoreTimestamp;

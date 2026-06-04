@@ -12,7 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trophy, Zap, InfoIcon, Loader2 } from "lucide-react";
+import { Zap, InfoIcon, Loader2 } from "lucide-react";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import {
   Tooltip,
   TooltipContent,
@@ -120,7 +121,13 @@ export function EventCard({
                   RARITY_COLORS[badge.rarity] || "bg-slate-100"
                 }`}
               >
-                <span className="text-lg">{badge.iconEmoji || "🏆"}</span>
+                <div className="text-lg">
+                  <DynamicIcon
+                    name={badge.iconName || "Trophy"}
+                    className="size-5"
+                    aria-hidden="true"
+                  />
+                </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">{badge.name}</p>
                   <p className="text-xs opacity-75">{badge.description}</p>

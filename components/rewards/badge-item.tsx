@@ -3,6 +3,7 @@
 import { UserBadge, Badge } from "@/lib/types/event";
 import { formatDistanceToNow } from "date-fns";
 import { Badge as BadgeComponent } from "@/components/ui/badge";
+import { DynamicIcon } from "@/components/ui/dynamic-icon";
 import {
   Card,
   CardContent,
@@ -28,7 +29,13 @@ export function BadgeItem({ badge }: BadgeItemProps) {
 
   return (
     <Card className="flex flex-col items-center text-center p-4">
-      <div className="text-5xl mb-3">{badge.iconEmoji || "🏆"}</div>
+      <div className="text-5xl mb-3">
+        <DynamicIcon
+          name={badge.iconName || "Trophy"}
+          className="size-6"
+          aria-hidden="true"
+        />
+      </div>
 
       <CardTitle className="text-sm mb-1">{badge.name}</CardTitle>
 
