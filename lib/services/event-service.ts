@@ -8,6 +8,7 @@ import {
 } from "@/lib/types/event";
 import { creditWallet } from "@/lib/services/wallet-service";
 import { sendNotification } from "@/lib/services/notification-service";
+import { parseTimestamp } from "@/lib/utils";
 
 /**
  * Main entry point: evaluate all active events for a trigger and issue rewards
@@ -24,17 +25,20 @@ export async function evaluateAndAward(
     const snapshot = await eventsRef
       .where("triggerType", "==", triggerType)
       .where("status", "==", "active")
-      .where("endDate", ">=", now)
       .get();
 
     const events = (snapshot.docs
       .map((d) => ({ id: d.id, ...d.data() })) as Event[])
-      .filter(
-        (event) =>
-          event.startDate &&
-          typeof event.startDate.toMillis === "function" &&
-          event.startDate.toMillis() <= now.toMillis(),
-      );
+      .filter((event) => {
+        const startDate = parseTimestamp(event.startDate);
+        const endDate = parseTimestamp(event.endDate);
+        return (
+          startDate !== null &&
+          endDate !== null &&
+          startDate.getTime() <= now.toMillis() &&
+          endDate.getTime() >= now.toMillis()
+        );
+      });
 
     // For each matching event, check eligibility and issue reward if eligible
     for (const event of events) {

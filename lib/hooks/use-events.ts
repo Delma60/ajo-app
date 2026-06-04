@@ -55,7 +55,7 @@ export function useMyBadges() {
 export function useRewardHistory() {
   const { appUser } = useAuthStore();
 
-  return useQuery({
+  return useQuery<EventClaim[]>({
     queryKey: ["rewardHistory", appUser?.id],
     queryFn: async () => {
       if (!appUser?.id) return [];
@@ -63,7 +63,8 @@ export function useRewardHistory() {
       try {
         const response = await fetch("/api/events/my-claims");
         if (!response.ok) throw new Error("Failed to fetch reward history");
-        return response.json();
+        const json = await response.json();
+        return (json?.data ?? []) as EventClaim[];
       } catch (error) {
         console.error("Error fetching reward history:", error);
         return [];

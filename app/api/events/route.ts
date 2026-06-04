@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { Timestamp } from "firebase-admin/firestore";
 import { Event } from "@/lib/types/event";
+import { parseTimestamp } from "@/lib/utils";
 
 /**
  * GET /api/events
@@ -11,10 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     const now = Timestamp.now();
     const eventsRef = adminDb.collection("events");
-    const snapshot = await eventsRef
-      .where("status", "==", "active")
-      .where("endDate", ">=", now)
-      .get();
+    const snapshot = await eventsRef.where("status", "==", "active").get();
 
     const events = snapshot.docs
       .map((doc) => {
@@ -24,22 +22,20 @@ export async function GET(request: NextRequest) {
           ...data,
         };
       })
-      .filter(
-        (event) =>
-          event.startDate &&
-          typeof event.startDate.toMillis === "function" &&
-          event.startDate.toMillis() <= now.toMillis(),
-      )
+      .filter((event) => {
+        const startDate = parseTimestamp(event.startDate);
+        const endDate = parseTimestamp(event.endDate);
+        return (
+          startDate !== null &&
+          endDate !== null &&
+          startDate.getTime() <= now.toMillis() &&
+          endDate.getTime() >= now.toMillis()
+        );
+      })
       .map((event) => ({
         ...event,
-        startDate:
-          typeof event.startDate?.toDate === "function"
-            ? event.startDate.toDate().toISOString()
-            : event.startDate,
-        endDate:
-          typeof event.endDate?.toDate === "function"
-            ? event.endDate.toDate().toISOString()
-            : event.endDate,
+        startDate: parseTimestamp(event.startDate)?.toISOString() ?? event.startDate,
+        endDate: parseTimestamp(event.endDate)?.toISOString() ?? event.endDate,
         createdAt:
           typeof event.createdAt?.toDate === "function"
             ? event.createdAt.toDate().toISOString()
