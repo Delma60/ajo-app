@@ -167,7 +167,7 @@ export function DiscoverCirclesContent({
   async function handleJoin(circleId: string) {
     setJoiningId(circleId);
     try {
-      await joinCircle.mutateAsync(circleId);
+      await joinCircle.mutateAsync({ circleId });
       toast.success("Join request sent! The admin will review your request.");
     } catch (err) {
       toast.error(

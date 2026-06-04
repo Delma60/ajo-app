@@ -81,6 +81,9 @@ export function CircleDetailContent({
   const [isDeleting, setIsDeleting] = useState(false);
   const [customInviteCode, setCustomInviteCode] = useState("");
   const [isJoining, setIsJoining] = useState(false);
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(
+    null,
+  );
   const searchParams = useSearchParams();
   const inviteCodeParam = searchParams.get("inviteCode")?.trim().toUpperCase();
 
@@ -114,6 +117,40 @@ export function CircleDetailContent({
   const isCurrentRecipient = circle.currentRecipientId === firebaseUser?.uid;
   const invitePermission = circle.invitePermission ?? "admin";
   const canInvite = isAdmin || (isMember && invitePermission === "members");
+
+  async function handleMemberAction(
+    memberId: string,
+    action: "pause" | "resume" | "shift",
+  ) {
+    if (!circle) return;
+
+    setMemberActionLoading(memberId);
+    try {
+      const res = await fetch(`/api/circles/${circleId}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, memberId }),
+      });
+      const json = await res.json();
+      if (!json.success)
+        throw new Error(json.error || "Failed to update member");
+
+      const message =
+        action === "pause"
+          ? "Member paused successfully."
+          : action === "resume"
+            ? "Member resumed successfully."
+            : "Member shifted successfully.";
+      toast.success(message);
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update member.",
+      );
+    } finally {
+      setMemberActionLoading(null);
+    }
+  }
 
   const progress =
     circle.goal > 0 ? Math.round((circle.saved / circle.goal) * 100) : 0;
@@ -165,18 +202,18 @@ export function CircleDetailContent({
   async function handleJoinCircle() {
     if (!circle) return;
 
-    const inviteCode = circle.isPrivate
+    const inviteCode = circle?.isPrivate
       ? (inviteCodeParam ?? customInviteCode.trim().toUpperCase())
       : undefined;
 
-    if (circle.isPrivate && !inviteCode) {
+    if (circle?.isPrivate && !inviteCode) {
       toast.error("Please provide an invite code to join this private circle.");
       return;
     }
 
     setIsJoining(true);
     try {
-      const body = circle.isPrivate ? { inviteCode } : undefined;
+      const body = circle?.isPrivate ? { inviteCode } : undefined;
       const res = await fetch(`/api/circles/${circleId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -265,6 +302,7 @@ ${inviteUrl}`;
     turnPosition: i + 1,
     paymentStatus: "up_to_date" as const,
     isCurrentRecipient: uid === circle.currentRecipientId,
+    isPaused: circle.pausedMemberIds?.includes(uid) ?? false,
   }));
 
   return (
@@ -596,6 +634,13 @@ ${inviteUrl}`;
                   adminId={circle.adminId}
                   currentUserId={firebaseUser?.uid ?? ""}
                   isAdmin={isAdmin}
+                  isShiftEnabled={circle.payoutOrder === "rotational"}
+                  memberActionLoadingId={memberActionLoading ?? undefined}
+                  onPause={(memberId) => handleMemberAction(memberId, "pause")}
+                  onResume={(memberId) =>
+                    handleMemberAction(memberId, "resume")
+                  }
+                  onShift={(memberId) => handleMemberAction(memberId, "shift")}
                 />
               </CardContent>
             </Card>

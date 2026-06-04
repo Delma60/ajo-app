@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import {
-  Crown,
-  UserXIcon,
-  MoreHorizontalIcon,
+  ArrowRightIcon,
   CheckCircle2Icon,
   ClockIcon,
+  Crown,
+  MoreHorizontalIcon,
+  UserXIcon,
   AlertTriangleIcon,
 } from "lucide-react";
 import {
@@ -29,6 +30,7 @@ interface MemberData {
   turnPosition: number; // 1-indexed
   paymentStatus: "up_to_date" | "late" | "missed";
   isCurrentRecipient: boolean;
+  isPaused?: boolean;
 }
 
 interface MembersListProps {
@@ -36,6 +38,11 @@ interface MembersListProps {
   adminId: string;
   currentUserId: string;
   isAdmin: boolean;
+  isShiftEnabled?: boolean;
+  memberActionLoadingId?: string;
+  onPause?: (uid: string) => void;
+  onResume?: (uid: string) => void;
+  onShift?: (uid: string) => void;
   onRemoveMember?: (uid: string) => void;
   isLoading?: boolean;
 }
@@ -63,6 +70,11 @@ export function MembersList({
   adminId,
   currentUserId,
   isAdmin,
+  isShiftEnabled,
+  memberActionLoadingId,
+  onPause,
+  onResume,
+  onShift,
   onRemoveMember,
   isLoading,
 }: MembersListProps) {
@@ -102,7 +114,7 @@ export function MembersList({
             key={member.uid}
             className={cn(
               "flex items-center gap-3 rounded-lg px-2 py-2 transition-colors",
-              isMe && "bg-primary/5"
+              isMe && "bg-primary/5",
             )}
           >
             {/* Position */}
@@ -120,7 +132,10 @@ export function MembersList({
                 <p className="text-sm font-medium truncate">
                   {member.name}
                   {isMe && (
-                    <span className="text-muted-foreground font-normal"> (you)</span>
+                    <span className="text-muted-foreground font-normal">
+                      {" "}
+                      (you)
+                    </span>
                   )}
                 </p>
                 {isMemberAdmin && (
@@ -134,10 +149,17 @@ export function MembersList({
                     Next payout
                   </Badge>
                 )}
+                {member.isPaused && (
+                  <Badge variant="secondary" className="text-[9px] h-3.5 px-1">
+                    Paused
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-1 text-xs">
                 <StatusIcon className={cn("size-3", statusMeta.cls)} />
-                <span className={cn("", statusMeta.cls)}>{statusMeta.label}</span>
+                <span className={cn("", statusMeta.cls)}>
+                  {statusMeta.label}
+                </span>
               </div>
             </div>
 
@@ -145,14 +167,45 @@ export function MembersList({
             {isAdmin && !isMemberAdmin && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="opacity-0 group-hover:opacity-100 focus:opacity-100">
+                  <Button variant="ghost" size="icon-sm">
                     <MoreHorizontalIcon className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {member.isPaused ? (
+                    <DropdownMenuItem
+                      onClick={() => onResume?.(member.uid)}
+                      disabled={memberActionLoadingId === member.uid}
+                    >
+                      <CheckCircle2Icon className="size-4" />
+                      Resume member
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => onPause?.(member.uid)}
+                      disabled={memberActionLoadingId === member.uid}
+                    >
+                      <ClockIcon className="size-4" />
+                      Pause member
+                    </DropdownMenuItem>
+                  )}
+
+                  {isShiftEnabled && (
+                    <DropdownMenuItem
+                      onClick={() => onShift?.(member.uid)}
+                      disabled={memberActionLoadingId === member.uid}
+                    >
+                      <ArrowRightIcon className="size-4" />
+                      Shift member
+                    </DropdownMenuItem>
+                  )}
+
+                  <DropdownMenuSeparator />
+
                   <DropdownMenuItem
                     variant="destructive"
                     onClick={() => onRemoveMember?.(member.uid)}
+                    disabled={memberActionLoadingId === member.uid}
                   >
                     <UserXIcon className="size-4" />
                     Remove member
