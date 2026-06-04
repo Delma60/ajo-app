@@ -7,7 +7,11 @@ import { invalidateCache } from "@/lib/services/settings-service";
 import { DEFAULT_PLATFORM_SETTINGS } from "@/lib/types/admin-settings";
 
 // ─── Route segment config ─────────────────────────────────────────────────────
-
+// TODO:: ,
+//     {
+//       "path": "/api/cron/reconcile-pending-transactions",
+//       "schedule": "0 * * * *"
+//     }
 const SESSION_COOKIE = "__session";
 const SETTINGS_COLLECTION = "admin_config";
 const SETTINGS_DOC = "platform_settings";
