@@ -124,7 +124,9 @@ export class CircleService {
       );
     }
 
-    const creationFee = Math.round(contributionKobo * settings.creationFeePercent);
+    const creationFee = Math.round(
+      contributionKobo * (settings.creationFeePercent / 100),
+    );
     if (adminWallet.available < creationFee) {
       throw new CircleError(
         "INSUFFICIENT_FUNDS",

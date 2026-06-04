@@ -16,8 +16,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+interface ClaimWithUserName extends EventClaim {
+  userName?: string;
+}
+
 interface ClaimsTableProps {
-  claims: EventClaim[];
+  claims: ClaimWithUserName[];
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
@@ -47,7 +51,7 @@ export function ClaimsTable({
               <div className="flex items-start justify-between">
                 <div>
                   <div className="font-medium text-sm">
-                    {claim.userId.substring(0, 8)}...
+                    {claim.userName ? claim.userName : `${claim.userId.substring(0, 8)}...`}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {claim.rewardType.replace(/_/g, " ")}
@@ -96,7 +100,7 @@ export function ClaimsTable({
             {claims.map((claim) => (
               <TableRow key={claim.id}>
                 <TableCell className="text-sm font-medium">
-                  {claim.userId.substring(0, 8)}...
+                  {claim.userName ? claim.userName : `${claim.userId.substring(0, 8)}...`}
                 </TableCell>
                 <TableCell className="text-sm capitalize">
                   {claim.rewardType.replace(/_/g, " ")}

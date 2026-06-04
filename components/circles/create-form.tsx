@@ -186,7 +186,9 @@ export function CreateCircleForm() {
   const maxMembersNum = Number(watchedValues.maxMembers ?? 0) || 0;
   const goalKobo = contributionNum * 100 * maxMembersNum;
   const creationFeePercent = settings.circles.creationFeePercent;
-  const creationFee = Math.round(contributionNum * 100 * creationFeePercent);
+  const creationFee = Math.round(
+    contributionNum * 100 * (creationFeePercent / 100),
+  );
   const walletBalance = appUser ? 0 : 0; // will come from wallet store
 
   function applyTemplate(tpl: (typeof TEMPLATES)[0]) {

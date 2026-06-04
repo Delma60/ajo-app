@@ -43,10 +43,38 @@ export async function GET(
       ...doc.data(),
     })) as EventClaim[];
 
+    const uniqueUserIds = Array.from(
+      new Set(claims.map((claim) => claim.userId)),
+    );
+
+    const userDocs = await Promise.all(
+      uniqueUserIds.map((userId) =>
+        adminDb.collection("users").doc(userId).get(),
+      ),
+    );
+
+    const userNameById = new Map<string, string>();
+    userDocs.forEach((userDoc, index) => {
+      const userData = userDoc.data();
+      if (userData) {
+        userNameById.set(
+          uniqueUserIds[index],
+          (userData as { name?: string }).name || uniqueUserIds[index],
+        );
+      } else {
+        userNameById.set(uniqueUserIds[index], uniqueUserIds[index]);
+      }
+    });
+
+    const enrichedClaims = claims.map((claim) => ({
+      ...claim,
+      userName: userNameById.get(claim.userId) ?? claim.userId,
+    }));
+
     // Pagination
     const start = (page - 1) * limit;
     const end = start + limit;
-    const paginatedClaims = claims.slice(start, end);
+    const paginatedClaims = enrichedClaims.slice(start, end);
 
     // Stats
     const totalClaims = claims.length;
