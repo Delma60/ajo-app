@@ -19,7 +19,7 @@ export default function DashboardLayout({
         <MobileHeader />
 
         {/* Page content */}
-        <main className="flex-1 overflow-hidden flex flex-col">
+        <main className="flex-1 overflow-y-auto flex flex-col">
           {children}
         </main>
       </div>
