@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { CreateBadgeDialog } from "./create-badge-dialog";
 
-
 interface BadgeSelectorProps {
   value?: string;
   onChange: (badgeId: string) => void;
@@ -107,7 +106,7 @@ export function BadgeSelector({
           )}
         </SelectContent>
       </Select>
-      
+
       {/* Create Badge Dialog */}
       <CreateBadgeDialog onBadgeCreated={handleBadgeCreated} />
     </div>

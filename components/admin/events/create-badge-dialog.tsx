@@ -111,7 +111,9 @@ export function CreateBadgeDialog({
       // Close dialog
       handleOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create badge");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create badge",
+      );
       console.error("Error creating badge:", err);
     } finally {
       setLoading(false);
