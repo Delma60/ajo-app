@@ -1,5 +1,3 @@
-
-
 export interface Circle {
   id: string;
   name: string;
@@ -26,7 +24,15 @@ export interface Circle {
     lastUpdated: any;
   };
   saved: number; // kobo — total saved so far
-  creationFee: number; // kobo
+  creationFee: number; // kobo — paid by admin at creation (% of total pool)
+  // ─── Join fee ─────────────────────────────────────────────────────────────
+  joinFeeEnabled: boolean;
+  joinFee: number; // kobo — fee each joining member must pay
+  joinFeeType: "before_joining" | "first_contribution";
+  // "before_joining"    → deducted from wallet immediately on join
+  // "first_contribution" → deducted from wallet on their first contribution
+  pendingJoinFees: string[]; // userIds who owe a join fee on first contribution
+  // ──────────────────────────────────────────────────────────────────────────
   tags: string[];
   pendingRequestIds: string[];
   inviteCode: string;

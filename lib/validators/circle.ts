@@ -25,40 +25,48 @@ export function buildCreateCircleSchema(
   const contributionDivisor = unit === "NGN" ? 100 : 1;
 
   return z.object({
-  name: z
-    .string()
-    .min(3, "Name must be at least 3 characters")
-    .max(50, "Name must be under 50 characters"),
-  description: z
-    .string()
-    .max(500, "Description must be under 500 characters")
-    .optional()
-    .or(z.literal("")),
-  maxMembers: z
-    .coerce.number()
-    .int()
-    .min(minMembers, `Circle must have at least ${minMembers} members`)
-    .max(maxMembers, `Maximum members allowed is ${maxMembers}`),
-  contribution: z
-    .coerce.number()
-    .positive("Contribution must be a positive amount")
-    .min(minContributionKobo / contributionDivisor, `Minimum contribution is ${
-      unit === "NGN" ? "₦" : ""
-    }${minContributionKobo / contributionDivisor}${unit === "NGN" ? "" : " (kobo)"}.`)
-    .max(maxContributionKobo / contributionDivisor, `Maximum contribution is ${
-      unit === "NGN" ? "₦" : ""
-    }${maxContributionKobo / contributionDivisor}${unit === "NGN" ? "" : " (kobo)"}.`),
-  frequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"], {
-    message: "Please select a valid frequency",
-  }),
-  payoutOrder: z.enum(["rotational", "random", "bidding"], {
-    message: "Please select a valid payout order",
-  }),
-  isPrivate: z.boolean().default(false),
-  invitePermission: z.enum(["admin", "members"]).default("admin"),
-  tags: z.array(z.string()).max(5, "Max 5 tags allowed").optional().default([]),
-});
-
+    name: z
+      .string()
+      .min(3, "Name must be at least 3 characters")
+      .max(50, "Name must be under 50 characters"),
+    description: z
+      .string()
+      .max(500, "Description must be under 500 characters")
+      .optional()
+      .or(z.literal("")),
+    maxMembers: z
+      .coerce.number()
+      .int()
+      .min(minMembers, `Circle must have at least ${minMembers} members`)
+      .max(maxMembers, `Maximum members allowed is ${maxMembers}`),
+    contribution: z
+      .coerce.number()
+      .positive("Contribution must be a positive amount")
+      .min(minContributionKobo / contributionDivisor, `Minimum contribution is ${
+        unit === "NGN" ? "₦" : ""
+      }${minContributionKobo / contributionDivisor}${unit === "NGN" ? "" : " (kobo)"}.`)
+      .max(maxContributionKobo / contributionDivisor, `Maximum contribution is ${
+        unit === "NGN" ? "₦" : ""
+      }${maxContributionKobo / contributionDivisor}${unit === "NGN" ? "" : " (kobo)"}.`),
+    frequency: z.enum(["daily", "weekly", "bi-weekly", "monthly"], {
+      message: "Please select a valid frequency",
+    }),
+    payoutOrder: z.enum(["rotational", "random", "bidding"], {
+      message: "Please select a valid payout order",
+    }),
+    isPrivate: z.boolean().default(false),
+    invitePermission: z.enum(["admin", "members"]).default("admin"),
+    tags: z.array(z.string()).max(5, "Max 5 tags allowed").optional().default([]),
+    // ─── Join fee ──────────────────────────────────────────────────────────
+    joinFeeEnabled: z.boolean().default(false),
+    joinFee: z
+      .coerce.number()
+      .min(0, "Join fee cannot be negative")
+      .default(0),
+    joinFeeType: z
+      .enum(["before_joining", "first_contribution"])
+      .default("before_joining"),
+  });
 }
 
 export const joinCircleSchema = z.object({

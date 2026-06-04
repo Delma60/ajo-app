@@ -7,10 +7,15 @@ const SESSION_COOKIE = "__session";
 
 async function getSessionUser(request: NextRequest) {
   const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!sessionCookie) return null;
+  if (!sessionCookie) {
+    console.log("[GET /api/circles/[id]] no session cookie");
+    return null;
+  }
   try {
+    console.log("[GET /api/circles/[id]] verifying session cookie");
     return await adminAuth.verifySessionCookie(sessionCookie, true);
-  } catch {
+  } catch (err) {
+    console.error("[GET /api/circles/[id]] session verify failed", err);
     return null;
   }
 }
@@ -43,9 +48,11 @@ export async function GET(
     }
 
     const { id } = await params;
+    console.log(`[GET /api/circles/[id]] request for id=${id}`);
     const doc = await adminDb.collection("circles").doc(id).get();
 
     if (!doc.exists) {
+      console.log(`[GET /api/circles/[id]] circle not found id=${id}`);
       return Response.json(
         { success: false, data: null, error: "Circle not found" },
         { status: 404 }

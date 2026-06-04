@@ -38,6 +38,9 @@ export default async function CircleDetailsPage({ params }: PageProps) {
 
   // Verify the circle exists server-side
   const circleDoc = await adminDb.collection("circles").doc(id).get();
+  console.log(
+    `[circle detail page] fetch circle id=${id} exists=${circleDoc.exists}`,
+  );
   if (!circleDoc.exists) notFound();
 
   // Get wallet balance for the contribution dialog
@@ -45,11 +48,25 @@ export default async function CircleDetailsPage({ params }: PageProps) {
   try {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get("__session")?.value;
-    if (sessionCookie) {
-      const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
-      walletBalance = await getWalletBalance(decoded.uid);
+    if (!sessionCookie) {
+      console.log("[circle detail page] no session cookie present");
     }
-  } catch {
+    if (sessionCookie) {
+      try {
+        const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
+        console.log(
+          `[circle detail page] verified session cookie for uid=${decoded.uid}`,
+        );
+        walletBalance = await getWalletBalance(decoded.uid);
+      } catch (authErr) {
+        console.error(
+          "[circle detail page] session cookie verification failed",
+          authErr,
+        );
+      }
+    }
+  } catch (err) {
+    console.error("[circle detail page] wallet balance fetch failed", err);
     // Not logged in or expired session — middleware will catch unauthorized access
   }
 

@@ -23,60 +23,48 @@ export async function GET(request: NextRequest) {
   try {
     const sessionUser = await getSessionUser(request);
     if (!sessionUser) {
-      return Response.json(
-        { success: false, data: null, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return Response.json({ success: false, data: null, error: "Unauthorized" }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q")?.toLowerCase() ?? "";
 
-    let query = adminDb
+    const query = adminDb
       .collection("circles")
       .where("isPrivate", "==", false)
       .where("status", "==", "active")
       .orderBy("createdAt", "desc")
-        .limit(DEFAULT_CIRCLES_LIST_LIMIT);
+      .limit(DEFAULT_CIRCLES_LIST_LIMIT);
 
     const snap = await query.get();
 
-    let circles: Partial<Circle>[] = [];
-    circles = snap.docs.map((doc) => {
+    let circles: Partial<Circle>[] = snap.docs.map((doc) => {
       const data = doc.data()! as Partial<Circle>;
       return {
         id: doc.id,
         ...data,
-        // Derive goal at read time — never stored
         goal: (data?.contribution || 0) * (data?.maxMembers || 0),
-        // Convert Timestamps for JSON serialization
-        nextDueDate: data.nextDueDate?.toDate?.()?.toISOString() ?? null,
-        nextPayoutDate: data.nextPayoutDate?.toDate?.()?.toISOString() ?? null,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
+        nextDueDate: (data as any).nextDueDate?.toDate?.()?.toISOString() ?? null,
+        nextPayoutDate: (data as any).nextPayoutDate?.toDate?.()?.toISOString() ?? null,
+        createdAt: (data as any).createdAt?.toDate?.()?.toISOString() ?? null,
+        updatedAt: (data as any).updatedAt?.toDate?.()?.toISOString() ?? null,
         trustScoreBreakdown: data.trustScoreBreakdown ? {
           ...data.trustScoreBreakdown,
-          lastUpdated: data.trustScoreBreakdown.lastUpdated?.toDate?.()?.toISOString() ?? null,
+          lastUpdated: (data.trustScoreBreakdown as any).lastUpdated?.toDate?.()?.toISOString() ?? null,
         } : undefined,
       };
     });
 
-    // In-memory search filter (Firestore doesn't support full-text search)
     if (q) {
       circles = (circles as Circle[]).filter(
-        (c) =>
-          c.name?.toLowerCase().includes(q) ||
-          c.description?.toLowerCase().includes(q)
+        (c) => c.name?.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q)
       );
     }
 
     return Response.json({ success: true, data: circles, error: null });
   } catch (err) {
     console.error("[GET /api/circles]", err);
-    return Response.json(
-      { success: false, data: null, error: "Failed to fetch circles" },
-      { status: 500 }
-    );
+    return Response.json({ success: false, data: null, error: "Failed to fetch circles" }, { status: 500 });
   }
 }
 
@@ -85,50 +73,36 @@ export async function POST(request: NextRequest) {
   try {
     const sessionUser = await getSessionUser(request);
     if (!sessionUser) {
-      return Response.json(
-        { success: false, data: null, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return Response.json({ success: false, data: null, error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
+    let parsedData: any;
 
-    // Validate payload against live server settings (KOBO units expected from client)
     try {
       const settings = await getSettings();
       const schema = buildCreateCircleSchema(settings, "KOBO");
       const parsed = schema.safeParse(body);
-
       if (!parsed.success) {
         return Response.json(
-          {
-            success: false,
-            data: null,
-            error: parsed.error.issues[0]?.message ?? "Invalid input",
-          },
+          { success: false, data: null, error: parsed.error.issues[0]?.message ?? "Invalid input" },
           { status: 400 }
         );
       }
-
-      // Use parsed data for creation
-      var parsedData = parsed.data;
+      parsedData = parsed.data;
     } catch (settingsErr) {
       console.error("[POST /api/circles] Failed to validate against settings:", settingsErr);
-      // Fallback to previous behavior: try default schema (KOBO)
       const schema = buildCreateCircleSchema(undefined, "KOBO");
       const parsed = schema.safeParse(body);
       if (!parsed.success) {
         return Response.json(
-          {
-            success: false,
-            data: null,
-            error: parsed.error.issues[0]?.message ?? "Invalid input",
-          },
+          { success: false, data: null, error: parsed.error.issues[0]?.message ?? "Invalid input" },
           { status: 400 }
         );
       }
-      var parsedData = parsed.data;
+      parsedData = parsed.data;
     }
+
     const {
       name,
       description,
@@ -139,9 +113,10 @@ export async function POST(request: NextRequest) {
       isPrivate,
       invitePermission,
       tags,
-    } = parsedData as any;
-
-    // Additional server-side checks are handled by the schema built with live settings
+      joinFeeEnabled,
+      joinFee,
+      joinFeeType,
+    } = parsedData;
 
     const service = new CircleService();
     const circle = await service.createCircle(
@@ -149,31 +124,24 @@ export async function POST(request: NextRequest) {
       name,
       description ?? "",
       maxMembers,
-      contribution, // already in kobo from validator
+      contribution,
       frequency,
       payoutOrder,
       isPrivate,
       invitePermission,
-      tags ?? []
+      tags ?? [],
+      joinFeeEnabled ?? false,
+      // Client sends in KOBO already
+      typeof joinFee === "number" ? joinFee : 0,
+      joinFeeType ?? "before_joining"
     );
 
-    return Response.json(
-      {
-        success: true,
-        data: { id: circle.id },
-        error: null,
-      },
-      { status: 201 }
-    );
+    return Response.json({ success: true, data: { id: circle.id }, error: null }, { status: 201 });
   } catch (err: any) {
     console.error("[POST /api/circles]", err);
     const isKnown = err?.code && typeof err.code === "string";
     return Response.json(
-      {
-        success: false,
-        data: null,
-        error: isKnown ? err.message : "Failed to create circle",
-      },
+      { success: false, data: null, error: isKnown ? err.message : "Failed to create circle" },
       { status: isKnown ? 400 : 500 }
     );
   }

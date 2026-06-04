@@ -98,6 +98,10 @@ export function CircleDetailContent({
   }
 
   if (error || !circle) {
+    console.warn("[CircleDetailContent] circle missing or error", {
+      circleId,
+      error: error?.message,
+    });
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] text-center px-4">
         <p className="text-sm font-medium">Circle not found</p>

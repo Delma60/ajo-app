@@ -86,17 +86,21 @@ export function useCircleRealtime(circleId: string | null) {
       return;
     }
 
+    console.debug(`[useCircleRealtime] subscribing to circleId=${circleId}`);
     const unsub = onSnapshot(
       doc(db, "circles", circleId),
       (snap) => {
         if (snap.exists()) {
+          console.debug(`[useCircleRealtime] circle exists id=${snap.id}`);
           setCircle(withGoal({ id: snap.id, ...snap.data() } as Circle));
         } else {
+          console.warn(`[useCircleRealtime] circle missing id=${circleId}`);
           setCircle(null);
         }
         setIsLoading(false);
       },
       (err) => {
+        console.error("[useCircleRealtime] snapshot error", err);
         setError(err);
         setIsLoading(false);
       }
