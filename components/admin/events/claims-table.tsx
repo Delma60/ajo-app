@@ -51,7 +51,9 @@ export function ClaimsTable({
               <div className="flex items-start justify-between">
                 <div>
                   <div className="font-medium text-sm">
-                    {claim.userName ? claim.userName : `${claim.userId.substring(0, 8)}...`}
+                    {claim.userName
+                      ? claim.userName
+                      : `${claim.userId.substring(0, 8)}...`}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {claim.rewardType.replace(/_/g, " ")}
@@ -100,7 +102,9 @@ export function ClaimsTable({
             {claims.map((claim) => (
               <TableRow key={claim.id}>
                 <TableCell className="text-sm font-medium">
-                  {claim.userName ? claim.userName : `${claim.userId.substring(0, 8)}...`}
+                  {claim.userName
+                    ? claim.userName
+                    : `${claim.userId.substring(0, 8)}...`}
                 </TableCell>
                 <TableCell className="text-sm capitalize">
                   {claim.rewardType.replace(/_/g, " ")}
