@@ -28,6 +28,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { TriggerType, RewardType } from "@/lib/types/event";
+import { BadgeSelector } from "./badge-selector";
+import { ConditionInputs } from "./condition-inputs";
 
 // ─── Validation Schema ─────────────────────────────────────────────────────
 
@@ -37,12 +39,16 @@ const createEventSchema = z.object({
   triggerType: z.string().min(1, "Trigger type is required"),
   rewardType: z.string().min(1, "Reward type is required"),
   rewardAmountNaira: z.string().optional(),
+  badgeId: z.string().optional(),
   maxClaimsTotal: z.string(),
   maxClaimsPerUser: z.string(),
   startDate: z.string(),
   endDate: z.string(),
+  // Dynamic condition fields
   minMemberCount: z.string().optional(),
   minAmountNaira: z.string().optional(),
+  minConsecutivePayments: z.string().optional(),
+  minReferralCount: z.string().optional(),
 });
 
 type CreateEventFormValues = z.infer<typeof createEventSchema>;
@@ -96,19 +102,71 @@ export function CreateEventForm() {
     try {
       setIsSubmitting(true);
 
+      // Build conditions object based on trigger type
       const conditions: Record<string, any> = {};
 
-      if (
-        values.triggerType === "wallet_funded_threshold" &&
-        values.minAmountNaira
-      ) {
-        conditions.minAmountKobo = Math.round(
-          parseFloat(values.minAmountNaira) * 100,
-        );
+      switch (values.triggerType) {
+        case "contribution_streak":
+          if (values.minConsecutivePayments) {
+            conditions.minConsecutivePayments = parseInt(
+              values.minConsecutivePayments,
+            );
+          }
+          break;
+        case "circle_filled":
+          if (values.minMemberCount) {
+            conditions.minMemberCount = parseInt(values.minMemberCount);
+          }
+          break;
+        case "wallet_funded_threshold":
+          if (values.minAmountNaira) {
+            conditions.minAmountKobo = Math.round(
+              parseFloat(values.minAmountNaira) * 100,
+            );
+          }
+          break;
+        case "wallet_total_saved_threshold":
+          if (values.minAmountNaira) {
+            conditions.minAmountKobo = Math.round(
+              parseFloat(values.minAmountNaira) * 100,
+            );
+          }
+          break;
+        case "investment_made":
+          if (values.minAmountNaira) {
+            conditions.minAmountKobo = Math.round(
+              parseFloat(values.minAmountNaira) * 100,
+            );
+          }
+          break;
+        case "referral_milestone":
+          if (values.minReferralCount) {
+            conditions.minReferralCount = parseInt(values.minReferralCount);
+          }
+          break;
+        case "circle_completed":
+          if (values.minMemberCount) {
+            conditions.minMemberCount = parseInt(values.minMemberCount);
+          }
+          break;
       }
 
-      if (values.triggerType === "circle_completed" && values.minMemberCount) {
-        conditions.minMemberCount = parseInt(values.minMemberCount);
+      // Validate reward configuration
+      if (
+        values.rewardType === "wallet_credit" ||
+        values.rewardType === "both"
+      ) {
+        if (!values.rewardAmountNaira) {
+          toast.error("Wallet credit amount is required");
+          return;
+        }
+      }
+
+      if (values.rewardType === "badge" || values.rewardType === "both") {
+        if (!values.badgeId) {
+          toast.error("Badge is required for badge rewards");
+          return;
+        }
       }
 
       const payload = {
@@ -122,6 +180,7 @@ export function CreateEventForm() {
           values.rewardAmountNaira
             ? Math.round(parseFloat(values.rewardAmountNaira) * 100)
             : undefined,
+        badgeId: values.badgeId || undefined,
         maxClaimsTotal: parseInt(values.maxClaimsTotal) || 0,
         maxClaimsPerUser: parseInt(values.maxClaimsPerUser) || 1,
         startDate: values.startDate,
@@ -302,29 +361,17 @@ export function CreateEventForm() {
               />
             </div>
 
-            {/* Conditional fields based on trigger type */}
-            {watchedValues.triggerType === "wallet_funded_threshold" && (
-              <div className="space-y-2">
-                <Label htmlFor="minAmountNaira">Minimum Amount (₦)</Label>
-                <Input
-                  id="minAmountNaira"
-                  type="number"
-                  placeholder="e.g. 10000"
-                  {...register("minAmountNaira")}
-                />
-              </div>
-            )}
-
-            {watchedValues.triggerType === "circle_completed" && (
-              <div className="space-y-2">
-                <Label htmlFor="minMemberCount">
-                  Minimum Members (optional)
-                </Label>
-                <Input
-                  id="minMemberCount"
-                  type="number"
-                  placeholder="e.g. 5"
-                  {...register("minMemberCount")}
+            {/* Dynamic Condition Inputs */}
+            {watchedValues.triggerType && (
+              <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground mb-3">
+                  Conditions:
+                </p>
+                <ConditionInputs<CreateEventFormValues>
+                  triggerType={watchedValues.triggerType}
+                  control={control}
+                  getFieldName={(field) => field as any}
+                  errors={errors}
                 />
               </div>
             )}
@@ -340,9 +387,15 @@ export function CreateEventForm() {
                   <Input
                     id="maxClaimsTotal"
                     type="number"
+                    min="0"
                     placeholder="0"
                     {...register("maxClaimsTotal")}
                   />
+                  {errors.maxClaimsTotal && (
+                    <p className="text-xs text-destructive">
+                      {errors.maxClaimsTotal.message}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -350,9 +403,15 @@ export function CreateEventForm() {
                   <Input
                     id="maxClaimsPerUser"
                     type="number"
+                    min="1"
                     placeholder="1"
                     {...register("maxClaimsPerUser")}
                   />
+                  {errors.maxClaimsPerUser && (
+                    <p className="text-xs text-destructive">
+                      {errors.maxClaimsPerUser.message}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -387,7 +446,8 @@ export function CreateEventForm() {
               Configure the reward and review your event
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            {/* Reward Type */}
             <div className="space-y-2">
               <Label htmlFor="rewardType">Reward Type</Label>
               <Controller
@@ -410,44 +470,108 @@ export function CreateEventForm() {
               />
             </div>
 
+            {/* Wallet Credit Amount */}
             {(watchedValues.rewardType === "wallet_credit" ||
               watchedValues.rewardType === "both") && (
-              <div className="space-y-2">
-                <Label htmlFor="rewardAmountNaira">Reward Amount (₦)</Label>
+              <div className="space-y-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <Label htmlFor="rewardAmountNaira">
+                  Wallet Reward Amount (₦)
+                  <span className="text-destructive"> *</span>
+                </Label>
                 <Input
                   id="rewardAmountNaira"
                   type="number"
+                  min="100"
+                  step="100"
                   placeholder="e.g. 1000"
+                  aria-invalid={!!errors.rewardAmountNaira}
                   {...register("rewardAmountNaira")}
+                />
+                {errors.rewardAmountNaira && (
+                  <p className="text-xs text-destructive">
+                    {errors.rewardAmountNaira.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Badge Selection */}
+            {(watchedValues.rewardType === "badge" ||
+              watchedValues.rewardType === "both") && (
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <Controller
+                  name="badgeId"
+                  control={control}
+                  render={({ field }) => (
+                    <BadgeSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      required={
+                        watchedValues.rewardType === "badge" ||
+                        watchedValues.rewardType === "both"
+                      }
+                    />
+                  )}
                 />
               </div>
             )}
 
-            {/* Summary */}
-            <div className="pt-4 border-t space-y-3 bg-muted p-4 rounded-lg">
-              <h4 className="font-medium text-sm">Event Summary</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Title:</span>
-                  <span className="font-medium">
-                    {watchedValues.title || "—"}
-                  </span>
+            {/* Event Summary */}
+            <div className="pt-4 border-t space-y-4">
+              <h3 className="font-medium text-sm">Event Summary</h3>
+
+              <div className="space-y-3 bg-muted/50 p-4 rounded-lg">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-1">Title</p>
+                    <p className="font-medium">{watchedValues.title || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-1">
+                      Trigger
+                    </p>
+                    <p className="font-medium capitalize">
+                      {watchedValues.triggerType?.replace(/_/g, " ") || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-1">
+                      Reward Type
+                    </p>
+                    <p className="font-medium capitalize">
+                      {watchedValues.rewardType?.replace(/_/g, " ") || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs mb-1">
+                      Max Claims
+                    </p>
+                    <p className="font-medium">
+                      {watchedValues.maxClaimsTotal === "0"
+                        ? "Unlimited"
+                        : watchedValues.maxClaimsTotal || "—"}{" "}
+                      total
+                    </p>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Trigger:</span>
-                  <span className="font-medium capitalize">
-                    {watchedValues.triggerType?.replace(/_/g, " ") || "—"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Reward:</span>
-                  <span className="font-medium capitalize">
-                    {watchedValues.rewardType?.replace(/_/g, " ") || "—"}
-                  </span>
-                </div>
+
+                {watchedValues.rewardAmountNaira && (
+                  <div className="border-t pt-3">
+                    <p className="text-muted-foreground text-xs mb-1">
+                      Wallet Reward
+                    </p>
+                    <p className="font-medium text-lg">
+                      ₦
+                      {parseFloat(
+                        watchedValues.rewardAmountNaira,
+                      ).toLocaleString()}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
+            {/* Actions */}
             <div className="flex gap-3 pt-4">
               <Button
                 type="button"
@@ -458,7 +582,9 @@ export function CreateEventForm() {
                 Back
               </Button>
               <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="size-4 animate-spin" />}
+                {isSubmitting && (
+                  <Loader2 className="size-4 animate-spin mr-2" />
+                )}
                 {isSubmitting ? "Creating…" : "Create Event"}
               </Button>
             </div>
