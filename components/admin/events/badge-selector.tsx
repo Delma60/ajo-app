@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { CreateBadgeDialog } from "./create-badge-dialog";
+
 
 interface BadgeSelectorProps {
   value?: string;
@@ -53,6 +55,13 @@ export function BadgeSelector({
     fetchBadges();
   }, []);
 
+  const handleBadgeCreated = (newBadge: BadgeType) => {
+    // Add the new badge to the list
+    setBadges((prev) => [...prev, newBadge]);
+    // Auto-select the newly created badge
+    onChange(newBadge.id);
+  };
+
   const rarityColors: Record<string, string> = {
     common: "text-slate-600",
     rare: "text-blue-600",
@@ -77,7 +86,7 @@ export function BadgeSelector({
             <div className="py-2 px-2 text-xs text-destructive">{error}</div>
           ) : badges.length === 0 ? (
             <div className="py-2 px-2 text-xs text-muted-foreground">
-              No badges available. Create one first.
+              No badges available. Create one below.
             </div>
           ) : (
             badges.map((badge) => (
@@ -98,6 +107,9 @@ export function BadgeSelector({
           )}
         </SelectContent>
       </Select>
+      
+      {/* Create Badge Dialog */}
+      <CreateBadgeDialog onBadgeCreated={handleBadgeCreated} />
     </div>
   );
 }
