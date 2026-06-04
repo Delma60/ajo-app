@@ -182,7 +182,7 @@ function InfoRow({
           className={cn(
             "text-sm text-foreground truncate",
             mono && "font-mono font-medium",
-            valueClassName
+            valueClassName,
           )}
         >
           {value || "—"}
@@ -213,18 +213,20 @@ function TrustScoreCard({
 }) {
   const tier = TRUST_TIER(score);
   const bgMap: Record<string, string> = {
-    Excellent: "from-emerald-50 to-emerald-100/50 border-emerald-200 dark:from-emerald-950/30 dark:to-emerald-900/20 dark:border-emerald-800/30",
+    Excellent:
+      "from-emerald-50 to-emerald-100/50 border-emerald-200 dark:from-emerald-950/30 dark:to-emerald-900/20 dark:border-emerald-800/30",
     Good: "from-blue-50 to-blue-100/50 border-blue-200 dark:from-blue-950/30 dark:to-blue-900/20 dark:border-blue-800/30",
     Fair: "from-amber-50 to-amber-100/50 border-amber-200 dark:from-amber-950/30 dark:to-amber-900/20 dark:border-amber-800/30",
     Low: "from-orange-50 to-orange-100/50 border-orange-200 dark:from-orange-950/30 dark:to-orange-900/20 dark:border-orange-800/30",
-    "At Risk": "from-red-50 to-red-100/50 border-red-200 dark:from-red-950/30 dark:to-red-900/20 dark:border-red-800/30",
+    "At Risk":
+      "from-red-50 to-red-100/50 border-red-200 dark:from-red-950/30 dark:to-red-900/20 dark:border-red-800/30",
   };
 
   return (
     <div
       className={cn(
         "rounded-xl bg-gradient-to-br border p-4 space-y-3",
-        bgMap[tier.label] ?? bgMap["Fair"]
+        bgMap[tier.label] ?? bgMap["Fair"],
       )}
     >
       <div className="flex items-center justify-between">
@@ -234,22 +236,24 @@ function TrustScoreCard({
             Trust Score
           </p>
         </div>
-        <span className={cn("text-xs font-bold", tier.cls)}>
-          {tier.label}
-        </span>
+        <span className={cn("text-xs font-bold", tier.cls)}>{tier.label}</span>
       </div>
 
       <div className="space-y-1.5">
         <div className="flex items-end justify-between">
-          <p className={cn("text-3xl font-black font-mono leading-none", tier.cls)}>
+          <p
+            className={cn(
+              "text-3xl font-black font-mono leading-none",
+              tier.cls,
+            )}
+          >
             {score}
-            <span className="text-base font-normal text-muted-foreground">/100</span>
+            <span className="text-base font-normal text-muted-foreground">
+              /100
+            </span>
           </p>
         </div>
-        <Progress
-          value={score}
-          className={cn("h-2", tier.barCls)}
-        />
+        <Progress value={score} className={cn("h-2", tier.barCls)} />
       </div>
 
       {breakdown && (
@@ -309,7 +313,10 @@ function MemberRow({
             {member.name}
           </p>
           {member.isAdmin && (
-            <Badge variant="secondary" className="text-[9px] h-3.5 px-1 shrink-0">
+            <Badge
+              variant="secondary"
+              className="text-[9px] h-3.5 px-1 shrink-0"
+            >
               Admin
             </Badge>
           )}
@@ -324,7 +331,9 @@ function MemberRow({
             </Badge>
           )}
         </div>
-        <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+        <p className="text-[11px] text-muted-foreground truncate">
+          {member.email}
+        </p>
       </div>
       <div className="flex flex-wrap gap-1 items-center">
         {!member.isAdmin && (
@@ -333,10 +342,16 @@ function MemberRow({
               variant={member.isPaused ? "secondary" : "outline"}
               size="icon"
               className="h-8 w-8 rounded-full"
-              onClick={() => (member.isPaused ? onResume(member.id) : onPause(member.id))}
+              onClick={() =>
+                member.isPaused ? onResume(member.id) : onPause(member.id)
+              }
               disabled={disabled}
             >
-              {member.isPaused ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
+              {member.isPaused ? (
+                <PlayIcon className="size-4" />
+              ) : (
+                <PauseIcon className="size-4" />
+              )}
             </Button>
             <Button
               variant="outline"
@@ -371,10 +386,10 @@ function ContributionRow({
           contrib.status === "paid"
             ? "bg-emerald-100 dark:bg-emerald-900/30"
             : contrib.status === "late"
-            ? "bg-orange-100 dark:bg-orange-900/30"
-            : contrib.status === "missed"
-            ? "bg-red-100 dark:bg-red-900/30"
-            : "bg-muted"
+              ? "bg-orange-100 dark:bg-orange-900/30"
+              : contrib.status === "missed"
+                ? "bg-red-100 dark:bg-red-900/30"
+                : "bg-muted",
         )}
       >
         <Icon
@@ -383,10 +398,10 @@ function ContributionRow({
             contrib.status === "paid"
               ? "text-emerald-600 dark:text-emerald-400"
               : contrib.status === "late"
-              ? "text-orange-600 dark:text-orange-400"
-              : contrib.status === "missed"
-              ? "text-red-600 dark:text-red-400"
-              : "text-muted-foreground"
+                ? "text-orange-600 dark:text-orange-400"
+                : contrib.status === "missed"
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-muted-foreground",
           )}
         />
       </div>
@@ -415,7 +430,7 @@ function ContributionRow({
         <span
           className={cn(
             "text-[9px] font-medium px-1.5 py-0.5 rounded-full",
-            meta.cls
+            meta.cls,
           )}
         >
           {meta.label}
@@ -497,11 +512,14 @@ export function CircleDetailSheet({
   const [confirmAction, setConfirmAction] = useState<
     "pause" | "unpause" | "cancel" | null
   >(null);
-  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(
+    null,
+  );
   const [invitePermission, setInvitePermission] = useState<
     CircleDetail["invitePermission"]
   >(circle?.invitePermission ?? "admin");
-  const [isUpdatingInvitePermission, setIsUpdatingInvitePermission] = useState(false);
+  const [isUpdatingInvitePermission, setIsUpdatingInvitePermission] =
+    useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -552,7 +570,10 @@ export function CircleDetailSheet({
     }
   }
 
-  async function onMemberAction(memberId: string, action: "pause" | "resume" | "shift") {
+  async function onMemberAction(
+    memberId: string,
+    action: "pause" | "resume" | "shift",
+  ) {
     if (!circle) return;
     setMemberActionLoading(memberId);
     try {
@@ -569,8 +590,8 @@ export function CircleDetailSheet({
         action === "shift"
           ? "Member payout priority updated."
           : action === "pause"
-          ? "Member paused successfully."
-          : "Member resumed successfully."
+            ? "Member paused successfully."
+            : "Member resumed successfully.",
       );
       await loadDetail(circle.id);
     } catch (error) {
@@ -599,7 +620,9 @@ export function CircleDetailSheet({
       toast.success("Invite permissions updated.");
       await loadDetail(circle.id);
     } catch (error) {
-      toast.error((error as Error).message || "Failed to update invite permissions.");
+      toast.error(
+        (error as Error).message || "Failed to update invite permissions.",
+      );
     } finally {
       setIsUpdatingInvitePermission(false);
     }
@@ -668,14 +691,11 @@ export function CircleDetailSheet({
                   <span
                     className={cn(
                       "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                      statusMeta.cls
+                      statusMeta.cls,
                     )}
                   >
                     <span
-                      className={cn(
-                        "size-1.5 rounded-full",
-                        statusMeta.dotCls
-                      )}
+                      className={cn("size-1.5 rounded-full", statusMeta.dotCls)}
                     />
                     {statusMeta.label}
                   </span>
@@ -732,7 +752,9 @@ export function CircleDetailSheet({
                 {/* Trust Score */}
                 <TrustScoreCard
                   score={current.trustScore}
-                  breakdown={detail?.trustScoreBreakdown ?? current.trustScoreBreakdown}
+                  breakdown={
+                    detail?.trustScoreBreakdown ?? current.trustScoreBreakdown
+                  }
                 />
 
                 {/* Progress snapshot */}
@@ -762,7 +784,7 @@ export function CircleDetailSheet({
                       <div className="flex items-center gap-2">
                         <Progress
                           value={Math.round(
-                            (current.currentCycle / current.totalCycles) * 100
+                            (current.currentCycle / current.totalCycles) * 100,
                           )}
                           className="h-1.5 flex-1 [&>[data-slot=progress-indicator]]:bg-primary"
                         />
@@ -774,13 +796,17 @@ export function CircleDetailSheet({
                   </div>
                   <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border">
                     <div>
-                      <p className="text-[10px] text-muted-foreground">Contribution</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Contribution
+                      </p>
                       <p className="text-sm font-semibold font-mono">
                         {fmtNaira(current.contribution)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground">Pool size</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Pool size
+                      </p>
                       <p className="text-sm font-semibold font-mono">
                         {fmtNaira(current.goal)}
                       </p>
@@ -822,9 +848,9 @@ export function CircleDetailSheet({
                     icon={ShieldCheckIcon}
                     label="Invite permissions"
                     value={
-                      (current.invitePermission === "members"
+                      current.invitePermission === "members"
                         ? "Members can invite"
-                        : "Admin only")
+                        : "Admin only"
                     }
                     valueClassName={
                       current.invitePermission === "members"
@@ -885,7 +911,9 @@ export function CircleDetailSheet({
                       key={m.id}
                       member={m}
                       onPause={(memberId) => onMemberAction(memberId, "pause")}
-                      onResume={(memberId) => onMemberAction(memberId, "resume")}
+                      onResume={(memberId) =>
+                        onMemberAction(memberId, "resume")
+                      }
                       onShift={(memberId) => onMemberAction(memberId, "shift")}
                       disabled={memberActionLoading !== null}
                     />
@@ -966,7 +994,9 @@ export function CircleDetailSheet({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isSubmitting}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               variant={
                 confirmAction && ACTION_META[confirmAction].destructive
