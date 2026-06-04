@@ -80,6 +80,7 @@ export class CircleService {
     frequency: Circle["frequency"],
     payoutOrder: Circle["payoutOrder"],
     isPrivate: boolean,
+    invitePermission: Circle["invitePermission"],
     tags: string[]
   ): Promise<Circle> {
     // Load settings
@@ -170,6 +171,7 @@ export class CircleService {
         tags: tags.slice(0, 5),
         pendingRequestIds: [],
         inviteCode,
+        invitePermission: invitePermission === "members" ? "members" : "admin",
         createdAt: now as any,
         updatedAt: now as any,
       };
@@ -502,8 +504,18 @@ export class CircleService {
       let bidPremiumKobo = 0;
       let winningBidRef: admin.firestore.DocumentReference | null = null;
 
+      const pausedMembers = new Set(circle.pausedMemberIds ?? []);
+      const eligibleMemberIds = circle.memberIds.filter((id) => !pausedMembers.has(id));
+
+      if (eligibleMemberIds.length === 0) {
+        console.log(
+          `[circle-service] Circle ${circle.id}: no eligible members for payout due to paused members.`
+        );
+        return;
+      }
+
       if (circle.payoutOrder === "bidding") {
-        const bidResult = await this.resolveWinningBid(circle, tx, circleSettings);
+        const bidResult = await this.resolveWinningBid(circle, tx, circleSettings, eligibleMemberIds);
         if (bidResult) {
           recipientId = bidResult.userId;
           bidPremiumKobo = bidResult.amount;
@@ -512,7 +524,13 @@ export class CircleService {
       }
 
       if (circle.payoutOrder === "random") {
-        recipientId = circle.memberIds[Math.floor(Math.random() * circle.memberIds.length)];
+        recipientId = eligibleMemberIds[Math.floor(Math.random() * eligibleMemberIds.length)];
+      }
+
+      if (circle.payoutOrder === "rotational") {
+        if (pausedMembers.has(recipientId) || !eligibleMemberIds.includes(recipientId)) {
+          recipientId = this.advanceRecipient(circle, recipientId, eligibleMemberIds);
+        }
       }
 
       const recipientSnap = await tx.get(this.usersCol.doc(recipientId));
@@ -581,7 +599,9 @@ export class CircleService {
 
       const nextCycle = circle.currentCycle + 1;
       const isComplete = nextCycle > circle.totalCycles;
-      const nextRecipientId = isComplete ? "" : this.advanceRecipient(circle, recipientId);
+      const nextRecipientId = isComplete
+        ? ""
+        : this.advanceRecipient(circle, recipientId, eligibleMemberIds);
       const { nextDueDate, nextPayoutDate } = this.nextDates(circle.frequency, new Date());
 
       tx.update(circleRef, {
@@ -832,6 +852,208 @@ export class CircleService {
     });
   }
 
+  async pauseMember(
+    circleId: string,
+    memberId: string,
+    adminId: string,
+    allowPlatformAdmin = false
+  ): Promise<Circle> {
+    return adminDb.runTransaction(async (tx) => {
+      const circleRef = this.circlesCol.doc(circleId);
+      const [circleSnap, memberSnap] = await tx.getAll(circleRef, this.usersCol.doc(memberId));
+
+      if (!circleSnap.exists) throw new CircleError("NOT_FOUND", "Circle not found.");
+      if (!memberSnap.exists) throw new CircleError("NOT_FOUND", "Member not found.");
+
+      const circle = circleSnap.data() as Circle;
+      const member = memberSnap.data() as User;
+
+      if (circle.adminId !== adminId && !allowPlatformAdmin) {
+        throw new CircleError("UNAUTHORIZED", "Only the circle admin can pause members.");
+      }
+      if (!circle.memberIds.includes(memberId)) {
+        throw new CircleError("NOT_MEMBER", "User is not a member of this circle.");
+      }
+      const paused = circle.pausedMemberIds ?? [];
+      if (paused.includes(memberId)) {
+        throw new CircleError("INVALID_OPERATION", "Member is already paused.");
+      }
+
+      tx.update(circleRef, {
+        pausedMemberIds: FieldValue.arrayUnion(memberId),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      void sendNotification(memberId, {
+        type: "general",
+        title: "Member Paused",
+        body: `Your payout eligibility in "${circle.name}" has been suspended by the admin.`,
+        link: `/circles/${circleId}`,
+      });
+      void sendNotification(circle.adminId, {
+        type: "general",
+        title: "Member Paused",
+        body: `${member.name} has been paused in "${circle.name}".`,
+        link: `/circles/${circleId}`,
+      });
+
+      return { ...circle, pausedMemberIds: [...paused, memberId] } as Circle;
+    });
+  }
+
+  async resumeMember(
+    circleId: string,
+    memberId: string,
+    adminId: string,
+    allowPlatformAdmin = false
+  ): Promise<Circle> {
+    return adminDb.runTransaction(async (tx) => {
+      const circleRef = this.circlesCol.doc(circleId);
+      const [circleSnap, memberSnap] = await tx.getAll(circleRef, this.usersCol.doc(memberId));
+
+      if (!circleSnap.exists) throw new CircleError("NOT_FOUND", "Circle not found.");
+      if (!memberSnap.exists) throw new CircleError("NOT_FOUND", "Member not found.");
+
+      const circle = circleSnap.data() as Circle;
+      const member = memberSnap.data() as User;
+
+      if (circle.adminId !== adminId && !allowPlatformAdmin) {
+        throw new CircleError("UNAUTHORIZED", "Only the circle admin can resume members.");
+      }
+      if (!circle.memberIds.includes(memberId)) {
+        throw new CircleError("NOT_MEMBER", "User is not a member of this circle.");
+      }
+      const paused = circle.pausedMemberIds ?? [];
+      if (!paused.includes(memberId)) {
+        throw new CircleError("INVALID_OPERATION", "Member is not paused.");
+      }
+
+      tx.update(circleRef, {
+        pausedMemberIds: FieldValue.arrayRemove(memberId),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      void sendNotification(memberId, {
+        type: "general",
+        title: "Member Resumed",
+        body: `Your payout eligibility in "${circle.name}" has been restored.`,
+        link: `/circles/${circleId}`,
+      });
+      void sendNotification(circle.adminId, {
+        type: "general",
+        title: "Member Resumed",
+        body: `${member.name} is now eligible for payouts in "${circle.name}".`,
+        link: `/circles/${circleId}`,
+      });
+
+      return {
+        ...circle,
+        pausedMemberIds: paused.filter((id) => id !== memberId),
+      } as Circle;
+    });
+  }
+
+  async shiftMember(
+    circleId: string,
+    memberId: string,
+    adminId: string,
+    allowPlatformAdmin = false
+  ): Promise<Circle> {
+    return adminDb.runTransaction(async (tx) => {
+      const circleRef = this.circlesCol.doc(circleId);
+      const [circleSnap, memberSnap] = await tx.getAll(circleRef, this.usersCol.doc(memberId));
+
+      if (!circleSnap.exists) throw new CircleError("NOT_FOUND", "Circle not found.");
+      if (!memberSnap.exists) throw new CircleError("NOT_FOUND", "Member not found.");
+
+      const circle = circleSnap.data() as Circle;
+      const member = memberSnap.data() as User;
+
+      if (circle.adminId !== adminId && !allowPlatformAdmin) {
+        throw new CircleError("UNAUTHORIZED", "Only the circle admin can shift members.");
+      }
+      if (circle.payoutOrder !== "rotational") {
+        throw new CircleError("INVALID_OPERATION", "Member shifting is only supported for rotational circles.");
+      }
+      if (!circle.memberIds.includes(memberId)) {
+        throw new CircleError("NOT_MEMBER", "User is not a member of this circle.");
+      }
+      if (memberId === circle.currentRecipientId) {
+        throw new CircleError("INVALID_OPERATION", "This member already has the next payout.");
+      }
+
+      const updatedMemberIds = circle.memberIds.filter((id) => id !== memberId);
+      const currentIndex = updatedMemberIds.indexOf(circle.currentRecipientId);
+      const insertAt = currentIndex === -1 ? 0 : currentIndex + 1;
+      updatedMemberIds.splice(insertAt, 0, memberId);
+
+      tx.update(circleRef, {
+        memberIds: updatedMemberIds,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      void sendNotification(memberId, {
+        type: "general",
+        title: "Payout Priority Changed",
+        body: `Your payout position in "${circle.name}" has been prioritized by the admin.`,
+        link: `/circles/${circleId}`,
+      });
+      void sendNotification(circle.adminId, {
+        type: "general",
+        title: "Member Shifted",
+        body: `${member.name} has been moved up in the payout queue for "${circle.name}".`,
+        link: `/circles/${circleId}`,
+      });
+
+      return { ...circle, memberIds: updatedMemberIds } as Circle;
+    });
+  }
+
+  async updateInvitePermission(
+    circleId: string,
+    adminId: string,
+    invitePermission: Circle["invitePermission"],
+    allowPlatformAdmin = false,
+  ): Promise<Circle> {
+    if (!["admin", "members"].includes(invitePermission)) {
+      throw new CircleError("INVALID_INPUT", "Invalid invite permission.");
+    }
+
+    return adminDb.runTransaction(async (tx) => {
+      const circleRef = this.circlesCol.doc(circleId);
+      const circleSnap = await tx.get(circleRef);
+
+      if (!circleSnap.exists) {
+        throw new CircleError("NOT_FOUND", "Circle not found.");
+      }
+
+      const circle = circleSnap.data() as Circle;
+
+      if (circle.adminId !== adminId && !allowPlatformAdmin) {
+        throw new CircleError(
+          "UNAUTHORIZED",
+          "Only the circle admin can update invite permissions.",
+        );
+      }
+
+      tx.update(circleRef, {
+        invitePermission,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      void sendNotification(circle.adminId, {
+        type: "general",
+        title: "Invite Settings Updated",
+        body: `Invite permissions for "${circle.name}" are now ${
+          invitePermission === "members" ? "open to members" : "admin only"
+        }.`,
+        link: `/circles/${circleId}`,
+      });
+
+      return { ...circle, invitePermission } as Circle;
+    });
+  }
+
   // ─── Pause / Unpause ───────────────────────────────────────────────────────
 
   async pauseCircle(circleId: string, adminId: string): Promise<Circle> {
@@ -990,7 +1212,8 @@ export class CircleService {
   private async resolveWinningBid(
     circle: Circle,
     _tx: admin.firestore.Transaction,
-    settings: Awaited<ReturnType<typeof getCircleSettings>>
+    settings: Awaited<ReturnType<typeof getCircleSettings>>,
+    eligibleMemberIds?: string[]
   ): Promise<{ userId: string; amount: number; ref: admin.firestore.DocumentReference } | null> {
     const deadline = new Date(circle.nextPayoutDate.toDate());
     deadline.setHours(deadline.getHours() - settings.bidCloseHoursBeforePayout);
@@ -1001,21 +1224,34 @@ export class CircleService {
       .where("circleId", "==", circle.id)
       .where("cycle", "==", circle.currentCycle)
       .where("status", "==", "active")
-      .orderBy("amount", "desc")
-      .limit(1)
       .get();
 
-    if (snap.empty) return null;
+    const bids = snap.docs
+      .map((doc) => ({ ref: doc.ref, data: doc.data() as Bid }))
+      .filter((bid) => {
+        if (!eligibleMemberIds) return true;
+        return eligibleMemberIds.includes(bid.data.userId);
+      })
+      .sort((a, b) => b.data.amount - a.data.amount);
 
-    const doc = snap.docs[0];
-    const bid = doc.data() as Bid;
-    return { userId: bid.userId, amount: bid.amount, ref: doc.ref };
+    if (bids.length === 0) return null;
+
+    const topBid = bids[0];
+    return { userId: topBid.data.userId, amount: topBid.data.amount, ref: topBid.ref };
   }
 
-  private advanceRecipient(circle: Circle, currentRecipientId: string): string {
+  private advanceRecipient(
+    circle: Circle,
+    currentRecipientId: string,
+    eligibleMemberIds?: string[]
+  ): string {
     if (circle.payoutOrder !== "rotational") return currentRecipientId;
-    const idx = circle.memberIds.indexOf(currentRecipientId);
-    return circle.memberIds[(idx + 1) % circle.memberIds.length];
+    const ordered = eligibleMemberIds && eligibleMemberIds.length > 0 ? eligibleMemberIds : circle.memberIds;
+    const idx = ordered.indexOf(currentRecipientId);
+    if (idx === -1) {
+      return ordered[0] ?? currentRecipientId;
+    }
+    return ordered[(idx + 1) % ordered.length];
   }
 
   private nextDates(

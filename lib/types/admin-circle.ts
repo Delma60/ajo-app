@@ -28,6 +28,7 @@ export interface AdminCircle {
   tags: string[];
   pendingRequestIds: string[];
   inviteCode: string;
+  invitePermission: "admin" | "members";
   nextDueDate: string | null;
   nextPayoutDate: string | null;
   createdAt: string | null;

@@ -22,6 +22,7 @@ import {
   XIcon,
   CopyIcon,
   CheckIcon,
+  ArrowUpIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -68,6 +69,7 @@ interface CircleDetail extends AdminCircle {
     avatarUrl: string | null;
     isAdmin: boolean;
     isPendingPayout: boolean;
+    isPaused: boolean;
   }[];
   recentContributions: {
     id: string;
@@ -278,8 +280,16 @@ function TrustScoreCard({
 
 function MemberRow({
   member,
+  onPause,
+  onResume,
+  onShift,
+  disabled,
 }: {
   member: CircleDetail["members"][0];
+  onPause: (memberId: string) => void;
+  onResume: (memberId: string) => void;
+  onShift: (memberId: string) => void;
+  disabled: boolean;
 }) {
   const initials = member.name
     .split(" ")
@@ -294,7 +304,7 @@ function MemberRow({
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <p className="text-sm font-medium text-foreground truncate leading-tight">
             {member.name}
           </p>
@@ -308,8 +318,38 @@ function MemberRow({
               Next payout
             </Badge>
           )}
+          {member.isPaused && (
+            <Badge className="text-[9px] h-3.5 px-1 shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+              Paused
+            </Badge>
+          )}
         </div>
         <p className="text-[11px] text-muted-foreground truncate">{member.email}</p>
+      </div>
+      <div className="flex flex-wrap gap-1 items-center">
+        {!member.isAdmin && (
+          <>
+            <Button
+              variant={member.isPaused ? "secondary" : "outline"}
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={() => (member.isPaused ? onResume(member.id) : onPause(member.id))}
+              disabled={disabled}
+            >
+              {member.isPaused ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full"
+              onClick={() => onShift(member.id)}
+              disabled={disabled}
+              title="Prioritize payout"
+            >
+              <ArrowUpIcon className="size-4" />
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -457,6 +497,11 @@ export function CircleDetailSheet({
   const [confirmAction, setConfirmAction] = useState<
     "pause" | "unpause" | "cancel" | null
   >(null);
+  const [memberActionLoading, setMemberActionLoading] = useState<string | null>(null);
+  const [invitePermission, setInvitePermission] = useState<
+    CircleDetail["invitePermission"]
+  >(circle?.invitePermission ?? "admin");
+  const [isUpdatingInvitePermission, setIsUpdatingInvitePermission] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -464,8 +509,15 @@ export function CircleDetailSheet({
     setDetail(null);
     setHasError(false);
     setIsLoading(true);
+    setInvitePermission(circle.invitePermission ?? "admin");
     loadDetail(circle.id);
   }, [open, circle?.id]);
+
+  useEffect(() => {
+    if (detail) {
+      setInvitePermission(detail.invitePermission ?? "admin");
+    }
+  }, [detail?.invitePermission]);
 
   async function loadDetail(id: string) {
     try {
@@ -497,6 +549,59 @@ export function CircleDetailSheet({
       setConfirmAction(null);
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function onMemberAction(memberId: string, action: "pause" | "resume" | "shift") {
+    if (!circle) return;
+    setMemberActionLoading(memberId);
+    try {
+      const response = await fetch(`/api/circles/${circle.id}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, memberId }),
+      });
+      const json = await response.json();
+      if (!json.success) {
+        throw new Error(json.error || "Failed to perform member action.");
+      }
+      toast.success(
+        action === "shift"
+          ? "Member payout priority updated."
+          : action === "pause"
+          ? "Member paused successfully."
+          : "Member resumed successfully."
+      );
+      await loadDetail(circle.id);
+    } catch (error) {
+      toast.error((error as Error).message || "Member action failed.");
+    } finally {
+      setMemberActionLoading(null);
+    }
+  }
+
+  async function handleInvitePermissionChange(
+    value: CircleDetail["invitePermission"],
+  ) {
+    if (!circle || value === invitePermission) return;
+    setIsUpdatingInvitePermission(true);
+    try {
+      const response = await fetch(`/api/circles/${circle.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitePermission: value }),
+      });
+      const json = await response.json();
+      if (!json.success) {
+        throw new Error(json.error || "Failed to update invite permissions.");
+      }
+      setInvitePermission(value);
+      toast.success("Invite permissions updated.");
+      await loadDetail(circle.id);
+    } catch (error) {
+      toast.error((error as Error).message || "Failed to update invite permissions.");
+    } finally {
+      setIsUpdatingInvitePermission(false);
     }
   }
 
@@ -713,6 +818,44 @@ export function CircleDetailSheet({
                     mono
                     copyable
                   />
+                  <InfoRow
+                    icon={ShieldCheckIcon}
+                    label="Invite permissions"
+                    value={
+                      (current.invitePermission === "members"
+                        ? "Members can invite"
+                        : "Admin only")
+                    }
+                    valueClassName={
+                      current.invitePermission === "members"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-muted-foreground"
+                    }
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant={
+                        invitePermission === "admin" ? "secondary" : "outline"
+                      }
+                      className="w-full"
+                      onClick={() => handleInvitePermissionChange("admin")}
+                      disabled={isUpdatingInvitePermission}
+                    >
+                      Admin only
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={
+                        invitePermission === "members" ? "secondary" : "outline"
+                      }
+                      className="w-full"
+                      onClick={() => handleInvitePermissionChange("members")}
+                      disabled={isUpdatingInvitePermission}
+                    >
+                      Members can invite
+                    </Button>
+                  </div>
                   {detail && (
                     <InfoRow
                       icon={UsersIcon}
@@ -738,7 +881,14 @@ export function CircleDetailSheet({
                   emptyLabel="No members yet"
                 >
                   {detail?.members.map((m) => (
-                    <MemberRow key={m.id} member={m} />
+                    <MemberRow
+                      key={m.id}
+                      member={m}
+                      onPause={(memberId) => onMemberAction(memberId, "pause")}
+                      onResume={(memberId) => onMemberAction(memberId, "resume")}
+                      onShift={(memberId) => onMemberAction(memberId, "shift")}
+                      disabled={memberActionLoading !== null}
+                    />
                   ))}
                 </Section>
 

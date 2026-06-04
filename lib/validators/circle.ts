@@ -55,6 +55,7 @@ export function buildCreateCircleSchema(
     message: "Please select a valid payout order",
   }),
   isPrivate: z.boolean().default(false),
+  invitePermission: z.enum(["admin", "members"]).default("admin"),
   tags: z.array(z.string()).max(5, "Max 5 tags allowed").optional().default([]),
 });
 

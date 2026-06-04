@@ -176,6 +176,7 @@ export function CreateCircleForm() {
       frequency: "monthly",
       payoutOrder: "rotational",
       isPrivate: false,
+      invitePermission: "admin",
       tags: [],
     },
   });
@@ -227,6 +228,7 @@ export function CreateCircleForm() {
         frequency: values.frequency,
         payoutOrder: values.payoutOrder,
         isPrivate: values.isPrivate ?? false,
+        invitePermission: values.invitePermission ?? "admin",
         tags: values.tags ?? [],
       });
       toast.success("Circle created! Your creation fee has been deducted.");
@@ -515,8 +517,8 @@ export function CreateCircleForm() {
           </div>
 
           {/* Privacy */}
-          <div className="flex items-center justify-between rounded-xl border border-border p-4">
-            <div className="flex items-center gap-3">
+          <div className="space-y-4 rounded-xl border border-border p-4">
+            <div className="flex items-center justify-between gap-3">
               <Controller
                 name="isPrivate"
                 control={control}
@@ -552,6 +554,35 @@ export function CreateCircleForm() {
                   </>
                 )}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Invite permissions</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {(["admin", "members"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setValue("invitePermission", value)}
+                    className={cn(
+                      "rounded-xl border px-3 py-2 text-left text-sm transition-all",
+                      watchedValues.invitePermission === value
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-border bg-background hover:border-primary/40",
+                    )}
+                  >
+                    <p className="font-semibold">
+                      {value === "admin" ? "Admin only" : "Members can invite"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {value === "admin"
+                        ? "Only the circle admin can share invite codes."
+                        : "Any member can share the invite link and code."}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              <input type="hidden" {...register("invitePermission")} />
             </div>
           </div>
 
@@ -624,6 +655,14 @@ export function CreateCircleForm() {
               <SummaryRow
                 label="Visibility"
                 value={watchedValues.isPrivate ? "Private" : "Public"}
+              />
+              <SummaryRow
+                label="Invite permissions"
+                value={
+                  watchedValues.invitePermission === "members"
+                    ? "Members can invite"
+                    : "Admin only"
+                }
               />
             </CardContent>
           </Card>

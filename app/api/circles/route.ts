@@ -137,6 +137,7 @@ export async function POST(request: NextRequest) {
       frequency,
       payoutOrder,
       isPrivate,
+      invitePermission,
       tags,
     } = parsedData as any;
 
@@ -152,6 +153,7 @@ export async function POST(request: NextRequest) {
       frequency,
       payoutOrder,
       isPrivate,
+      invitePermission,
       tags ?? []
     );
 

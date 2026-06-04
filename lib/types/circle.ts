@@ -6,6 +6,7 @@ export interface Circle {
   description: string;
   adminId: string;
   memberIds: string[];
+  pausedMemberIds?: string[];
   maxMembers: number;
   contribution: number; // kobo
   frequency: "daily" | "weekly" | "bi-weekly" | "monthly";
@@ -29,6 +30,7 @@ export interface Circle {
   tags: string[];
   pendingRequestIds: string[];
   inviteCode: string;
+  invitePermission: "admin" | "members";
   activeBidId?: string;
   createdAt: any;
   updatedAt: any;

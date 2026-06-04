@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { CircleService } from "@/lib/services/circle-service";
+import type { Circle } from "@/lib/types/circle";
 
 const SESSION_COOKIE = "__session";
 
@@ -81,21 +82,54 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { action } = body; // "pause" | "unpause"
+    const { action, invitePermission } = body as {
+      action?: string;
+      invitePermission?: string;
+    };
 
-    if (!action || !["pause", "unpause"].includes(action)) {
+    const service = new CircleService();
+    let circle;
+
+    if (invitePermission !== undefined && action !== undefined) {
       return Response.json(
-        { success: false, data: null, error: "Invalid action" },
+        {
+          success: false,
+          data: null,
+          error: "Please submit either an action or invitePermission, not both.",
+        },
         { status: 400 }
       );
     }
 
-    const service = new CircleService();
-    let circle;
-    if (action === "pause") {
-      circle = await service.pauseCircle(id, sessionUser.uid);
+    if (invitePermission !== undefined) {
+      if (!["admin", "members"].includes(invitePermission)) {
+        return Response.json(
+          {
+            success: false,
+            data: null,
+            error: "Invalid invite permission",
+          },
+          { status: 400 }
+        );
+      }
+      circle = await service.updateInvitePermission(
+        id,
+        sessionUser.uid,
+        invitePermission as Circle["invitePermission"],
+      );
     } else {
-      circle = await service.unpauseCircle(id, sessionUser.uid);
+      if (!action || !["pause", "unpause"].includes(action)) {
+        return Response.json(
+          { success: false, data: null, error: "Invalid action" },
+          { status: 400 }
+        );
+      }
+
+      if (action === "pause") {
+        circle = await service.pauseCircle(id, sessionUser.uid);
+      } else {
+        circle = await service.unpauseCircle(id, sessionUser.uid);
+      }
     }
 
     return Response.json({ success: true, data: circle, error: null });

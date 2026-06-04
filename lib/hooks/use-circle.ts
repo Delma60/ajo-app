@@ -133,6 +133,7 @@ interface CreateCirclePayload {
   frequency: Circle["frequency"];
   payoutOrder: Circle["payoutOrder"];
   isPrivate: boolean;
+  invitePermission: Circle["invitePermission"];
   tags: string[];
 }
 

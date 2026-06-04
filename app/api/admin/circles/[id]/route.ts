@@ -86,6 +86,8 @@ export async function GET(
     };
 
     // Build member list preserving order
+    const pausedMemberIds = (data.pausedMemberIds as string[]) ?? [];
+    const pausedSet = new Set(pausedMemberIds);
     const members = memberIds.map((uid) => {
       const info = memberMap.get(uid) ?? { name: "Unknown", email: "", avatarUrl: null };
       return {
@@ -95,6 +97,7 @@ export async function GET(
         avatarUrl: info.avatarUrl,
         isAdmin: uid === data.adminId,
         isPendingPayout: uid === data.currentRecipientId,
+        isPaused: pausedSet.has(uid),
       };
     });
 
@@ -152,6 +155,7 @@ export async function GET(
         tags: (data.tags as string[]) ?? [],
         pendingRequestIds: (data.pendingRequestIds as string[]) ?? [],
         inviteCode: (data.inviteCode as string) ?? "",
+        invitePermission: (data.invitePermission as string) ?? "admin",
         nextDueDate: data.nextDueDate?.toDate?.()?.toISOString() ?? null,
         nextPayoutDate: data.nextPayoutDate?.toDate?.()?.toISOString() ?? null,
         createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,

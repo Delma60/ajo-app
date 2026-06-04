@@ -107,6 +107,8 @@ export function CircleDetailContent({
   const isMember = circle.memberIds.includes(firebaseUser?.uid ?? "");
   const isPending = circle.pendingRequestIds?.includes(firebaseUser?.uid ?? "");
   const isCurrentRecipient = circle.currentRecipientId === firebaseUser?.uid;
+  const invitePermission = circle.invitePermission ?? "admin";
+  const canInvite = isAdmin || (isMember && invitePermission === "members");
 
   const progress =
     circle.goal > 0 ? Math.round((circle.saved / circle.goal) * 100) : 0;
@@ -183,6 +185,37 @@ export function CircleDetailContent({
   function copyInviteCode() {
     navigator.clipboard.writeText(circle!.inviteCode ?? "");
     toast.success("Invite code copied!");
+  }
+
+  async function handleShareInvite() {
+    if (!circle) return;
+
+    const inviteUrl = `${window.location.origin}/circles/${circleId}${
+      circle.isPrivate ? `?inviteCode=${circle.inviteCode}` : ""
+    }`;
+    const shareText = circle.isPrivate
+      ? `Join my private circle "${circle.name}" on AjoSave.
+Invite code: ${circle.inviteCode}
+
+${inviteUrl}`
+      : `Join my circle "${circle.name}" on AjoSave.
+
+${inviteUrl}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `Invite to ${circle.name}`,
+          text: shareText,
+          url: inviteUrl,
+        });
+      } else {
+        await navigator.clipboard.writeText(shareText);
+        toast.success("Invite link copied!");
+      }
+    } catch (err) {
+      toast.error("Unable to share invite. Please try copying the link.");
+    }
   }
 
   // Build members list with actual data
@@ -295,6 +328,29 @@ export function CircleDetailContent({
                     {tag}
                   </Badge>
                 ))}
+              </div>
+            )}
+
+            {canInvite && (
+              <div className="pt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleShareInvite}
+                  className="flex-1"
+                >
+                  Share invite
+                </Button>
+                {circle.isPrivate && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-1"
+                    onClick={copyInviteCode}
+                  >
+                    Copy invite code
+                  </Button>
+                )}
               </div>
             )}
           </div>

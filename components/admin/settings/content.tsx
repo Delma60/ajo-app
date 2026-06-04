@@ -1346,7 +1346,7 @@ export function AdminSettingsContent() {
                 }
               >
                 <NairaInput
-                  valueKobo={draft.wallet?.minDepositKobo}
+                  valueKobo={draft.wallet?.maxDepositKobo}
                   onChange={(v) => updateWallet("maxDepositKobo", v)}
                   min={10000}
                 />
