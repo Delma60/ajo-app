@@ -117,10 +117,12 @@ export function AdminEventsContent() {
                     {event.status}
                   </Badge>
                   <div className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(
-                      parseTimestamp(event.createdAt) ?? new Date(),
-                      { addSuffix: true },
-                    )}
+                    {(() => {
+                      const createdAt = parseTimestamp(event.createdAt);
+                      return createdAt
+                        ? formatDistanceToNow(createdAt, { addSuffix: true })
+                        : "Unknown";
+                    })()}
                   </div>
                 </div>
               </div>
@@ -172,12 +174,12 @@ export function AdminEventsContent() {
                   {event.rewardType.replace(/_/g, " ")}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(
-                    parseTimestamp(event.createdAt) ?? new Date(),
-                    {
-                      addSuffix: true,
-                    },
-                  )}
+                  {(() => {
+                    const createdAt = parseTimestamp(event.createdAt);
+                    return createdAt
+                      ? formatDistanceToNow(createdAt, { addSuffix: true })
+                      : "Unknown";
+                  })()}
                 </TableCell>
                 <TableCell className="text-right">
                   <Link href={`/admin/events/${event.id}`}>

@@ -36,26 +36,32 @@ export function fmtDate(date: Date): string {
 }
 
 export function parseTimestamp(value: unknown): Date | null {
-  if (!value) {
+  if (value == null) {
     return null;
   }
 
-  if (typeof value === "string" || typeof value === "number") {
-    return new Date(value);
+  let date: Date | null = null;
+
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === "string" || typeof value === "number") {
+    date = new Date(value);
+  } else {
+    const anyValue = value as any;
+
+    if (typeof anyValue.toDate === "function") {
+      date = anyValue.toDate();
+    } else if (
+      typeof anyValue.seconds === "number" &&
+      typeof anyValue.nanoseconds === "number"
+    ) {
+      date = new Date(
+        anyValue.seconds * 1000 + Math.round(anyValue.nanoseconds / 1e6),
+      );
+    } else {
+      date = new Date(String(value));
+    }
   }
 
-  const anyValue = value as any;
-
-  if (typeof anyValue.toDate === "function") {
-    return anyValue.toDate();
-  }
-
-  if (
-    typeof anyValue.seconds === "number" &&
-    typeof anyValue.nanoseconds === "number"
-  ) {
-    return new Date(anyValue.seconds * 1000 + Math.round(anyValue.nanoseconds / 1e6));
-  }
-
-  return new Date(String(value));
+  return date && !isNaN(date.getTime()) ? date : null;
 }

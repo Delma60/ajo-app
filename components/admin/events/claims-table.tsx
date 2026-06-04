@@ -60,10 +60,12 @@ export function ClaimsTable({
                       : "—"}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {formatDistanceToNow(
-                      parseTimestamp(claim.createdAt) ?? new Date(),
-                      { addSuffix: true },
-                    )}
+                    {(() => {
+                      const createdAt = parseTimestamp(claim.createdAt);
+                      return createdAt
+                        ? formatDistanceToNow(createdAt, { addSuffix: true })
+                        : "Unknown";
+                    })()}
                   </div>
                 </div>
               </div>
@@ -114,12 +116,12 @@ export function ClaimsTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(
-                    parseTimestamp(claim.createdAt) ?? new Date(),
-                    {
-                      addSuffix: true,
-                    },
-                  )}
+                  {(() => {
+                    const createdAt = parseTimestamp(claim.createdAt);
+                    return createdAt
+                      ? formatDistanceToNow(createdAt, { addSuffix: true })
+                      : "Unknown";
+                  })()}
                 </TableCell>
               </TableRow>
             ))}
