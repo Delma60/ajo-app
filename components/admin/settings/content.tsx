@@ -1651,14 +1651,10 @@ export function AdminSettingsContent() {
                 >
                   <PercentInput
                     value={
-                      draft.circles?.latePenaltyCircleAdminSharePercent ??
-                      50
+                      draft.circles?.latePenaltyCircleAdminSharePercent ?? 50
                     }
                     onChange={(v) =>
-                      updateCircles(
-                        "latePenaltyCircleAdminSharePercent",
-                        v,
-                      )
+                      updateCircles("latePenaltyCircleAdminSharePercent", v)
                     }
                     min={0}
                     max={100}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftIcon,
   CalendarIcon,
@@ -31,6 +31,7 @@ import { FREQ_LABELS, PAYOUT_LABELS, STATUS_META } from "@/lib/types/circle";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,6 +79,10 @@ export function CircleDetailContent({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isTogglingPause, setIsTogglingPause] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [customInviteCode, setCustomInviteCode] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+  const searchParams = useSearchParams();
+  const inviteCodeParam = searchParams.get("inviteCode")?.trim().toUpperCase();
 
   // Re-renders when pendingRequestIds changes via real-time listener
   const handleRequestProcessed = useCallback(() => {
@@ -154,6 +159,40 @@ export function CircleDetailContent({
       );
     } finally {
       setIsTogglingPause(false);
+    }
+  }
+
+  async function handleJoinCircle() {
+    if (!circle) return;
+
+    const inviteCode = circle.isPrivate
+      ? (inviteCodeParam ?? customInviteCode.trim().toUpperCase())
+      : undefined;
+
+    if (circle.isPrivate && !inviteCode) {
+      toast.error("Please provide an invite code to join this private circle.");
+      return;
+    }
+
+    setIsJoining(true);
+    try {
+      const body = circle.isPrivate ? { inviteCode } : undefined;
+      const res = await fetch(`/api/circles/${circleId}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body ?? {}),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to join circle");
+      toast.success("Welcome to the circle!");
+      setCustomInviteCode("");
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to join circle.",
+      );
+    } finally {
+      setIsJoining(false);
     }
   }
 
@@ -464,6 +503,59 @@ ${inviteUrl}`;
                 >
                   Leave
                 </Button>
+              )}
+            </div>
+          )}
+
+          {/* Join / request CTA for non-members */}
+          {!isMember && !isPending && (
+            <div className="px-5 py-4 border-t border-border space-y-3">
+              {circle.isPrivate ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    This circle is private. Enter the invite code below or use
+                    the invite link you received.
+                  </p>
+                  {inviteCodeParam ? (
+                    <p className="text-sm font-medium">
+                      Invite code detected:{" "}
+                      <span className="font-mono">{inviteCodeParam}</span>
+                    </p>
+                  ) : null}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <Input
+                      value={inviteCodeParam || customInviteCode}
+                      onChange={(event) =>
+                        setCustomInviteCode(event.target.value)
+                      }
+                      placeholder="Enter invite code"
+                      disabled={Boolean(inviteCodeParam)}
+                    />
+                    <Button
+                      onClick={handleJoinCircle}
+                      disabled={
+                        isJoining ||
+                        (!inviteCodeParam && !customInviteCode.trim())
+                      }
+                    >
+                      {isJoining
+                        ? "Joining…"
+                        : inviteCodeParam
+                          ? "Accept invite"
+                          : "Join circle"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    This is a public circle. Send a request and the admin will
+                    review it.
+                  </p>
+                  <Button onClick={handleJoinCircle} disabled={isJoining}>
+                    {isJoining ? "Sending request…" : "Request to join"}
+                  </Button>
+                </div>
               )}
             </div>
           )}

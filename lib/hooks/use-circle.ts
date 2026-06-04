@@ -161,16 +161,25 @@ export function useCreateCircle() {
 export function useJoinCircle() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (circleId: string) => {
+    mutationFn: async ({
+      circleId,
+      inviteCode,
+    }: {
+      circleId: string;
+      inviteCode?: string;
+    }) => {
       const res = await fetch(`/api/circles/${circleId}/join`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(inviteCode ? { inviteCode } : {}),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error ?? "Failed to join circle");
       return json;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: circleKeys.lists() });
+      qc.invalidateQueries({ queryKey: circleKeys.detail(variables.circleId) });
     },
   });
 }

@@ -126,7 +126,10 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
 
   const handleSave = async () => {
     if (!event) return;
-    if (title.trim() === event.title && description.trim() === event.description) {
+    if (
+      title.trim() === event.title &&
+      description.trim() === event.description
+    ) {
       setIsEditing(false);
       return;
     }
@@ -213,18 +216,13 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
               >
                 Cancel
               </Button>
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-              >
+              <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save"}
               </Button>
             </>
           ) : (
             <>
-              <Button onClick={() => setIsEditing(true)}>
-                Edit event
-              </Button>
+              <Button onClick={() => setIsEditing(true)}>Edit event</Button>
               <Button
                 variant="destructive"
                 onClick={() => setShowDeleteDialog(true)}
@@ -243,7 +241,10 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-xs text-muted-foreground" htmlFor="event-title">
+              <label
+                className="text-xs text-muted-foreground"
+                htmlFor="event-title"
+              >
                 Title
               </label>
               <Input
@@ -254,7 +255,10 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground" htmlFor="event-description">
+              <label
+                className="text-xs text-muted-foreground"
+                htmlFor="event-description"
+              >
                 Description
               </label>
               <Textarea
@@ -344,17 +348,15 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete event?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. Deleting the event will remove all associated claims and statistics.
+              This action cannot be undone. Deleting the event will remove all
+              associated claims and statistics.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
               {isDeleting ? "Deleting..." : "Delete event"}
             </AlertDialogAction>
           </AlertDialogFooter>
