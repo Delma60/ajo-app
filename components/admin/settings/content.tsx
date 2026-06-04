@@ -1623,6 +1623,51 @@ export function AdminSettingsContent() {
               </SettingRow>
 
               <SettingRow
+                label="Split Late Penalty"
+                description="Share late payment penalties with circle admins."
+                tip="When enabled, a configured share of the late penalty is credited to the circle admin's wallet."
+                changed={
+                  draft.circles?.latePenaltySplitEnabled !==
+                  settings?.circles?.latePenaltySplitEnabled
+                }
+              >
+                <Switch
+                  checked={draft.circles?.latePenaltySplitEnabled}
+                  onCheckedChange={(checked) =>
+                    updateCircles("latePenaltySplitEnabled", checked)
+                  }
+                />
+              </SettingRow>
+
+              {draft.circles?.latePenaltySplitEnabled && (
+                <SettingRow
+                  label="Circle Admin Share"
+                  description="Percentage of the late penalty paid to the circle admin."
+                  tip="The remainder of the penalty stays with the platform."
+                  changed={
+                    draft.circles?.latePenaltyCircleAdminSharePercent !==
+                    settings?.circles?.latePenaltyCircleAdminSharePercent
+                  }
+                >
+                  <PercentInput
+                    value={
+                      draft.circles?.latePenaltyCircleAdminSharePercent ??
+                      50
+                    }
+                    onChange={(v) =>
+                      updateCircles(
+                        "latePenaltyCircleAdminSharePercent",
+                        v,
+                      )
+                    }
+                    min={0}
+                    max={100}
+                    step={1}
+                  />
+                </SettingRow>
+              )}
+
+              <SettingRow
                 label="Grace Period"
                 description="Number of hours after a due date before a contribution is marked as 'late'."
                 tip="Status transitions: pending → late (after grace period). No penalty until this window passes."

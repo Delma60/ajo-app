@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Event } from "@/lib/types/event";
 import {
   Card,
@@ -10,8 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -19,6 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EventStatsStrip } from "./event-stats-strip";
 import { ClaimsTable } from "./claims-table";
 import { ArrowLeft } from "lucide-react";
@@ -31,6 +43,14 @@ interface EventDetailContentProps {
 
 export function EventDetailContent({ eventId }: EventDetailContentProps) {
   const [claimsPage, setClaimsPage] = useState(1);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+
+  const queryClient = useQueryClient();
 
   const { data: eventData, isLoading: eventLoading } = useQuery({
     queryKey: ["adminEvent", eventId],
@@ -60,6 +80,14 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
   const claims = claimsData?.data || [];
   const stats = claimsData?.stats;
   const pagination = claimsData?.pagination;
+  const router = useRouter();
+
+  useEffect(() => {
+    if (event) {
+      setTitle(event.title);
+      setDescription(event.description);
+    }
+  }, [event]);
 
   if (eventLoading) {
     return (
@@ -88,11 +116,70 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
 
       if (!response.ok) throw new Error("Failed to update status");
       toast.success("Event status updated");
-      // Refresh event data
+      queryClient.invalidateQueries({ queryKey: ["adminEvent", eventId] });
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to update status",
       );
+    }
+  };
+
+  const handleSave = async () => {
+    if (!event) return;
+    if (title.trim() === event.title && description.trim() === event.description) {
+      setIsEditing(false);
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const response = await fetch(`/api/admin/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload.error || "Failed to save event");
+      }
+
+      toast.success("Event updated successfully");
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["adminEvent", eventId] });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save event",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      setIsDeleting(true);
+      const response = await fetch(`/api/admin/events/${eventId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload.error || "Failed to delete event");
+      }
+
+      toast.success("Event deleted");
+      router.push("/admin/events");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete event",
+      );
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
     }
   };
 
@@ -107,10 +194,80 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
       </Link>
 
       {/* Event header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">{event.title}</h1>
-        <p className="text-muted-foreground">{event.description}</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">{event.title}</h1>
+          <p className="text-muted-foreground">{event.description}</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {isEditing ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setIsEditing(false);
+                  setTitle(event.title);
+                  setDescription(event.description);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={() => setIsEditing(true)}>
+                Edit event
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                Delete event
+              </Button>
+            </>
+          )}
+        </div>
       </div>
+
+      {isEditing && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Edit Event</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground" htmlFor="event-title">
+                Title
+              </label>
+              <Input
+                id="event-title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground" htmlFor="event-description">
+                Description
+              </label>
+              <Textarea
+                id="event-description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                className="mt-1"
+                rows={4}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Event details card */}
       <Card>
@@ -181,6 +338,28 @@ export function EventDetailContent({ eventId }: EventDetailContentProps) {
           />
         </CardContent>
       </Card>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete event?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. Deleting the event will remove all associated claims and statistics.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete event"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

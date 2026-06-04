@@ -349,9 +349,34 @@ export class CircleService {
         throw new CircleError("ALREADY_PAID", "You have already paid for this cycle.");
       }
 
+      const userWalletRef = this.walletsCol.doc(userId);
+      let circleAdminWalletRef: admin.firestore.DocumentReference | null = null;
+      let circleAdminShareKobo = 0;
+
       let penaltyKobo = 0;
       if (contrib.status === "late" && !contrib.penaltyPaid) {
-        penaltyKobo = Math.round(circle.contribution * settings.latePenaltyPercent);
+        penaltyKobo = Math.round(
+          circle.contribution * (settings.latePenaltyPercent / 100),
+        );
+
+        if (
+          settings.latePenaltySplitEnabled &&
+          settings.latePenaltyCircleAdminSharePercent > 0
+        ) {
+          circleAdminShareKobo = Math.round(
+            penaltyKobo * (settings.latePenaltyCircleAdminSharePercent / 100),
+          );
+          if (circleAdminShareKobo > 0) {
+            circleAdminWalletRef = this.walletsCol.doc(circle.adminId);
+            const circleAdminWalletSnap = await tx.get(circleAdminWalletRef);
+            if (!circleAdminWalletSnap.exists) {
+              throw new CircleError(
+                "NOT_FOUND",
+                "Circle admin wallet not found for penalty split.",
+              );
+            }
+          }
+        }
       }
 
       const totalDeduction = amountKobo + penaltyKobo;
@@ -363,17 +388,60 @@ export class CircleService {
       }
 
       const contribTxId = await debitWallet(
-        tx, userId, amountKobo, "contribution",
+        tx,
+        userId,
+        amountKobo,
+        "contribution",
         `Contribution to "${circle.name}" — Cycle ${circle.currentCycle}`,
-        { circleId }
+        { circleId },
       );
 
       if (penaltyKobo > 0) {
-        await debitWallet(
-          tx, userId, penaltyKobo, "penalty",
-          `Late contribution penalty for "${circle.name}" — Cycle ${circle.currentCycle}`,
-          { circleId }
-        );
+        tx.update(userWalletRef, {
+          available: FieldValue.increment(-penaltyKobo),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        const penaltyTxRef = this.transactionsCol.doc();
+        tx.set(penaltyTxRef, {
+          id: penaltyTxRef.id,
+          userId,
+          circleId,
+          type: "penalty",
+          direction: "debit",
+          amount: penaltyKobo,
+          fee: 0,
+          netAmount: penaltyKobo,
+          status: "success",
+          reference: penaltyTxRef.id,
+          description: `Late contribution penalty for "${circle.name}" — Cycle ${circle.currentCycle}`,
+          createdAt: FieldValue.serverTimestamp() as any,
+          updatedAt: FieldValue.serverTimestamp() as any,
+        });
+
+        if (circleAdminWalletRef && circleAdminShareKobo > 0) {
+          tx.update(circleAdminWalletRef, {
+            available: FieldValue.increment(circleAdminShareKobo),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+
+          const creditTxRef = this.transactionsCol.doc();
+          tx.set(creditTxRef, {
+            id: creditTxRef.id,
+            userId: circle.adminId,
+            circleId,
+            type: "penalty",
+            direction: "credit",
+            amount: circleAdminShareKobo,
+            fee: 0,
+            netAmount: circleAdminShareKobo,
+            status: "success",
+            reference: creditTxRef.id,
+            description: `Late penalty share from "${circle.name}" — Cycle ${circle.currentCycle}`,
+            createdAt: FieldValue.serverTimestamp() as any,
+            updatedAt: FieldValue.serverTimestamp() as any,
+          });
+        }
       }
 
       const now = FieldValue.serverTimestamp();

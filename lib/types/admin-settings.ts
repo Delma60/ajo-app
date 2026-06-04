@@ -19,6 +19,8 @@ export interface CircleSettings {
   maxCircleMembers: number;        // 50 default
   creationFeePercent: number;      // 5% of contribution
   latePenaltyPercent: number;      // 10% of contribution
+  latePenaltySplitEnabled: boolean; // whether late penalty revenue can be shared with circle admins
+  latePenaltyCircleAdminSharePercent: number; // percent of late penalty paid to the circle admin
   gracePeriodHours: number;        // 48h before late
   consecutiveMissedLimit: number;  // 3 before auto-removal
   bidCloseHoursBeforePayout: number; // 24h
@@ -132,6 +134,8 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
     maxCircleMembers: 50,
     creationFeePercent: 5,
     latePenaltyPercent: 10,
+    latePenaltySplitEnabled: false,
+    latePenaltyCircleAdminSharePercent: 50,
     gracePeriodHours: 48,
     consecutiveMissedLimit: 3,
     bidCloseHoursBeforePayout: 24,
