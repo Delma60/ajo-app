@@ -39,6 +39,7 @@ import {
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 const RARITIES: BadgeRarity[] = ["common", "rare", "legendary"];

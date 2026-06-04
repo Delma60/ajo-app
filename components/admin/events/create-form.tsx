@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -367,10 +367,10 @@ export function CreateEventForm() {
                 <p className="text-xs text-muted-foreground mb-3">
                   Conditions:
                 </p>
-                <ConditionInputs<CreateEventFormValues>
+                <ConditionInputs
                   triggerType={watchedValues.triggerType}
                   control={control}
-                  getFieldName={(field) => field as any}
+                  getFieldName={(field: Path<CreateEventFormValues>) => field}
                   errors={errors}
                 />
               </div>
