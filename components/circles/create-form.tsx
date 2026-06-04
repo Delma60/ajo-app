@@ -18,6 +18,9 @@ import {
   InfoIcon,
   TagIcon,
   XIcon,
+  TicketIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from "lucide-react";
 
 import {
@@ -133,20 +136,58 @@ function SummaryRow({
   label,
   value,
   highlight,
+  muted,
 }: {
   label: string;
   value: string;
   highlight?: boolean;
+  muted?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between py-1.5 text-sm border-b border-border last:border-0">
-      <span className="text-muted-foreground">{label}</span>
+      <span className={cn("text-muted-foreground", muted && "text-muted-foreground/60")}>
+        {label}
+      </span>
       <span
-        className={cn("font-medium font-mono", highlight && "text-primary")}
+        className={cn(
+          "font-medium font-mono",
+          highlight && "text-primary",
+          muted && "text-muted-foreground",
+        )}
       >
         {value}
       </span>
     </div>
+  );
+}
+
+// ─── Join fee type selector ───────────────────────────────────────────────────
+
+function JoinFeeTypeButton({
+  selected,
+  onClick,
+  label,
+  description,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-xl border px-3 py-2.5 text-left text-sm transition-all w-full",
+        selected
+          ? "border-primary bg-primary/5 text-primary"
+          : "border-border bg-background hover:border-primary/40",
+      )}
+    >
+      <p className="font-semibold">{label}</p>
+      <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+    </button>
   );
 }
 
@@ -178,6 +219,9 @@ export function CreateCircleForm() {
       isPrivate: false,
       invitePermission: "admin",
       tags: [],
+      joinFeeEnabled: false,
+      joinFee: 0,
+      joinFeeType: "before_joining",
     },
   });
 
@@ -186,10 +230,13 @@ export function CreateCircleForm() {
   const maxMembersNum = Number(watchedValues.maxMembers ?? 0) || 0;
   const goalKobo = contributionNum * 100 * maxMembersNum;
   const creationFeePercent = settings.circles.creationFeePercent;
-  const creationFee = Math.round(
-    contributionNum * 100 * (creationFeePercent / 100),
-  );
-  const walletBalance = appUser ? 0 : 0; // will come from wallet store
+  const creationFee = Math.round(goalKobo * (creationFeePercent / 100));
+
+  // Join fee calculations
+  const joinFeeEnabled = watchedValues.joinFeeEnabled ?? false;
+  const joinFeeNum = Number(watchedValues.joinFee ?? 0) || 0;
+  const joinFeeKobo = Math.round(joinFeeNum * 100);
+  const joinFeeType = watchedValues.joinFeeType ?? "before_joining";
 
   function applyTemplate(tpl: (typeof TEMPLATES)[0]) {
     setValue("contribution", tpl.contribution);
@@ -219,7 +266,6 @@ export function CreateCircleForm() {
       toast.error("You must be signed in to create a circle.");
       return;
     }
-    // KYC check removed
 
     try {
       const result = await createCircle.mutateAsync({
@@ -232,6 +278,9 @@ export function CreateCircleForm() {
         isPrivate: values.isPrivate ?? false,
         invitePermission: values.invitePermission ?? "admin",
         tags: values.tags ?? [],
+        joinFeeEnabled: values.joinFeeEnabled ?? false,
+        joinFee: joinFeeKobo,
+        joinFeeType: values.joinFeeType ?? "before_joining",
       });
       toast.success("Circle created! Your creation fee has been deducted.");
       router.push(`/circles/${result.id}`);
@@ -450,6 +499,19 @@ export function CreateCircleForm() {
             </div>
           </div>
 
+          {/* Live creation fee preview */}
+          {goalKobo > 0 && (
+            <div className="rounded-lg bg-muted/50 border border-border px-3 py-2.5 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <InfoIcon className="size-3.5 shrink-0" />
+                Creation fee ({creationFeePercent}% of total pool)
+              </span>
+              <span className="font-mono font-semibold text-foreground">
+                {formatNaira(creationFee)}
+              </span>
+            </div>
+          )}
+
           {/* Frequency */}
           <div className="space-y-2">
             <Label>Contribution frequency</Label>
@@ -538,7 +600,7 @@ export function CreateCircleForm() {
                         <GlobeIcon className="size-4 text-primary" />
                       )}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <p className="text-sm font-medium">
                         {field.value ? "Private circle" : "Public circle"}
                       </p>
@@ -586,6 +648,131 @@ export function CreateCircleForm() {
               </div>
               <input type="hidden" {...register("invitePermission")} />
             </div>
+          </div>
+
+          {/* ── Join Fee Section ─────────────────────────────────────────── */}
+          <div className="rounded-xl border border-border overflow-hidden">
+            {/* Header toggle */}
+            <div className="flex items-center justify-between gap-3 p-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "flex size-9 items-center justify-center rounded-lg transition-colors",
+                    joinFeeEnabled ? "bg-primary/10" : "bg-muted",
+                  )}
+                >
+                  <TicketIcon
+                    className={cn(
+                      "size-4 transition-colors",
+                      joinFeeEnabled ? "text-primary" : "text-muted-foreground",
+                    )}
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Join fee</p>
+                  <p className="text-xs text-muted-foreground">
+                    Charge members a one-time fee when they join
+                  </p>
+                </div>
+              </div>
+              <Controller
+                name="joinFeeEnabled"
+                control={control}
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value ?? false}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
+            </div>
+
+            {/* Expanded join fee config */}
+            {joinFeeEnabled && (
+              <div className="border-t border-border p-4 space-y-4 bg-muted/20">
+                {/* Fee amount input */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="join-fee">Fee amount (₦)</Label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      ₦
+                    </span>
+                    <Input
+                      id="join-fee"
+                      type="number"
+                      min="0"
+                      step="100"
+                      placeholder="0"
+                      className="pl-7"
+                      aria-invalid={!!errors.joinFee}
+                      {...register("joinFee")}
+                    />
+                  </div>
+                  {errors.joinFee && (
+                    <p className="text-xs text-destructive">
+                      {errors.joinFee.message}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    This fee goes directly to you (the circle admin).
+                  </p>
+                </div>
+
+                {/* Fee collection timing */}
+                <div className="space-y-2">
+                  <Label>When is the fee collected?</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <JoinFeeTypeButton
+                      selected={joinFeeType === "before_joining"}
+                      onClick={() => setValue("joinFeeType", "before_joining")}
+                      label="Before joining"
+                      description="Deducted from member's wallet immediately when they join."
+                    />
+                    <JoinFeeTypeButton
+                      selected={joinFeeType === "first_contribution"}
+                      onClick={() =>
+                        setValue("joinFeeType", "first_contribution")
+                      }
+                      label="With first contribution"
+                      description="Collected alongside their first contribution payment."
+                    />
+                  </div>
+                  <input type="hidden" {...register("joinFeeType")} />
+                </div>
+
+                {/* Live preview if fee is set */}
+                {joinFeeKobo > 0 && (
+                  <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-1.5 text-xs">
+                    <p className="font-semibold text-primary flex items-center gap-1.5">
+                      <InfoIcon className="size-3.5" />
+                      Fee preview
+                    </p>
+                    <div className="flex justify-between text-foreground/80">
+                      <span>Fee per member</span>
+                      <span className="font-mono font-semibold">
+                        {formatNaira(joinFeeKobo)}
+                      </span>
+                    </div>
+                    {maxMembersNum > 1 && (
+                      <div className="flex justify-between text-foreground/80">
+                        <span>
+                          Total from {maxMembersNum - 1} other member
+                          {maxMembersNum - 1 !== 1 ? "s" : ""}
+                        </span>
+                        <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                          {formatNaira(joinFeeKobo * (maxMembersNum - 1))}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-muted-foreground pt-0.5 border-t border-border/60">
+                      {joinFeeType === "before_joining"
+                        ? "Credited to your wallet as each member joins."
+                        : "Collected when each member makes their first contribution."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3">
@@ -666,6 +853,28 @@ export function CreateCircleForm() {
                     : "Admin only"
                 }
               />
+              {/* Join fee summary rows */}
+              {joinFeeEnabled && joinFeeKobo > 0 ? (
+                <>
+                  <SummaryRow
+                    label="Join fee (per member)"
+                    value={formatNaira(joinFeeKobo)}
+                  />
+                  <SummaryRow
+                    label="Fee collection"
+                    value={
+                      joinFeeType === "before_joining"
+                        ? "Before joining"
+                        : "With first contribution"
+                    }
+                    muted
+                  />
+                </>
+              ) : joinFeeEnabled ? (
+                <SummaryRow label="Join fee" value="Enabled (₦0)" muted />
+              ) : (
+                <SummaryRow label="Join fee" value="None" muted />
+              )}
             </CardContent>
           </Card>
 
@@ -681,12 +890,34 @@ export function CreateCircleForm() {
                 <strong>
                   {creationFee > 0
                     ? formatNaira(creationFee)
-                    : "5% of contribution"}
+                    : `${creationFeePercent}% of total pool`}
                 </strong>{" "}
-                will be deducted from your wallet when you create this circle.
+                ({creationFeePercent}% × {formatNaira(goalKobo || 0)} total
+                pool) will be deducted from your wallet when you create this
+                circle.
               </p>
             </div>
           </div>
+
+          {/* Join fee admin notice */}
+          {joinFeeEnabled && joinFeeKobo > 0 && (
+            <div className="rounded-xl bg-primary/5 border border-primary/20 p-3 flex gap-2.5">
+              <TicketIcon className="size-4 text-primary shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="text-xs font-medium text-primary">
+                  Join fee enabled
+                </p>
+                <p className="text-xs text-foreground/70">
+                  Each new member will pay{" "}
+                  <strong>{formatNaira(joinFeeKobo)}</strong>{" "}
+                  {joinFeeType === "before_joining"
+                    ? "immediately when joining"
+                    : "alongside their first contribution"}
+                  . This goes directly to your wallet.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3">
             <Button

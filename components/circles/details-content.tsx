@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftIcon,
   CalendarIcon,
-  Users2Icon,
   TrendingUpIcon,
   ShieldCheckIcon,
   LockIcon,
@@ -18,14 +17,14 @@ import {
   BellIcon,
   Trash2Icon,
   Loader2,
+  TicketIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 import { useCircleRealtime } from "@/lib/hooks/use-circle";
+import { useWallet } from "@/lib/hooks/use-wallet";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { db } from "@/lib/firebase/client";
 import { formatNaira, cn } from "@/lib/utils";
 import { FREQ_LABELS, PAYOUT_LABELS, STATUS_META } from "@/lib/types/circle";
 
@@ -34,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -56,9 +55,9 @@ import {
 import { ContributionDialog } from "@/components/circles/contribution-dialog";
 import { BidDialog } from "@/components/circles/bid-dialog";
 import { MembersList } from "@/components/circles/members-list";
-// import { PendingRequests } from "@/components/circles/pending-requests";
 import { LeaveCircleDialog } from "@/components/circles/leave-circle-dialog";
-import { PendingRequests } from "./pending-requests";
+import { PendingRequests } from "@/components/circles/pending-requests";
+import { JoinFeeConfirmDialog } from "@/components/circles/join-fee-confirm-dialog";
 
 interface CircleDetailContentProps {
   circleId: string;
@@ -72,11 +71,15 @@ export function CircleDetailContent({
   const router = useRouter();
   const { firebaseUser, appUser } = useAuthStore();
   const { circle, isLoading, error } = useCircleRealtime(circleId);
+  // Live wallet for join fee balance check
+  const { wallet } = useWallet();
+  const effectiveWalletBalance = wallet?.available ?? walletBalance;
 
   const [contributeOpen, setContributeOpen] = useState(false);
   const [bidOpen, setBidOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [joinFeeDialogOpen, setJoinFeeDialogOpen] = useState(false);
   const [isTogglingPause, setIsTogglingPause] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [customInviteCode, setCustomInviteCode] = useState("");
@@ -84,24 +87,15 @@ export function CircleDetailContent({
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(
     null,
   );
+
   const searchParams = useSearchParams();
   const inviteCodeParam = searchParams.get("inviteCode")?.trim().toUpperCase();
 
-  // Re-renders when pendingRequestIds changes via real-time listener
-  const handleRequestProcessed = useCallback(() => {
-    // The real-time listener on useCircleRealtime automatically refreshes
-    // pendingRequestIds — no manual state update needed here
-  }, []);
+  const handleRequestProcessed = useCallback(() => {}, []);
 
-  if (isLoading) {
-    return <CircleDetailSkeleton />;
-  }
+  if (isLoading) return <CircleDetailSkeleton />;
 
   if (error || !circle) {
-    console.warn("[CircleDetailContent] circle missing or error", {
-      circleId,
-      error: error?.message,
-    });
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] text-center px-4">
         <p className="text-sm font-medium">Circle not found</p>
@@ -121,13 +115,12 @@ export function CircleDetailContent({
   const isCurrentRecipient = circle.currentRecipientId === firebaseUser?.uid;
   const invitePermission = circle.invitePermission ?? "admin";
   const canInvite = isAdmin || (isMember && invitePermission === "members");
+  const hasFee = circle.joinFeeEnabled && circle.joinFee > 0;
 
   async function handleMemberAction(
     memberId: string,
     action: "pause" | "resume" | "shift",
   ) {
-    if (!circle) return;
-
     setMemberActionLoading(memberId);
     try {
       const res = await fetch(`/api/circles/${circleId}/members`, {
@@ -138,14 +131,13 @@ export function CircleDetailContent({
       const json = await res.json();
       if (!json.success)
         throw new Error(json.error || "Failed to update member");
-
-      const message =
+      toast.success(
         action === "pause"
-          ? "Member paused successfully."
+          ? "Member paused."
           : action === "resume"
-            ? "Member resumed successfully."
-            : "Member shifted successfully.";
-      toast.success(message);
+            ? "Member resumed."
+            : "Member shifted.",
+      );
       router.refresh();
     } catch (err) {
       toast.error(
@@ -159,14 +151,9 @@ export function CircleDetailContent({
   const progress =
     circle.goal > 0 ? Math.round((circle.saved / circle.goal) * 100) : 0;
   const statusMeta = STATUS_META[circle.status];
-
-  // Determine user's turn position (1-indexed)
   const myTurnPosition = isMember
     ? circle.memberIds.indexOf(firebaseUser?.uid ?? "") + 1
     : 0;
-
-  // Check if user has a pending contribution for this cycle
-  // (Approximate: if saved < expected-per-member × cycle, assume pending)
   const hasPendingContribution = isMember && circle.status === "active";
 
   const progressColorCls =
@@ -179,8 +166,60 @@ export function CircleDetailContent({
   const nextDueDate = circle.nextDueDate?.toDate?.() ?? new Date();
   const nextPayoutDate = circle.nextPayoutDate?.toDate?.() ?? new Date();
 
+  // ── Join helpers ────────────────────────────────────────────────────────────
+
+  /**
+   * Entry point for all join attempts. If the circle has a fee, open the
+   * confirmation dialog first. Otherwise execute the join directly.
+   */
+  function handleJoinIntent(inviteCode?: string) {
+    if (hasFee) {
+      setJoinFeeDialogOpen(true);
+    } else {
+      executeJoin(inviteCode);
+    }
+  }
+
+  /** Fires the actual API call — called after fee confirmation or directly */
+  async function executeJoin(inviteCode?: string) {
+    const resolvedCode =
+      inviteCode ??
+      (circle?.isPrivate
+        ? (inviteCodeParam ?? customInviteCode.trim().toUpperCase())
+        : undefined);
+
+    if (circle?.isPrivate && !resolvedCode) {
+      toast.error("Please provide an invite code to join this private circle.");
+      return;
+    }
+
+    setJoinFeeDialogOpen(false);
+    setIsJoining(true);
+    try {
+      const body = circle?.isPrivate ? { inviteCode: resolvedCode } : {};
+      const res = await fetch(`/api/circles/${circleId}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to join circle");
+      toast.success("Welcome to the circle!");
+      setCustomInviteCode("");
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to join circle.",
+      );
+    } finally {
+      setIsJoining(false);
+    }
+  }
+
+  // ── Admin helpers ────────────────────────────────────────────────────────────
+
   async function handleTogglePause() {
-    if (!isAdmin || !circle) return;
+    if (!isAdmin) return;
     setIsTogglingPause(true);
     try {
       const action = circle.status === "active" ? "pause" : "unpause";
@@ -203,47 +242,11 @@ export function CircleDetailContent({
     }
   }
 
-  async function handleJoinCircle() {
-    if (!circle) return;
-
-    const inviteCode = circle?.isPrivate
-      ? (inviteCodeParam ?? customInviteCode.trim().toUpperCase())
-      : undefined;
-
-    if (circle?.isPrivate && !inviteCode) {
-      toast.error("Please provide an invite code to join this private circle.");
-      return;
-    }
-
-    setIsJoining(true);
-    try {
-      const body = circle?.isPrivate ? { inviteCode } : undefined;
-      const res = await fetch(`/api/circles/${circleId}/join`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body ?? {}),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed to join circle");
-      toast.success("Welcome to the circle!");
-      setCustomInviteCode("");
-      router.refresh();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to join circle.",
-      );
-    } finally {
-      setIsJoining(false);
-    }
-  }
-
   async function handleDeleteCircle() {
     if (!isAdmin) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/circles/${circleId}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`/api/circles/${circleId}`, { method: "DELETE" });
       const data = await res.json();
       if (!data.success)
         throw new Error(data.error ?? "Failed to delete circle");
@@ -252,9 +255,7 @@ export function CircleDetailContent({
       router.refresh();
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "Failed to delete circle. Please try again.",
+        err instanceof Error ? err.message : "Failed to delete circle.",
       );
     } finally {
       setIsDeleting(false);
@@ -263,25 +264,17 @@ export function CircleDetailContent({
   }
 
   function copyInviteCode() {
-    navigator.clipboard.writeText(circle!.inviteCode ?? "");
+    navigator.clipboard.writeText(circle.inviteCode ?? "");
     toast.success("Invite code copied!");
   }
 
   async function handleShareInvite() {
-    if (!circle) return;
-
     const inviteUrl = `${window.location.origin}/circles/${circleId}${
       circle.isPrivate ? `?inviteCode=${circle.inviteCode}` : ""
     }`;
     const shareText = circle.isPrivate
-      ? `Join my private circle "${circle.name}" on AjoSave.
-Invite code: ${circle.inviteCode}
-
-${inviteUrl}`
-      : `Join my circle "${circle.name}" on AjoSave.
-
-${inviteUrl}`;
-
+      ? `Join my private circle "${circle.name}" on AjoSave.\nInvite code: ${circle.inviteCode}\n\n${inviteUrl}`
+      : `Join my circle "${circle.name}" on AjoSave.\n\n${inviteUrl}`;
     try {
       if (navigator.share) {
         await navigator.share({
@@ -293,12 +286,11 @@ ${inviteUrl}`;
         await navigator.clipboard.writeText(shareText);
         toast.success("Invite link copied!");
       }
-    } catch (err) {
+    } catch {
       toast.error("Unable to share invite. Please try copying the link.");
     }
   }
 
-  // Build members list with actual data
   const membersList = circle.memberIds.map((uid, i) => ({
     uid,
     name:
@@ -351,7 +343,6 @@ ${inviteUrl}`;
                 </p>
               </div>
 
-              {/* Admin menu */}
               {isAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -409,6 +400,23 @@ ${inviteUrl}`;
                     {tag}
                   </Badge>
                 ))}
+              </div>
+            )}
+
+            {/* Join fee banner — visible to non-members only */}
+            {!isMember && !isPending && hasFee && (
+              <div className="flex items-center gap-2.5 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2.5 text-xs">
+                <TicketIcon className="size-4 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-primary">
+                    {formatNaira(circle.joinFee)} join fee
+                  </span>
+                  <span className="text-muted-foreground ml-1.5">
+                    {circle.joinFeeType === "before_joining"
+                      ? "— charged immediately on joining"
+                      : "— charged with your first contribution"}
+                  </span>
+                </div>
               </div>
             )}
 
@@ -558,23 +566,21 @@ ${inviteUrl}`;
                     This circle is private. Enter the invite code below or use
                     the invite link you received.
                   </p>
-                  {inviteCodeParam ? (
+                  {inviteCodeParam && (
                     <p className="text-sm font-medium">
                       Invite code detected:{" "}
                       <span className="font-mono">{inviteCodeParam}</span>
                     </p>
-                  ) : null}
+                  )}
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Input
                       value={inviteCodeParam || customInviteCode}
-                      onChange={(event) =>
-                        setCustomInviteCode(event.target.value)
-                      }
+                      onChange={(e) => setCustomInviteCode(e.target.value)}
                       placeholder="Enter invite code"
                       disabled={Boolean(inviteCodeParam)}
                     />
                     <Button
-                      onClick={handleJoinCircle}
+                      onClick={() => handleJoinIntent()}
                       disabled={
                         isJoining ||
                         (!inviteCodeParam && !customInviteCode.trim())
@@ -582,20 +588,30 @@ ${inviteUrl}`;
                     >
                       {isJoining
                         ? "Joining…"
-                        : inviteCodeParam
-                          ? "Accept invite"
-                          : "Join circle"}
+                        : hasFee
+                          ? `View fee & join`
+                          : inviteCodeParam
+                            ? "Accept invite"
+                            : "Join circle"}
                     </Button>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <p className="text-sm text-muted-foreground">
-                    This is a public circle. Send a request and the admin will
-                    review it.
+                    {hasFee
+                      ? "This circle has a join fee. Review the details before joining."
+                      : "This is a public circle. Send a request and the admin will review it."}
                   </p>
-                  <Button onClick={handleJoinCircle} disabled={isJoining}>
-                    {isJoining ? "Sending request…" : "Request to join"}
+                  <Button
+                    onClick={() => handleJoinIntent()}
+                    disabled={isJoining}
+                  >
+                    {isJoining
+                      ? "Sending request…"
+                      : hasFee
+                        ? `View fee & join`
+                        : "Request to join"}
                   </Button>
                 </div>
               )}
@@ -640,11 +656,9 @@ ${inviteUrl}`;
                   isAdmin={isAdmin}
                   isShiftEnabled={circle.payoutOrder === "rotational"}
                   memberActionLoadingId={memberActionLoading ?? undefined}
-                  onPause={(memberId) => handleMemberAction(memberId, "pause")}
-                  onResume={(memberId) =>
-                    handleMemberAction(memberId, "resume")
-                  }
-                  onShift={(memberId) => handleMemberAction(memberId, "shift")}
+                  onPause={(id) => handleMemberAction(id, "pause")}
+                  onResume={(id) => handleMemberAction(id, "resume")}
+                  onShift={(id) => handleMemberAction(id, "shift")}
                 />
               </CardContent>
             </Card>
@@ -694,7 +708,6 @@ ${inviteUrl}`;
         />
       )}
 
-      {/* Leave circle dialog — fully wired */}
       <LeaveCircleDialog
         open={leaveDialogOpen}
         onOpenChange={setLeaveDialogOpen}
@@ -708,7 +721,18 @@ ${inviteUrl}`;
         currentCycle={circle.currentCycle}
       />
 
-      {/* Delete / Cancel circle confirm */}
+      {/* Join fee confirmation */}
+      <JoinFeeConfirmDialog
+        open={joinFeeDialogOpen}
+        onOpenChange={setJoinFeeDialogOpen}
+        circleName={circle.name}
+        joinFeeKobo={circle.joinFee}
+        joinFeeType={circle.joinFeeType}
+        walletBalance={effectiveWalletBalance}
+        onConfirm={() => executeJoin()}
+        isLoading={isJoining}
+      />
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

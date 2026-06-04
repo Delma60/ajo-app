@@ -7,10 +7,13 @@ import {
   ChevronRightIcon,
   Loader2,
   SlidersHorizontalIcon,
+  TicketIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePublicCircles, useJoinCircle } from "@/lib/hooks/use-circle";
+import { useWallet } from "@/lib/hooks/use-wallet";
 import { CircleCardSkeleton } from "@/components/circles/card";
+import { JoinFeeConfirmDialog } from "@/components/circles/join-fee-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -25,11 +28,11 @@ import {
 import { formatNaira, cn } from "@/lib/utils";
 import { FREQ_LABELS, type CircleWithGoal } from "@/lib/types/circle";
 
-// ─── Discover card (richer than the dashboard card) ──────────────────────────
+// ─── Discover card ────────────────────────────────────────────────────────────
 
 interface DiscoverCardProps {
   circle: CircleWithGoal;
-  onJoin: (id: string) => void;
+  onJoin: (circle: CircleWithGoal) => void;
   isJoining: boolean;
   alreadyMember: boolean;
 }
@@ -52,6 +55,8 @@ function DiscoverCard({
         ? "[&>[data-slot=progress-indicator]]:bg-amber-400"
         : "[&>[data-slot=progress-indicator]]:bg-blue-500";
 
+  const hasFee = circle.joinFeeEnabled && circle.joinFee > 0;
+
   return (
     <div className="rounded-xl border border-border bg-card p-4 space-y-3 hover:border-primary/40 transition-colors group">
       <div className="flex items-start justify-between gap-3">
@@ -63,9 +68,20 @@ function DiscoverCard({
             {circle.description}
           </p>
         </div>
-        <Badge variant="secondary" className="shrink-0 text-xs">
-          {FREQ_LABELS[circle.frequency]}
-        </Badge>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {hasFee && (
+            <Badge
+              variant="outline"
+              className="text-[10px] h-5 px-1.5 gap-1 border-primary/30 text-primary bg-primary/5"
+            >
+              <TicketIcon className="size-2.5" />
+              {formatNaira(circle.joinFee)} fee
+            </Badge>
+          )}
+          <Badge variant="secondary" className="text-xs">
+            {FREQ_LABELS[circle.frequency]}
+          </Badge>
+        </div>
       </div>
 
       {/* Stats */}
@@ -107,7 +123,7 @@ function DiscoverCard({
         </p>
       </div>
 
-      {/* Trust score */}
+      {/* Trust score + CTA */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <div
@@ -131,7 +147,7 @@ function DiscoverCard({
             size="sm"
             variant={spotsLeft === 0 ? "outline" : "default"}
             disabled={isJoining || spotsLeft === 0}
-            onClick={() => onJoin(circle.id)}
+            onClick={() => onJoin(circle)}
             className="h-7"
           >
             {isJoining ? (
@@ -139,7 +155,7 @@ function DiscoverCard({
             ) : (
               <ChevronRightIcon className="size-3" />
             )}
-            {spotsLeft === 0 ? "Full" : "Request to join"}
+            {spotsLeft === 0 ? "Full" : hasFee ? "View fee & join" : "Request to join"}
           </Button>
         )}
       </div>
@@ -159,15 +175,34 @@ export function DiscoverCirclesContent({
   const [search, setSearch] = useState("");
   const [frequencyFilter, setFrequencyFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("members");
+
+  // Join fee dialog state
+  const [pendingJoinCircle, setPendingJoinCircle] =
+    useState<CircleWithGoal | null>(null);
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const { data: circles, isLoading, error } = usePublicCircles(search);
+  const { wallet } = useWallet();
   const joinCircle = useJoinCircle();
 
-  async function handleJoin(circleId: string) {
+  // Called when user clicks the join button — shows fee dialog or joins directly
+  function handleJoinClick(circle: CircleWithGoal) {
+    const hasFee = circle.joinFeeEnabled && circle.joinFee > 0;
+    if (hasFee) {
+      // Show confirmation dialog first
+      setPendingJoinCircle(circle);
+    } else {
+      // No fee — join directly
+      executeJoin(circle.id);
+    }
+  }
+
+  // Called either directly (no fee) or after user confirms fee dialog
+  async function executeJoin(circleId: string, inviteCode?: string) {
     setJoiningId(circleId);
+    setPendingJoinCircle(null);
     try {
-      await joinCircle.mutateAsync({ circleId });
+      await joinCircle.mutateAsync({ circleId, inviteCode });
       toast.success("Join request sent! The admin will review your request.");
     } catch (err) {
       toast.error(
@@ -273,7 +308,7 @@ export function DiscoverCirclesContent({
                 <DiscoverCard
                   key={circle.id}
                   circle={circle}
-                  onJoin={handleJoin}
+                  onJoin={handleJoinClick}
                   isJoining={joiningId === circle.id}
                   alreadyMember={myCircleIds.includes(circle.id)}
                 />
@@ -282,6 +317,20 @@ export function DiscoverCirclesContent({
           </>
         )}
       </div>
+
+      {/* Join fee confirmation dialog */}
+      {pendingJoinCircle && (
+        <JoinFeeConfirmDialog
+          open={!!pendingJoinCircle}
+          onOpenChange={(open) => !open && setPendingJoinCircle(null)}
+          circleName={pendingJoinCircle.name}
+          joinFeeKobo={pendingJoinCircle.joinFee}
+          joinFeeType={pendingJoinCircle.joinFeeType}
+          walletBalance={wallet?.available}
+          onConfirm={() => executeJoin(pendingJoinCircle.id)}
+          isLoading={joiningId === pendingJoinCircle.id}
+        />
+      )}
     </div>
   );
 }
