@@ -1,38 +1,62 @@
 // ─── Platform Settings Types ──────────────────────────────────────────────────
 
 export interface WalletSettings {
-  minDepositKobo: number;          // ₦500 default
-  maxDepositKobo: number;          // ₦5,000,000 default
-  minWithdrawKobo: number;         // ₦1,000 default
-  maxWithdrawKobo: number;         // ₦10,00,000 default (safety limit)
-  withdrawFeeFlatKobo: number;     // ₦50 flat fee
-  withdrawFeePercent: number;      // 1% of amount
-  withdrawFeeCapKobo: number;      // ₦500 cap
-  maxWalletBalanceKobo: number;    // safety ceiling (0 = unlimited)
+  minDepositKobo: number;
+  maxDepositKobo: number;
+  minWithdrawKobo: number;
+  maxWithdrawKobo: number;
+  withdrawFeeFlatKobo: number;
+  withdrawFeePercent: number;
+  withdrawFeeCapKobo: number;
+  maxWalletBalanceKobo: number;
 }
 
 export interface CircleSettings {
-  maxActiveCirclesPerUser: number; // 10 default
-  minContributionKobo: number;     // ₦500 default
-  maxContributionKobo: number;     // ₦1,000,000 default
-  minCircleMembers: number;        // 2 default
-  maxCircleMembers: number;        // 50 default
-  creationFeePercent: number;      // 5% of contribution
-  latePenaltyPercent: number;      // 10% of contribution
-  latePenaltySplitEnabled: boolean; // whether late penalty revenue can be shared with circle admins
-  latePenaltyCircleAdminSharePercent: number; // percent of late penalty paid to the circle admin
-  gracePeriodHours: number;        // 48h before late
-  consecutiveMissedLimit: number;  // 3 before auto-removal
-  bidCloseHoursBeforePayout: number; // 24h
+  maxActiveCirclesPerUser: number;
+  minContributionKobo: number;
+  maxContributionKobo: number;
+  minCircleMembers: number;
+  maxCircleMembers: number;
+  creationFeePercent: number;
+  latePenaltyPercent: number;
+  latePenaltySplitEnabled: boolean;
+  latePenaltyCircleAdminSharePercent: number;
+  gracePeriodHours: number;
+  consecutiveMissedLimit: number;
+  bidCloseHoursBeforePayout: number;
+
+  // ─── Join fee abuse protection ─────────────────────────────────────────────
+  /**
+   * Maximum join fee expressed as a percentage of the circle's per-cycle
+   * contribution. E.g. 50 means the join fee can be at most 50% of the
+   * contribution amount.
+   *
+   * This is the primary anti-abuse control because it ties the fee to the
+   * value a member actually gets from the circle. A circle charging ₦5,000
+   * contribution cannot charge more than ₦2,500 join fee at 50%.
+   *
+   * Default: 50 (%)
+   */
+  maxJoinFeePercent: number;
+
+  /**
+   * Absolute hard cap on join fee in kobo, regardless of contribution size.
+   * Prevents high-contribution circles from charging enormous join fees.
+   *
+   * The effective cap is: min(contribution × maxJoinFeePercent/100, maxJoinFeeKobo)
+   *
+   * Default: ₦5,000 (500_000 kobo)
+   */
+  maxJoinFeeKobo: number;
 }
 
 export interface PayoutSettings {
-  platformPayoutFeePercent: number; // 1%
-  kycRequiredAboveKobo: number;    // ₦50,000
-  referralBonusKobo: number;       // ₦500 per referral
-  referralMinDepositKobo: number;  // ₦1,000 qualifying deposit
-  referralMonthlyLimit: number;    // 50 referrals/month cap
-  settlementPeriodHours: number;   // payout settlement hold period in hours
+  platformPayoutFeePercent: number;
+  kycRequiredAboveKobo: number;
+  referralBonusKobo: number;
+  referralMinDepositKobo: number;
+  referralMonthlyLimit: number;
+  settlementPeriodHours: number;
 }
 
 export interface GeneralSettings {
@@ -43,27 +67,27 @@ export interface GeneralSettings {
   supportEmail: string;
   supportPhone?: string;
   timezone: string;
-  currency: string; // e.g. 'NGN'
-  defaultLocale: string; // e.g. 'en-NG'
-  platformIpAddress?: string; // optional IP address for integrations (e.g. Flutterwave)
+  currency: string;
+  defaultLocale: string;
+  platformIpAddress?: string;
 }
 
 export interface InvestmentSettings {
-  platformInterestFeePercent: number; // 1% on interest only
+  platformInterestFeePercent: number;
   earlyWithdrawalEnabled: boolean;
 }
 
 export interface TrustScoreSettings {
-  onTimePaymentWeight: number;  // +2
-  latePaymentWeight: number;    // -5
-  missedPaymentWeight: number;  // -15
+  onTimePaymentWeight: number;
+  latePaymentWeight: number;
+  missedPaymentWeight: number;
 }
 
 export interface NotificationSettings {
   smsEnabled: boolean;
   emailEnabled: boolean;
-  smsProviderName: string; // "Termii"
-  emailProviderName: string; // "Nodemailer"
+  smsProviderName: string;
+  emailProviderName: string;
 }
 
 export interface AppDistributionPlatform {
@@ -101,7 +125,7 @@ export interface PlatformSettings {
   updatedBy?: string;
 }
 
-// ─── Default values (mirrors lib/constants.ts) ────────────────────────────────
+// ─── Default values ────────────────────────────────────────────────────────────
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   general: {
@@ -139,6 +163,9 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
     gracePeriodHours: 48,
     consecutiveMissedLimit: 3,
     bidCloseHoursBeforePayout: 24,
+    // Join fee protection defaults
+    maxJoinFeePercent: 50,    // Join fee ≤ 50% of the per-cycle contribution
+    maxJoinFeeKobo: 500_000,  // Hard cap: ₦5,000
   },
   payouts: {
     platformPayoutFeePercent: 1,

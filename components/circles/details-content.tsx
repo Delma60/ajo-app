@@ -219,7 +219,7 @@ export function CircleDetailContent({
   // ── Admin helpers ────────────────────────────────────────────────────────────
 
   async function handleTogglePause() {
-    if (!isAdmin) return;
+    if (!isAdmin || !circle) return;
     setIsTogglingPause(true);
     try {
       const action = circle.status === "active" ? "pause" : "unpause";
@@ -264,11 +264,13 @@ export function CircleDetailContent({
   }
 
   function copyInviteCode() {
+    if (!circle) return;
     navigator.clipboard.writeText(circle.inviteCode ?? "");
     toast.success("Invite code copied!");
   }
 
   async function handleShareInvite() {
+    if (!circle) return;
     const inviteUrl = `${window.location.origin}/circles/${circleId}${
       circle.isPrivate ? `?inviteCode=${circle.inviteCode}` : ""
     }`;

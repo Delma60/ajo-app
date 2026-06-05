@@ -1,3 +1,6 @@
+import { CircleSettings } from "./types/admin-settings";
+import { computeMaxJoinFee } from "./validators/circle";
+
 // Utility functions placeholder
 export function cn(...args: any[]): string {
   return args.filter(Boolean).join(' ');
@@ -64,4 +67,42 @@ export function parseTimestamp(value: unknown): Date | null {
   }
 
   return date && !isNaN(date.getTime()) ? date : null;
+}
+
+/**
+ * Validate that joinFeeKobo does not exceed the platform-enforced cap.
+ * Throws a CircleError with code JOIN_FEE_EXCEEDS_CAP if the fee is too high.
+ *
+ * @param joinFeeEnabled  - Whether join fee is turned on
+ * @param joinFeeKobo     - The proposed fee in kobo
+ * @param contributionKobo - The circle's per-cycle contribution in kobo
+ * @param settings        - Live platform CircleSettings
+ */
+export function validateJoinFee(
+  joinFeeEnabled: boolean,
+  joinFeeKobo: number,
+  contributionKobo: number,
+  settings: CircleSettings
+): void {
+  if (!joinFeeEnabled || joinFeeKobo <= 0) return;
+ 
+  const maxKobo = computeMaxJoinFee(contributionKobo, "KOBO", {
+    circles: settings,
+  } as any);
+ 
+  if (joinFeeKobo > maxKobo) {
+    const fmtFee = `₦${(joinFeeKobo / 100).toLocaleString("en-NG")}`;
+    const fmtCap = `₦${(maxKobo / 100).toLocaleString("en-NG")}`;
+    const fmtContrib = `₦${(contributionKobo / 100).toLocaleString("en-NG")}`;
+    const fmtAbsCap = `₦${(settings.maxJoinFeeKobo / 100).toLocaleString("en-NG")}`;
+ 
+    throw Object.assign(
+      new Error(
+        `Join fee ${fmtFee} exceeds the platform cap of ${fmtCap} ` +
+          `(${settings.maxJoinFeePercent}% of ${fmtContrib} contribution, ` +
+          `absolute limit ${fmtAbsCap}).`
+      ),
+      { code: "JOIN_FEE_EXCEEDS_CAP" }
+    );
+  }
 }

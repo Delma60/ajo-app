@@ -36,6 +36,7 @@ import type { Contribution } from "@/lib/types/contribution";
 import type { Bid } from "@/lib/types/bid";
 import type { User } from "@/lib/types/user";
 import type { Wallet } from "@/lib/types/wallet";
+import { validateJoinFee } from "../utils";
 
 // ─── Custom error ─────────────────────────────────────────────────────────────
 
@@ -96,6 +97,8 @@ export class CircleService {
       // Allow zero join fee (admin wants to signal optional fee), but disable silently
       joinFeeEnabled = false;
     }
+
+    validateJoinFee(joinFeeEnabled, joinFeeKobo, contributionKobo, settings);
 
     const [, adminWallet] = await Promise.all([
       this.requireUser(adminId),
@@ -207,6 +210,12 @@ export class CircleService {
       }
 
       const settings = await getCircleSettings();
+      validateJoinFee(
+      circle.joinFeeEnabled,
+      circle.joinFee,
+      circle.contribution,
+      settings
+    );
       const activeCount = await this.countActiveCircles(userId);
       if (activeCount >= settings.maxActiveCirclesPerUser) {
         throw new CircleError(

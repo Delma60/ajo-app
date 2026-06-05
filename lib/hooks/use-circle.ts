@@ -139,6 +139,9 @@ interface CreateCirclePayload {
   isPrivate: boolean;
   invitePermission: Circle["invitePermission"];
   tags: string[];
+  joinFeeEnabled: boolean;
+  joinFee: number;
+  joinFeeType: Circle["joinFeeType"];
 }
 
 export function useCreateCircle() {

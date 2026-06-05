@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { JoinFeeProtectionFields } from "@/components/admin/settings/admin-settings-join-fee-fields";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -1718,6 +1719,14 @@ export function AdminSettingsContent() {
                   unit="hours"
                 />
               </SettingRow>
+
+              <Separator className="my-2" />
+              <JoinFeeProtectionFields
+                maxJoinFeePercent={draft.circles?.maxJoinFeePercent ?? 50}
+                maxJoinFeeKobo={draft.circles?.maxJoinFeeKobo ?? 500_000}
+                onChange={(field, value) => updateCircles(field, value)}
+                disabled={savingSection === "circles"}
+              />
             </CardContent>
           </Card>
         )}

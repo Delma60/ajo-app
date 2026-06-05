@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller } from "react-hook-form";
+import {
+  useForm,
+  Controller,
+  type UseFormRegister,
+  type Control,
+  type UseFormWatch,
+  type UseFormSetValue,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import {
@@ -21,16 +28,19 @@ import {
   TicketIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  AlertTriangleIcon,
 } from "lucide-react";
 
 import {
   buildCreateCircleSchema,
+  computeMaxJoinFee,
   type CreateCircleFormValues,
 } from "@/lib/validators/circle";
 import { useCreateCircle } from "@/lib/hooks/use-circle";
 import { useSettings } from "@/lib/providers/settings";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { formatNaira } from "@/lib/utils";
+import type { PlatformSettings } from "@/lib/types/admin-settings";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,7 +155,12 @@ function SummaryRow({
 }) {
   return (
     <div className="flex items-center justify-between py-1.5 text-sm border-b border-border last:border-0">
-      <span className={cn("text-muted-foreground", muted && "text-muted-foreground/60")}>
+      <span
+        className={cn(
+          "text-muted-foreground",
+          muted && "text-muted-foreground/60",
+        )}
+      >
         {label}
       </span>
       <span
@@ -188,6 +203,248 @@ function JoinFeeTypeButton({
       <p className="font-semibold">{label}</p>
       <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
     </button>
+  );
+}
+
+interface JoinFeeSectionProps {
+  control: Control<CreateCircleFormValues>;
+  register: UseFormRegister<CreateCircleFormValues>;
+  watch: UseFormWatch<CreateCircleFormValues>;
+  setValue: UseFormSetValue<CreateCircleFormValues>;
+  settings: PlatformSettings;
+  errors: Partial<Record<keyof CreateCircleFormValues, { message?: string }>>;
+}
+
+function JoinFeeSection({
+  control,
+  register,
+  watch,
+  setValue,
+  settings,
+  errors,
+}: JoinFeeSectionProps) {
+  const watchedValues = watch();
+  const joinFeeEnabled = watchedValues.joinFeeEnabled ?? false;
+  const joinFeeNum = Number(watchedValues.joinFee ?? 0) || 0;
+  const joinFeeKobo = Math.round(joinFeeNum * 100);
+  const joinFeeType = watchedValues.joinFeeType ?? "before_joining";
+  const contributionNum = Number(watchedValues.contribution ?? 0) || 0;
+  const maxMembersNum = Number(watchedValues.maxMembers ?? 0) || 0;
+
+  const maxJoinFeeNGN =
+    contributionNum > 0
+      ? computeMaxJoinFee(contributionNum, "NGN", settings)
+      : settings.circles.maxJoinFeeKobo / 100;
+
+  const maxJoinFeePercent = settings.circles.maxJoinFeePercent;
+  const maxJoinFeeAbsNGN = settings.circles.maxJoinFeeKobo / 100;
+  const isOverCap =
+    joinFeeEnabled && joinFeeNum > 0 && joinFeeNum > maxJoinFeeNGN;
+
+  function handleJoinFeeBlur() {
+    if (isOverCap) {
+      setValue("joinFee", Math.floor(maxJoinFeeNGN), { shouldValidate: true });
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      <div className="flex items-center justify-between gap-3 p-4">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "flex size-9 items-center justify-center rounded-lg transition-colors",
+              joinFeeEnabled ? "bg-primary/10" : "bg-muted",
+            )}
+          >
+            <TicketIcon
+              className={cn(
+                "size-4 transition-colors",
+                joinFeeEnabled ? "text-primary" : "text-muted-foreground",
+              )}
+            />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Join fee</p>
+            <p className="text-xs text-muted-foreground">
+              One-time fee charged to each new member
+            </p>
+          </div>
+        </div>
+        <Controller
+          name="joinFeeEnabled"
+          control={control}
+          render={({ field }) => (
+            <Switch
+              checked={field.value ?? false}
+              onCheckedChange={field.onChange}
+            />
+          )}
+        />
+      </div>
+
+      {joinFeeEnabled && (
+        <div className="border-t border-border p-4 space-y-4 bg-muted/20">
+          <div className="flex items-start gap-2 rounded-lg bg-muted/60 border border-border px-3 py-2.5 text-xs text-muted-foreground">
+            <InfoIcon className="size-3.5 shrink-0 mt-0.5" />
+            <p>
+              Platform rules:{" "}
+              <span className="font-medium text-foreground">
+                max {maxJoinFeePercent}% of contribution
+              </span>{" "}
+              and no more than{" "}
+              <span className="font-medium text-foreground">
+                {formatNaira(settings.circles.maxJoinFeeKobo)}
+              </span>{" "}
+              absolute.
+              {contributionNum > 0 && (
+                <>
+                  {" "}
+                  Your effective cap:{" "}
+                  <span className="font-semibold text-foreground">
+                    {formatNaira(Math.round(maxJoinFeeNGN * 100))}
+                  </span>
+                  .
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="join-fee">Fee amount (₦)</Label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                ₦
+              </span>
+              <Input
+                id="join-fee"
+                type="number"
+                min="0"
+                max={Math.floor(maxJoinFeeNGN)}
+                step="100"
+                placeholder="0"
+                className={cn(
+                  "pl-7",
+                  isOverCap &&
+                    "border-destructive focus-visible:ring-destructive",
+                )}
+                aria-invalid={!!errors.joinFee || isOverCap}
+                {...register("joinFee", { onBlur: handleJoinFeeBlur })}
+              />
+            </div>
+
+            {isOverCap && (
+              <div className="flex items-start gap-2 rounded-lg bg-destructive/5 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+                <AlertTriangleIcon className="size-3.5 shrink-0 mt-0.5" />
+                <p>
+                  Fee exceeds the platform cap of{" "}
+                  <strong>
+                    {formatNaira(Math.round(maxJoinFeeNGN * 100))}
+                  </strong>
+                  .{" "}
+                  {contributionNum > 0
+                    ? `This is ${maxJoinFeePercent}% of your ₦${contributionNum.toLocaleString(
+                        "en-NG",
+                      )} contribution (capped at ${formatNaira(
+                        settings.circles.maxJoinFeeKobo,
+                      )} max).`
+                    : `Maximum allowed is ${formatNaira(settings.circles.maxJoinFeeKobo)}.`}
+                </p>
+              </div>
+            )}
+
+            {errors.joinFee && !isOverCap && (
+              <p className="text-xs text-destructive">
+                {errors.joinFee.message}
+              </p>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              This fee goes directly to you (the circle admin). It is separate
+              from members' regular contributions.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>When is the fee collected?</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <JoinFeeTypeButton
+                selected={joinFeeType === "before_joining"}
+                onClick={() => setValue("joinFeeType", "before_joining")}
+                label="Before joining"
+                description="Deducted from member's wallet immediately when they join."
+              />
+              <JoinFeeTypeButton
+                selected={joinFeeType === "first_contribution"}
+                onClick={() => setValue("joinFeeType", "first_contribution")}
+                label="With first contribution"
+                description="Collected alongside their first contribution payment."
+              />
+            </div>
+            <input type="hidden" {...register("joinFeeType")} />
+          </div>
+
+          <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 space-y-1.5 text-xs">
+            <p className="font-semibold text-primary flex items-center gap-1.5">
+              <InfoIcon className="size-3.5" />
+              Fee preview
+            </p>
+            <div className="flex justify-between text-foreground/80">
+              <span>Fee per member</span>
+              <span className="font-mono font-semibold">
+                {formatNaira(joinFeeKobo)}
+              </span>
+            </div>
+            {maxMembersNum > 1 && (
+              <div className="flex justify-between text-foreground/80">
+                <span>
+                  From {maxMembersNum - 1} other member
+                  {maxMembersNum - 1 !== 1 ? "s" : ""}
+                </span>
+                <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                  {formatNaira(joinFeeKobo * (maxMembersNum - 1))}
+                </span>
+              </div>
+            )}
+            {joinFeeKobo > 0 && (
+              <div className="pt-1 border-t border-border/60">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Cap utilisation</span>
+                  <span className="font-mono">
+                    {Math.round((joinFeeNum / maxJoinFeeNGN) * 100)}% of{" "}
+                    {formatNaira(Math.round(maxJoinFeeNGN * 100))} cap
+                  </span>
+                </div>
+                <div className="mt-1 h-1 rounded-full bg-border overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      joinFeeNum / maxJoinFeeNGN >= 0.9
+                        ? "bg-amber-500"
+                        : "bg-primary",
+                    )}
+                    style={{
+                      width: `${Math.min(100, Math.round((joinFeeNum / maxJoinFeeNGN) * 100))}%`,
+                    }}
+                  />
+                </div>
+                {isOverCap && (
+                  <p className="mt-2 text-xs text-destructive">
+                    Cap reached. The fee will be clamped to{" "}
+                    {formatNaira(Math.round(maxJoinFeeNGN * 100))} on blur.
+                  </p>
+                )}
+              </div>
+            )}
+            <p className="text-muted-foreground pt-0.5 border-t border-border/60">
+              {joinFeeType === "before_joining"
+                ? "Credited to your wallet as each member joins."
+                : "Collected when each member makes their first contribution."}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
