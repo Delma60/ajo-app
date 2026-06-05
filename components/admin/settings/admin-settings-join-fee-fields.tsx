@@ -6,7 +6,10 @@ import { formatNaira } from "@/lib/utils";
 interface JoinFeeProtectionFieldsProps {
   maxJoinFeePercent: number;
   maxJoinFeeKobo: number;
-  onChange: (field: "maxJoinFeePercent" | "maxJoinFeeKobo", value: number) => void;
+  onChange: (
+    field: "maxJoinFeePercent" | "maxJoinFeeKobo",
+    value: number,
+  ) => void;
   disabled?: boolean;
 }
 
@@ -30,19 +33,26 @@ export function JoinFeeProtectionFields({
           These limits protect members from excessive join fees. The effective
           cap a circle admin can charge is:{" "}
           <strong className="text-foreground">
-            min(contribution × {maxJoinFeePercent}%, {formatNaira(maxJoinFeeKobo)})
+            min(contribution × {maxJoinFeePercent}%,{" "}
+            {formatNaira(maxJoinFeeKobo)})
           </strong>
           . Example: on a ₦1,000 circle the max join fee would be{" "}
-          <strong className="text-foreground">{formatNaira(exampleCapKobo)}</strong>.
+          <strong className="text-foreground">
+            {formatNaira(exampleCapKobo)}
+          </strong>
+          .
         </p>
       </div>
 
       <div className="flex items-start justify-between gap-6">
         <div className="space-y-1 flex-1">
-          <p className="text-sm font-medium">Max join fee (% of contribution)</p>
+          <p className="text-sm font-medium">
+            Max join fee (% of contribution)
+          </p>
           <p className="text-xs text-muted-foreground">
             Join fee cannot exceed this percentage of the circle's per-cycle
-            contribution. Protects against fees disproportionate to circle value.
+            contribution. Protects against fees disproportionate to circle
+            value.
           </p>
         </div>
         <div className="shrink-0 w-36 space-y-1">
@@ -59,7 +69,10 @@ export function JoinFeeProtectionFields({
               disabled={disabled}
               value={maxJoinFeePercent}
               onChange={(e) =>
-                onChange("maxJoinFeePercent", Math.max(1, Number(e.target.value) || 1))
+                onChange(
+                  "maxJoinFeePercent",
+                  Math.max(1, Number(e.target.value) || 1),
+                )
               }
               className="pr-8"
             />
