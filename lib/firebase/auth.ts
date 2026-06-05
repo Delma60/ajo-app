@@ -21,11 +21,14 @@ function generateReferralCode(uid: string): string {
 
 // ─── Session cookie management ────────────────────────────────────────────────
 
-export async function createSession(idToken: string): Promise<void> {
+export async function createSession(
+  idToken: string,
+  metadata?: { deviceId?: string; userAgent?: string }
+): Promise<void> {
   const res = await fetch("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken }),
+    body: JSON.stringify({ idToken, ...metadata }),
   });
   if (!res.ok) throw new Error("Failed to create session");
 }
@@ -41,7 +44,8 @@ export async function signUpWithEmail(
   email: string,
   phone: string,
   password: string,
-  referralCode?: string
+  referralCode?: string,
+  metadata?: { deviceId?: string; userAgent?: string }
 ): Promise<User> {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   const { user } = credential;
@@ -88,18 +92,19 @@ export async function signUpWithEmail(
   }).catch(console.error);
 
   const idToken = await user.getIdToken();
-  await createSession(idToken);
+  await createSession(idToken, metadata);
 
   return user;
 }
 
 export async function signInWithEmail(
   email: string,
-  password: string
+  password: string,
+  metadata?: { deviceId?: string; userAgent?: string }
 ): Promise<User> {
   const credential = await signInWithEmailAndPassword(auth, email, password);
   const idToken = await credential.user.getIdToken();
-  await createSession(idToken);
+  await createSession(idToken, metadata);
   return credential.user;
 }
 

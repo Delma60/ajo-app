@@ -32,6 +32,11 @@ import {
   getWalletSettings,
 } from "@/lib/services/settings-service";
 import { sendNotification } from "@/lib/services/notification-service";
+import {
+  createPendingReferralBonus,
+  extractFundingSourceHash,
+  recordFundingSourceHash,
+} from "@/lib/services/security-service";
 import type { User, BankAccount } from "@/lib/types/user";
 import type { Transaction } from "@/lib/types/transaction";
 import type { Wallet } from "@/lib/types/wallet";
@@ -342,6 +347,11 @@ export class PaymentService {
 
       // Referral bonus reads — all before any write
 
+      const fundingSourceHash = extractFundingSourceHash(flwData);
+      if (fundingSourceHash) {
+        await recordFundingSourceHash(tx, userId, fundingSourceHash);
+      }
+
       if (amountKobo >= payoutSettings.referralMinDepositKobo) {
         const refereeSnap = await tx.get(this.usersCol.doc(userId));
         if (refereeSnap.exists) {
@@ -394,29 +404,17 @@ export class PaymentService {
       // 2b. Credit wallet balance (write-only — no tx.get inside)
       await creditWalletBalance(tx, userId, amountKobo, "deposit");
 
-      // 2c. Referral bonus (write-only)
+      // 2c. Referral bonus is created as a pending payout and only released
+      // after the referee fulfills the required contribution threshold.
       if (shouldAwardBonus && referrerId) {
-        const bonusTxRef = this.txCol.doc();
-        tx.set(bonusTxRef, {
-          userId: referrerId,
-          circleId: null,
-          type: "referral_bonus",
-          direction: "credit",
-          amount: payoutSettings.referralBonusKobo,
-          fee: 0,
-          netAmount: payoutSettings.referralBonusKobo,
-          status: "success",
-          reference: bonusTxRef.id,
-          description: `Referral bonus — new member made first deposit`,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-        tx.update(this.walletsCol.doc(referrerId), {
-          available: FieldValue.increment(payoutSettings.referralBonusKobo),
-          referralEarnings: FieldValue.increment(payoutSettings.referralBonusKobo),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        await createPendingReferralBonus(
+          tx,
+          referrerId,
+          userId,
+          payoutSettings.referralBonusKobo,
+          txRef,
+          fundingSourceHash
+        );
       }
     });
 
@@ -448,20 +446,6 @@ export class PaymentService {
       }
     }
     
-    // If a referral bonus was awarded in the transaction, trigger referral milestone
-    try {
-      if (shouldAwardBonus && referrerId) {
-        const bonusSnap = await this.txCol
-          .where("userId", "==", referrerId)
-          .where("type", "==", "referral_bonus")
-          .where("status", "==", "success")
-          .get();
-        const totalReferrals = bonusSnap.size;
-        void eventTrigger.triggerReferralMilestone(referrerId, totalReferrals);
-      }
-    } catch (err) {
-      console.error("Failed to trigger referral milestone:", err);
-    }
   }
 
   // ─── Private: reconcile pending Flutterwave deposits and withdrawals ───────────

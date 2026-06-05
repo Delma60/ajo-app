@@ -9,6 +9,7 @@ import {
 import { creditWallet } from "@/lib/services/wallet-service";
 import { sendNotification } from "@/lib/services/notification-service";
 import { parseTimestamp } from "@/lib/utils";
+import type { User } from "@/lib/types/user";
 
 /**
  * Main entry point: evaluate all active events for a trigger and issue rewards
@@ -75,6 +76,11 @@ export async function checkEligibility(
   triggerData: Record<string, any>,
 ): Promise<boolean> {
   try {
+    const userSnap = await adminDb.collection("users").doc(userId).get();
+    if (!userSnap.exists) return false;
+    const user = userSnap.data() as User;
+    if (user.security?.flaggedForRewards) return false;
+
     // 1. Check if user already has a claim for this event
     const claimsRef = adminDb.collection("event_claims");
     const userClaimsSnap = await claimsRef

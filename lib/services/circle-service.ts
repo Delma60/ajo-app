@@ -26,6 +26,7 @@ import {
   sendLatePaymentWarning,
   sendContributionReceipt,
 } from "@/lib/services/circle-notification-helpers";
+import { releasePendingReferralBonuses } from "@/lib/services/security-service";
 import {
   recordOnTimePayment,
   recordLatePayment,
@@ -574,6 +575,12 @@ export class CircleService {
       }
     } catch (err) {
       console.error("Failed to compute contribution streak:", err);
+    }
+
+    try {
+      void releasePendingReferralBonuses(userId);
+    } catch (err) {
+      console.error("Failed to release pending referral bonuses:", err);
     }
 
     return contribResult;

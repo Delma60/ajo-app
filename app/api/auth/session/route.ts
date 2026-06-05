@@ -1,6 +1,7 @@
 // app/api/auth/session/route.ts
 import { cookies } from "next/headers";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { recordLoginMetadata, type DeviceMetadata } from "@/lib/services/security-service";
 
 const SESSION_COOKIE_NAME = "__session";
 const USER_META_COOKIE_NAME = "__user_meta";
@@ -8,7 +9,7 @@ const SESSION_DURATION_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
 
 export async function POST(request: Request) {
   try {
-    const { idToken } = await request.json();
+    const { idToken, deviceId, userAgent } = await request.json();
 
     if (!idToken || typeof idToken !== "string") {
       return Response.json(
@@ -25,7 +26,15 @@ export async function POST(request: Request) {
     // 2. Decode the token to get the uid
     const decoded = await adminAuth.verifyIdToken(idToken);
 
-    // 3. Fetch user profile for the meta cookie
+    // 3. Record device / user-agent metadata for fraud detection
+    const loginMetadata: DeviceMetadata = {
+      deviceId: typeof deviceId === "string" ? deviceId : undefined,
+      userAgent: typeof userAgent === "string" ? userAgent : undefined,
+      ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? undefined,
+    };
+    await recordLoginMetadata(decoded.uid, loginMetadata);
+
+    // 4. Fetch user profile for the meta cookie
     const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
     const userData = userSnap.data();
 

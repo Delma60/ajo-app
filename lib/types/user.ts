@@ -28,6 +28,31 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   email_disputeUpdates: true,
 };
 
+export interface KycIdentity {
+  fullName: string;
+  bvn?: string | null;
+  nin?: string | null;
+  verifiedAt?: any;
+  verifiedBy?: string;
+}
+
+export interface UserTrustScoreBreakdown {
+  onTimeContributions: number;
+  lateContributions: number;
+  missedContributions: number;
+  lastUpdated: any;
+}
+
+export interface UserSecurityProfile {
+  deviceIds?: string[];
+  ipAddresses?: string[];
+  fundingSourceHashes?: string[];
+  flaggedForRewards?: boolean;
+  sharedFundingSourceCount?: number;
+  suspiciousDeviceCount?: number;
+  lastSeenAt?: any;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -43,6 +68,11 @@ export interface User {
   bankAccounts: BankAccount[];
   onboardingComplete: boolean;
   notificationPrefs?: NotificationPrefs;
+  kycStatus?: 'none' | 'pending' | 'verified' | 'rejected';
+  kycIdentity?: KycIdentity;
+  trustScore?: number;
+  trustScoreBreakdown?: UserTrustScoreBreakdown;
+  security?: UserSecurityProfile;
   createdAt: any;
   updatedAt: any;
 }
