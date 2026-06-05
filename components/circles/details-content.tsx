@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ContributionDialog } from "@/components/circles/contribution-dialog";
 import { BidDialog } from "@/components/circles/bid-dialog";
+import { CircleChat } from "@/components/circles/circle-chat";
 import { MembersList } from "@/components/circles/members-list";
 import { LeaveCircleDialog } from "@/components/circles/leave-circle-dialog";
 import { PendingRequests } from "@/components/circles/pending-requests";
@@ -636,6 +637,7 @@ export function CircleDetailContent({
               Members ({circle.memberIds.length})
             </TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="forum">Forum</TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="requests">
                 Requests
@@ -674,6 +676,10 @@ export function CircleDetailContent({
                 </p>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="forum" className="pt-4">
+            <CircleChat circle={circle} />
           </TabsContent>
 
           {isAdmin && (

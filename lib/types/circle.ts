@@ -45,6 +45,17 @@ export interface Circle {
 // Derived field — always compute at read time, never store
 export type CircleWithGoal = Circle & { goal: number };
 
+export interface CircleChatMessage {
+  id: string;
+  circleId: string;
+  userId: string;
+  senderName: string;
+  senderAvatarUrl?: string | null;
+  text: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
 export const FREQ_LABELS: Record<Circle["frequency"], string> = {
   daily: "Daily",
   weekly: "Weekly",
